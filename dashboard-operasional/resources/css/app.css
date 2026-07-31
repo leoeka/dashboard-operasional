@@ -1,3 +1,11 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+body { font-family: 'Inter', sans-serif; background:#F4F6FB; }
+
+.grad-purple { background: linear-gradient(135deg, #8B5CF6 0%, #4F7CF0 100%); }
+.grad-blue   { background: linear-gradient(135deg, #4F7CF0 0%, #7C3AED 100%); }
+.grad-orange { background: linear-gradient(135deg, #FB923C 0%, #F472B6 100%); }
+.grad-teal   { background: linear-gradient(135deg, #2DD4BF 0%, #3B82F6 100%); }
+.nav-active  { color:#3b6fe0; background:#EEF4FF; font-weight:600; }
