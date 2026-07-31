@@ -5,6 +5,7 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PageController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SettingController;
 
 /*
 |--------------------------------------------------------------------------
@@ -59,9 +60,8 @@ Route::middleware(['auth'])->group(function () {
     })->name('pages.reports');
 
     // 10. Settings
-    Route::get('/settings', function () {
-        return view('pages.settings');
-    })->name('pages.settings');
+    Route::get('/settings', [SettingController::class, 'index'])->name('pages.settings');
+    Route::post('/settings/language', [SettingController::class, 'updateLanguage'])->name('pages.settings.language');
 
 
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile');

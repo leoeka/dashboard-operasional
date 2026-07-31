@@ -39,14 +39,13 @@ class Project extends Model
     public function statusColor(): string
     {
         return match ($this->status) {
-            'request'     => 'bg-slate-100 text-slate-600',
-            'proposal'    => 'bg-purple-100 text-purple-600',
-            'mockup'      => 'bg-blue-100 text-blue-600',
-            'development' => 'bg-amber-100 text-amber-600',
-            'qa'          => 'bg-pink-100 text-pink-600',
-            'active'      => 'bg-emerald-100 text-emerald-600',
-            'done'        => 'bg-emerald-100 text-emerald-600',
-            default       => 'bg-slate-100 text-slate-600',
+            'request' => 'slate',
+            'proposal' => 'purple',
+            'mockup' => 'blue',
+            'development' => 'amber',
+            'qa' => 'pink',
+            'active', 'done' => 'emerald',
+            default => 'slate',
         };
     }
 }
