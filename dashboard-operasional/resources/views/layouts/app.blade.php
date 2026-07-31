@@ -38,10 +38,10 @@
 
     {{-- SIDEBAR --}}
     <aside class="w-64 bg-white border-r border-slate-100 flex-shrink-0 flex flex-col">
-        <div class="px-6 py-6 flex items-center gap-2">
+        <!-- <div class="px-6 py-6 flex items-center gap-2">
             <div class="w-8 h-8 rounded-lg grad-purple"></div>
             <span class="text-lg font-bold text-slate-800">SiteFlow</span>
-        </div>
+        </div> -->
 
         <div class="px-6 pb-6 flex items-center gap-3">
             <img src="https://ui-avatars.com/api/?name=Dimas&background=4F7CF0&color=fff" class="w-9 h-9 rounded-full" alt="avatar">
