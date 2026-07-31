@@ -9,3 +9,4 @@ body { font-family: 'Inter', sans-serif; background:#F4F6FB; }
 .grad-orange { background: linear-gradient(135deg, #FB923C 0%, #F472B6 100%); }
 .grad-teal   { background: linear-gradient(135deg, #2DD4BF 0%, #3B82F6 100%); }
 .nav-active  { color:#3b6fe0; background:#EEF4FF; font-weight:600; }
+[x-cloak] { display: none !important; }

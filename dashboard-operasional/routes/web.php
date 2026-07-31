@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PageController;
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\ProfileController;
 
 /*
 |--------------------------------------------------------------------------
@@ -27,6 +28,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/qa', [PageController::class, 'qa'])->name('qa');
     Route::get('/reports', [PageController::class, 'reports'])->name('reports');
     Route::get('/settings', [PageController::class, 'settings'])->name('settings');
+
+    Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
+    Route::post('/logout', [ProfileController::class, 'logout'])->name('logout');
 });
 
 
