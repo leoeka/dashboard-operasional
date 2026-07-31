@@ -62,6 +62,10 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/settings', function () {
         return view('pages.settings');
     })->name('pages.settings');
+
+
+    Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
+    Route::post('/logout', [ProfileController::class, 'logout'])->name('logout');
 });
 
 
