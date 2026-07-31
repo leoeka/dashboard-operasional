@@ -51,7 +51,7 @@
                         <i class='bx bx-lock-alt text-xl'></i>
                     </span>
                     <input id="password" type="password" name="password" required
-                           placeholder="••••••••"
+                           placeholder="Masukkan Password"
                            class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all placeholder:text-slate-400" />
                 </div>
                 @error('password')

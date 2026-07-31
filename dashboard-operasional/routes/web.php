@@ -16,18 +16,52 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth'])->group(function () {
     Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
-    Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
-    Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
 
-    Route::get('/request-project', [PageController::class, 'requestProject'])->name('request-project');
-    Route::get('/proposal-ai', [PageController::class, 'proposalAi'])->name('proposal-ai');
-    Route::get('/mockup-ai', [PageController::class, 'mockupAi'])->name('mockup-ai');
-    Route::get('/website-generator', [PageController::class, 'websiteGenerator'])->name('website-generator');
-    Route::get('/ai-workspace', [PageController::class, 'aiWorkspace'])->name('ai-workspace');
-    Route::get('/qa', [PageController::class, 'qa'])->name('qa');
-    Route::get('/reports', [PageController::class, 'reports'])->name('reports');
-    Route::get('/settings', [PageController::class, 'settings'])->name('settings');
+    // 2. CRM
+    Route::get('/crm', function () {
+        return view('pages.crm');
+    })->name('pages.crm');
+
+    // 3. Project
+    Route::get('/projects', function () {
+        return view('pages.projects');
+    })->name('pages.projects');
+
+    // 4. Request Order
+    Route::get('/request-order', function () {
+        return view('pages.request');
+    })->name('pages.request');
+
+    // 5. AI Workspace
+    Route::get('/ai-workspace', function () {
+        return view('pages.ai-workspace');
+    })->name('pages.ai-workspace');
+
+    // 6. Mockup
+    Route::get('/mockup', function () {
+        return view('pages.mockup');
+    })->name('pages.mockup');
+
+    // 7. Website
+    Route::get('/website', function () {
+        return view('pages.website');
+    })->name('pages.website');
+
+    // 8. Finance
+    Route::get('/finance', function () {
+        return view('pages.finance');
+    })->name('pages.finance');
+
+    // 9. Reports
+    Route::get('/reports', function () {
+        return view('pages.reports');
+    })->name('pages.reports');
+
+    // 10. Settings
+    Route::get('/settings', function () {
+        return view('pages.settings');
+    })->name('pages.settings');
 });
 
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';
