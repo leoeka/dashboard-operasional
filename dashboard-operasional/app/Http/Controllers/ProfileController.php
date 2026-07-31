@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\ProfileUpdateRequest;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
 use Illuminate\View\View;
@@ -12,7 +12,40 @@ use Illuminate\View\View;
 class ProfileController extends Controller
 {
     /**
-     * Display the user's profile form.
+     * Menampilkan halaman profile.
+     */
+    public function index()
+    {
+        $authUser = Auth::user();
+
+        // Fallback dipakai kalau belum login (mis. saat masih development)
+        // atau kalau kolom phone/role/joined belum ada di tabel users.
+        $user = [
+            'name' => $authUser->name ?? 'Dimas Prakoso',
+            'role' => $authUser->role ?? 'Project Manager',
+            'email' => $authUser->email ?? 'dimas@siteflow.id',
+            'phone' => $authUser->phone ?? null,
+            'joined' => $authUser?->created_at?->translatedFormat('F Y') ?? null,
+        ];
+
+        return view('profile.index', compact('user'));
+    }
+
+    /**
+     * Logout user.
+     */
+    public function logout(Request $request): RedirectResponse
+    {
+        Auth::logout();
+
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
+
+        return redirect()->route('login');
+    }
+
+    /**
+     * Menampilkan form edit profile.
      */
     public function edit(Request $request): View
     {
@@ -22,7 +55,7 @@ class ProfileController extends Controller
     }
 
     /**
-     * Update the user's profile information.
+     * Update profile user.
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
@@ -34,11 +67,12 @@ class ProfileController extends Controller
 
         $request->user()->save();
 
-        return Redirect::route('profile.edit')->with('status', 'profile-updated');
+        return Redirect::route('profile.edit')
+            ->with('status', 'profile-updated');
     }
 
     /**
-     * Delete the user's account.
+     * Hapus akun user.
      */
     public function destroy(Request $request): RedirectResponse
     {
