@@ -6,11 +6,23 @@ use App\Models\ActivityLog;
 use App\Models\Project;
 use App\Models\Proposal;
 use Illuminate\Database\Seeder;
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+
+        User::firstOrCreate(
+            [
+                'name' => 'exitobali',
+                'username' => 'exitobali',
+                'email' => 'exitobali@example.com',
+                'password' => Hash::make('exitobali123'),
+            ]
+        );
+
         $projects = [
             ['code' => 'ABC-0142', 'client_name' => 'PT ABC', 'type' => 'Company Profile', 'status' => 'proposal', 'progress' => 20, 'value' => 12000000, 'deadline' => now()->addDays(5)],
             ['code' => 'XYZ-0138', 'client_name' => 'PT XYZ', 'type' => 'E-commerce', 'status' => 'mockup', 'progress' => 40, 'value' => 18500000, 'deadline' => now()->addDays(8)],
