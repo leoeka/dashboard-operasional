@@ -1,20 +1,29 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\PageController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('welcome');
-});
+/*
+|--------------------------------------------------------------------------
+| Web Routes - SiteFlow
+|--------------------------------------------------------------------------
+| Mengikuti struktur sidebar:
+| Dashboard, Request Project, Proposal AI, Mockup AI, Website Generator,
+| Projects, AI Workspace, QA, Reports, Settings
+*/
 
-Route::get('/dashboard', function () {
-    return view('dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
-Route::middleware('auth')->group(function () {
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
-});
+Route::get('/projects', [ProjectController::class, 'index'])->name('projects.index');
+Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('projects.show');
 
-require __DIR__.'/auth.php';
+Route::get('/request-project', [PageController::class, 'requestProject'])->name('request-project');
+Route::get('/proposal-ai', [PageController::class, 'proposalAi'])->name('proposal-ai');
+Route::get('/mockup-ai', [PageController::class, 'mockupAi'])->name('mockup-ai');
+Route::get('/website-generator', [PageController::class, 'websiteGenerator'])->name('website-generator');
+Route::get('/ai-workspace', [PageController::class, 'aiWorkspace'])->name('ai-workspace');
+Route::get('/qa', [PageController::class, 'qa'])->name('qa');
+Route::get('/reports', [PageController::class, 'reports'])->name('reports');
+Route::get('/settings', [PageController::class, 'settings'])->name('settings');
