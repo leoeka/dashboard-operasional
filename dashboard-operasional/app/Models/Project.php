@@ -11,19 +11,28 @@ class Project extends Model
 
     protected $fillable = [
         'code',
+        'name',
         'client_name',
         'type',
         'status',
         'progress',
-        'value',
         'deadline',
     ];
 
     protected $casts = [
         'deadline' => 'date',
         'progress' => 'integer',
-        'value' => 'decimal:2',
     ];
+
+    public function tasks()
+    {
+        return $this->hasMany(ProjectTask::class)->orderBy('position');
+    }
+
+    public function files()
+    {
+        return $this->hasMany(ProjectFile::class)->latest();
+    }
 
     public function proposals()
     {
@@ -49,5 +58,34 @@ class Project extends Model
         };
     }
 
-    
+    public function statusLabel(): string
+    {
+        return match ($this->status) {
+            'request' => 'Request',
+            'proposal' => 'Proposal',
+            'mockup' => 'Mockup',
+            'development' => 'Development',
+            'qa' => 'QA',
+            'active' => 'Aktif',
+            'done' => 'Selesai',
+            default => ucfirst($this->status),
+        };
+    }
+
+    public function recalculateProgress(): int
+    {
+        $total = $this->tasks()->count();
+        $progress = $total === 0 ? 0 : (int) round(($this->tasks()->where('is_done', true)->count() / $total) * 100);
+
+        $this->update(['progress' => $progress]);
+
+        return $progress;
+    }
+
+    public function logActivity(string $description): void
+    {
+        $this->activityLogs()->create(['description' => $description]);
+    }
+
+
 }

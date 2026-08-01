@@ -9,22 +9,20 @@
         <form method="POST" action="{{ route('logout') }}">
             @csrf
             <button type="submit"
-                class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition">
+                    class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-red-500 bg-red-50 hover:bg-red-100 transition">
                 <i class='bx bx-log-out text-lg'></i>
                 Logout
             </button>
         </form>
     </div>
 
-    <div class="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-
-        {{-- Header gradien --}}
+    <x-card padding="p-0">
         <div class="grad-purple h-20 relative"></div>
 
         <div class="px-8 pb-8">
             <div class="flex items-center gap-4 pt-6 mb-6">
                 <img src="https://ui-avatars.com/api/?name={{ urlencode($user['name']) }}&background=4F7CF0&color=fff&size=128"
-                    class="w-20 h-20 rounded-full border-4 border-white flex-shrink-0" alt="avatar">
+                     class="w-20 h-20 rounded-full border-4 border-white flex-shrink-0" alt="avatar">
                 <div class="pt-8">
                     <p class="text-lg font-bold text-slate-800">{{ $user['name'] }}</p>
                     <p class="text-sm text-slate-400">{{ $user['role'] ?? 'Belum diisi' }}</p>
@@ -54,6 +52,6 @@
                 Edit Profil
             </button>
         </div>
-    </div>
+    </x-card>
 
 @endsection

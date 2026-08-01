@@ -6,13 +6,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>SiteFlow — @yield('title', 'Dashboard')</title>
 
-    {{-- Tailwind via CDN agar bisa langsung jalan tanpa build step.
-    Nanti bisa dipindah ke Vite + Tailwind resmi kalau proyek sudah stabil. --}}
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://unpkg.com/alpinejs@3.14.1/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
-            darkMode: 'class',
             theme: {
                 extend: {
                     fontFamily: {
@@ -40,34 +37,17 @@
             background: #F4F6FB;
         }
 
-        .grad-purple {
-            background: linear-gradient(135deg, #8B5CF6 0%, #4F7CF0 100%);
-        }
+        .grad-purple { background: linear-gradient(135deg, #8B5CF6 0%, #4F7CF0 100%); }
+        .grad-blue   { background: linear-gradient(135deg, #4F7CF0 0%, #7C3AED 100%); }
+        .grad-orange { background: linear-gradient(135deg, #FB923C 0%, #F472B6 100%); }
+        .grad-teal   { background: linear-gradient(135deg, #2DD4BF 0%, #3B82F6 100%); }
 
-        .grad-blue {
-            background: linear-gradient(135deg, #4F7CF0 0%, #7C3AED 100%);
-        }
-
-        .grad-orange {
-            background: linear-gradient(135deg, #FB923C 0%, #F472B6 100%);
-        }
-
-        .grad-teal {
-            background: linear-gradient(135deg, #2DD4BF 0%, #3B82F6 100%);
-        }
-
-        .nav-active {
-            color: #3b6fe0;
-            background: #EEF4FF;
-            font-weight: 600;
-        }
+        .nav-active { color: #3b6fe0; background: #EEF4FF; font-weight: 600; }
     </style>
 </head>
 
 <body class="min-h-screen">
-    {{-- Cek apakah halaman ini adalah halaman Auth (Login) --}}
     @hasSection('auth')
-        {{-- Tampilan khusus Halaman Auth / Login (Tanpa Sidebar & Topbar) --}}
         <main class="min-h-screen flex items-center justify-center p-4">
             @yield('content')
         </main>
@@ -80,17 +60,6 @@
                     {{-- <div class="w-8 h-8 rounded-lg grad-purple"></div> --}}
                     {{-- <span class="text-lg font-bold text-slate-800">SiteFlow</span> --}}
                 </div>
-
-                <!-- <div class="px-6 pb-6 flex items-center gap-3">
-                                <a href="{{ route('profile') }}">
-                                    <img src="https://ui-avatars.com/api/?name=Dimas&background=4F7CF0&color=fff"
-                                        class="w-8 h-8 rounded-full" alt="avatar">
-                                </a>
-                                <div>
-                                    <p class="text-sm font-semibold text-slate-800">Dimas Prakoso</p>
-                                    <p class="text-xs text-slate-400">Project Manager</p>
-                                </div>
-                            </div> -->
 
                 <nav class="flex-1 px-3 space-y-1 overflow-y-auto">
                     @php
@@ -110,20 +79,13 @@
 
                     @foreach ($menu as $item)
                         <a href="{{ route($item['route']) }}"
-                            class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:bg-slate-50 transition
-                          {{ request()->routeIs($item['route']) ? 'nav-active' : '' }}">
+                           class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-slate-500 hover:bg-slate-50 transition
+                                  {{ request()->routeIs($item['route']) ? 'nav-active' : '' }}">
                             <i class='bx {{ $item['icon'] }} text-lg'></i>
                             {{ $item['label'] }}
                         </a>
                     @endforeach
                 </nav>
-
-                {{-- <div class="p-4">
-                    <a href="{{ route('request-project') }}"
-                        class="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg text-white text-sm font-semibold grad-blue hover:opacity-90 transition">
-                        <i class='bx bx-plus'></i> Proyek Baru
-                    </a>
-                </div> --}}
             </aside>
 
             {{-- MAIN --}}
@@ -134,7 +96,7 @@
                     <div class="flex items-center gap-2 text-slate-400 bg-slate-50 rounded-lg px-3 py-2 w-80">
                         <i class='bx bx-search'></i>
                         <input type="text" placeholder="Cari proyek atau klien..."
-                            class="bg-transparent outline-none text-sm w-full text-slate-600 placeholder:text-slate-400">
+                               class="bg-transparent outline-none text-sm w-full text-slate-600 placeholder:text-slate-400">
                     </div>
                     <div class="flex items-center gap-5 text-slate-400">
                         <i class='bx bx-bell text-xl'></i>
@@ -143,15 +105,15 @@
                         <div class="relative" x-data="{ open: false }">
                             <button @click="open = !open" class="block">
                                 <img src="https://ui-avatars.com/api/?name={{ urlencode(auth()->user()->name ?? 'Guest') }}&background=4F7CF0&color=fff"
-                                    class="w-8 h-8 rounded-full" alt="avatar">
+                                     class="w-8 h-8 rounded-full" alt="avatar">
                             </button>
 
                             <div x-show="open" @click.outside="open = false" x-cloak x-transition
-                                class="absolute right-0 mt-3 w-40 bg-white rounded-xl border border-slate-100 shadow-lg p-2 z-50">
+                                 class="absolute right-0 mt-3 w-40 bg-white rounded-xl border border-slate-100 shadow-lg p-2 z-50">
                                 <form method="POST" action="{{ route('logout') }}">
                                     @csrf
                                     <button type="submit"
-                                        class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-red-500 hover:bg-red-50 transition">
+                                            class="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-red-500 hover:bg-red-50 transition">
                                         <i class='bx bx-log-out text-lg'></i>
                                         Logout
                                     </button>

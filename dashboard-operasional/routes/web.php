@@ -29,12 +29,20 @@ Route::middleware(['auth'])->group(function () {
     // 2. Route Dynamic Parameter (Taruh Paling Bawah)
     Route::get('/clients/{client}', [RequestOrderController::class, 'clientView'])->name('pages.crm-view');
 
-    
-    // 3. Project
-    Route::get('/projects', function () {
-        return view('pages.projects');
-    })->name('pages.projects');
 
+    // 3. Project
+    Route::get('/projects', [ProjectController::class, 'index'])->name('pages.projects');
+    Route::get('/projects/create', [ProjectController::class, 'create'])->name('pages.projects.create');
+    Route::post('/projects', [ProjectController::class, 'store'])->name('pages.projects.store');
+    Route::get('/projects/{project}', [ProjectController::class, 'show'])->name('pages.projects.show');
+    Route::get('/projects/{project}/edit', [ProjectController::class, 'edit'])->name('pages.projects.edit');
+    Route::put('/projects/{project}', [ProjectController::class, 'update'])->name('pages.projects.update');
+    Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->name('pages.projects.destroy');
+    Route::post('/projects/{project}/tasks', [ProjectController::class, 'storeTask'])->name('pages.projects.tasks.store');
+    Route::patch('/projects/{project}/tasks/{task}/toggle', [ProjectController::class, 'toggleTask'])->name('pages.projects.tasks.toggle');
+    Route::delete('/projects/{project}/tasks/{task}', [ProjectController::class, 'destroyTask'])->name('pages.projects.tasks.destroy');
+    Route::post('/projects/{project}/files', [ProjectController::class, 'storeFile'])->name('pages.projects.files.store');
+    Route::delete('/projects/{project}/files/{file}', [ProjectController::class, 'destroyFile'])->name('pages.projects.files.destroy');
 
     // 5. AI Workspace
     Route::get('/ai-workspace', function () {
