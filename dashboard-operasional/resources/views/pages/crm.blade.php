@@ -50,13 +50,13 @@
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr
-                        class="bg-gray-50 border-b border-gray-200 text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                        <th class="px-6 py-3">Perusahaan</th>
-                        <th class="px-6 py-3">Nama Kontak</th>
-                        <th class="px-6 py-3">Kontak Info</th>
-                        <th class="px-6 py-3">Jumlah Project</th>
-                        <th class="px-6 py-3">Tanggal Dibuat</th>
-                        <th class="px-6 py-3 text-center">Aksi</th>
+                       class="text-left text-slate-400 border-b border-slate-100">
+                        <th class="px-6 py-4 font-medium">Perusahaan</th>
+                        <th class="px-6 py-4 font-medium">Nama Kontak</th>
+                        <th class="px-6 py-4 font-medium">Kontak Info</th>
+                        <th class="px-6 py-4 font-medium">Jumlah Project</th>
+                        <th class="px-6 py-4 font-medium">Tanggal Dibuat</th>
+                        <th class="px-6 py-4 font-medium text-center">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 text-sm text-gray-700">
