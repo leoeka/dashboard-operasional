@@ -61,7 +61,6 @@ Route::middleware(['auth'])->group(function () {
 
     // 10. Settings
     Route::get('/settings', [SettingController::class, 'index'])->name('pages.settings');
-    Route::post('/settings/language', [SettingController::class, 'updateLanguage'])->name('pages.settings.language');
 
 
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
