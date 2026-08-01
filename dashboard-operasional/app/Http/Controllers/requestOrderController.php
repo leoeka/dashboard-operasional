@@ -52,27 +52,42 @@ class requestOrderController extends Controller
 
             // B. Simpan Project
             $project = $client->projects()->create([
-                'website_type' => $validated['website_type'],
-                'status' => 'draft', // Set default status draft
-                'created_by' => Auth::id(),
+                // 'website_type' => $validated['website_type'],
+                // 'status' => 'draft', // Set default status draft
+                // 'created_by' => Auth::id(),
+                'name' => "Website {$validated['company_name']}",
+                'client_name' => $validated['client_name'],
+                'type' => $validated['website_type'],
+                'status' => 'request',
+                'progress' => 0,
             ]);
 
             // C. Simpan Requirements (Terhubung ke Project)
-            $project->requirement()->create([
-                'business_type' => $validated['business_type'],
-                'business_description' => $validated['business_description'],
-                'business_goal' => $validated['business_goal'],
+            // $project->requirement()->create([
+            //     // 'business_type' => $validated['business_type'],
+            //     // 'business_description' => $validated['business_description'],
+            //     // 'business_goal' => $validated['business_goal'],
+
+            // ]);
+            $project->update([
+                'requirement_notes' => "Jenis usaha: {$validated['business_type']}\nDeskripsi: {$validated['business_description']}\nTujuan: {$validated['business_goal']}",
             ]);
 
             // D. Simpan Assets (Jika ada lampiran file)
             if ($request->hasFile('assets')) {
                 foreach ($request->file('assets') as $file) {
-                    $path = $file->store('project-assets', 'public');
+                    // $path = $file->store('project-assets', 'public');
 
-                    $project->assets()->create([
+                    // $project->assets()->create([
+                    //     'file_path' => $path,
+                    //     'file_name' => $file->getClientOriginalName(),
+                    //     'file_type' => $file->getClientMimeType(),
+                    $path = $file->store('project-files', 'public');
+
+                    $project->files()->create([
+                        'original_name' => $file->getClientOriginalName(),
                         'file_path' => $path,
-                        'file_name' => $file->getClientOriginalName(),
-                        'file_type' => $file->getClientMimeType(),
+                        'category' => 'pendukung',
                     ]);
                 }
             }
@@ -80,7 +95,7 @@ class requestOrderController extends Controller
             // Commit jika semua proses berhasil
             DB::commit();
 
-            return redirect()->route('projects.index')
+            return redirect()->route('pages.projects.show', $project)
                 ->with('success', 'Draft proyek berhasil disimpan!');
 
         } catch (\Exception $e) {
@@ -112,7 +127,7 @@ class requestOrderController extends Controller
 
     public function clientView(Client $client)
     {
-        $client->load(['projects.requirement', 'projects.assets']);
+         $client->load(['projects']);
 
         return view('pages.crm-view', compact('client'));
     }

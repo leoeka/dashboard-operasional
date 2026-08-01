@@ -16,6 +16,20 @@
             @if ($project->exists) @method('PUT') @endif
 
             <div>
+                <label class="text-sm font-medium text-slate-600 mb-1 block">Client (dari CRM)</label>
+                <select name="client_id"
+                        onchange="document.querySelector('[name=client_name]').value = this.options[this.selectedIndex].dataset.name || ''"
+                        class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                    <option value="">-- Tanpa data client di CRM --</option>
+                    @foreach ($clients as $c)
+                        <option value="{{ $c->id }}" data-name="{{ $c->company_name }}" @selected(old('client_id', $project->client_id) == $c->id)>
+                            {{ $c->company_name }} ({{ $c->contact_name }})
+                        </option>
+                    @endforeach
+                </select>
+            </div>
+
+            <div>
                 <label class="text-sm font-medium text-slate-600 mb-1 block">Nama Project</label>
                 <input type="text" name="name" value="{{ old('name', $project->name) }}" placeholder="mis. Website PT ABC"
                        class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
@@ -23,10 +37,11 @@
             </div>
 
             <div>
-                <label class="text-sm font-medium text-slate-600 mb-1 block">Nama Client</label>
+                <label class="text-sm font-medium text-slate-600 mb-1 block">Nama Client (tampil di tabel)</label>
                 <input type="text" name="client_name" value="{{ old('client_name', $project->client_name) }}"
                        class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                 @error('client_name') <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
+                <p class="text-xs text-slate-400 mt-1">Otomatis terisi kalau pilih Client di atas. Bisa diedit manual kalau perlu.</p>
             </div>
 
             <div>

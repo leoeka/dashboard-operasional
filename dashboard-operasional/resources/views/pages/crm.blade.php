@@ -90,7 +90,7 @@
                                     {{ $client->created_at ? $client->created_at->format('d M Y') : '-' }}
                                 </td>
                                 <td class="px-6 py-4 text-center">
-                                    <a href="{{ route('clients.show', $client->id) }}"
+                                    <a href="{{ route('pages.crm-view', $client->id) }}"
                                         class="inline-block bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1 rounded text-xs font-medium border border-blue-200">
                                         Detail
                                     </a>

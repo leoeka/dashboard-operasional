@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Client;
 use App\Models\Project;
 use App\Models\ProjectFile;
 use App\Models\ProjectTask;
@@ -12,7 +13,14 @@ use Illuminate\Support\Str;
 class ProjectController extends Controller
 {
     private array $defaultTasks = [
-        'Homepage', 'About', 'Services', 'Gallery', 'Contact', 'Blog', 'SEO', 'QA',
+        'Homepage',
+        'About',
+        'Services',
+        'Gallery',
+        'Contact',
+        'Blog',
+        'SEO',
+        'QA',
     ];
 
     public function index(Request $request)
@@ -20,15 +28,15 @@ class ProjectController extends Controller
         $projects = Project::query()
             ->when($request->search, function ($q) use ($request) {
                 $q->where('name', 'like', "%{$request->search}%")
-                  ->orWhere('client_name', 'like', "%{$request->search}%");
+                    ->orWhere('client_name', 'like', "%{$request->search}%");
             })
-            ->when($request->status, fn ($q) => $q->where('status', $request->status))
+            ->when($request->status, fn($q) => $q->where('status', $request->status))
             ->when($request->deadline, function ($q) use ($request) {
                 match ($request->deadline) {
-                    'week'     => $q->whereBetween('deadline', [now()->startOfWeek(), now()->endOfWeek()]),
-                    'month'    => $q->whereBetween('deadline', [now()->startOfMonth(), now()->endOfMonth()]),
-                    'overdue'  => $q->whereDate('deadline', '<', now())->whereNotIn('status', ['done']),
-                    default    => null,
+                    'week' => $q->whereBetween('deadline', [now()->startOfWeek(), now()->endOfWeek()]),
+                    'month' => $q->whereBetween('deadline', [now()->startOfMonth(), now()->endOfMonth()]),
+                    'overdue' => $q->whereDate('deadline', '<', now())->whereNotIn('status', ['done']),
+                    default => null,
                 };
             })
             ->latest()
@@ -40,17 +48,20 @@ class ProjectController extends Controller
 
     public function create()
     {
-        return view('projects.form', ['project' => new Project()]);
+        $clients = Client::orderBy('company_name')->get();
+
+        return view('projects.form', ['project' => new Project(), 'clients' => $clients]);
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'        => 'required|string|max:255',
+            'client_id' => 'nullable|exists:clients,id',
+            'name' => 'required|string|max:255',
             'client_name' => 'required|string|max:255',
-            'type'        => 'nullable|string|max:255',
-            'status'      => 'required|in:request,proposal,mockup,development,qa,active,done',
-            'deadline'    => 'nullable|date',
+            'type' => 'nullable|string|max:255',
+            'status' => 'required|in:request,proposal,mockup,development,qa,active,done',
+            'deadline' => 'nullable|date',
         ]);
 
         $data['code'] = strtoupper(Str::random(3)) . '-' . random_int(1000, 9999);
@@ -61,8 +72,8 @@ class ProjectController extends Controller
         foreach ($this->defaultTasks as $i => $title) {
             ProjectTask::create([
                 'project_id' => $project->id,
-                'title'      => $title,
-                'position'   => $i,
+                'title' => $title,
+                'position' => $i,
             ]);
         }
 
@@ -73,24 +84,27 @@ class ProjectController extends Controller
 
     public function show(Project $project)
     {
-        $project->load(['tasks', 'files', 'activityLogs']);
+        $project->load(['client', 'tasks', 'files', 'activityLogs']);
 
         return view('projects.show', compact('project'));
     }
 
     public function edit(Project $project)
     {
-        return view('projects.form', compact('project'));
+        $clients = Client::orderBy('company_name')->get();
+
+        return view('projects.form', compact('project', 'clients'));
     }
 
     public function update(Request $request, Project $project)
     {
         $data = $request->validate([
-            'name'        => 'required|string|max:255',
+            'client_id' => 'nullable|exists:clients,id',
+            'name' => 'required|string|max:255',
             'client_name' => 'required|string|max:255',
-            'type'        => 'nullable|string|max:255',
-            'status'      => 'required|in:request,proposal,mockup,development,qa,active,done',
-            'deadline'    => 'nullable|date',
+            'type' => 'nullable|string|max:255',
+            'status' => 'required|in:request,proposal,mockup,development,qa,active,done',
+            'deadline' => 'nullable|date',
         ]);
 
         $statusChanged = $project->status !== $data['status'];
@@ -119,8 +133,8 @@ class ProjectController extends Controller
 
         ProjectTask::create([
             'project_id' => $project->id,
-            'title'      => $request->title,
-            'position'   => $project->tasks()->count(),
+            'title' => $request->title,
+            'position' => $project->tasks()->count(),
         ]);
 
         $project->logActivity("Task ditambahkan: {$request->title}");
@@ -130,7 +144,7 @@ class ProjectController extends Controller
 
     public function toggleTask(Project $project, ProjectTask $task)
     {
-        $task->update(['is_done' => ! $task->is_done]);
+        $task->update(['is_done' => !$task->is_done]);
 
         $project->logActivity($task->is_done ? "{$task->title} selesai" : "{$task->title} dibuka lagi");
 
@@ -151,17 +165,17 @@ class ProjectController extends Controller
     public function storeFile(Request $request, Project $project)
     {
         $request->validate([
-            'file'     => 'required|file|max:20480',
+            'file' => 'required|file|max:20480',
             'category' => 'required|in:logo,company_profile,foto,dokumen,pendukung',
         ]);
 
         $path = $request->file('file')->store('project-files', 'public');
 
         ProjectFile::create([
-            'project_id'    => $project->id,
+            'project_id' => $project->id,
             'original_name' => $request->file('file')->getClientOriginalName(),
-            'file_path'     => $path,
-            'category'      => $request->category,
+            'file_path' => $path,
+            'category' => $request->category,
         ]);
 
         $label = ProjectFile::categoryLabels()[$request->category] ?? 'File';

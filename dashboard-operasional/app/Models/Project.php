@@ -9,7 +9,17 @@ class Project extends Model
 {
     use HasFactory;
 
+    protected static function booted(): void
+    {
+        static::creating(function (Project $project) {
+            if (empty($project->code)) {
+                $project->code = strtoupper(\Illuminate\Support\Str::random(3)) . '-' . random_int(1000, 9999);
+            }
+        });
+    }
+
     protected $fillable = [
+        'client_id',
         'code',
         'name',
         'client_name',
@@ -23,6 +33,11 @@ class Project extends Model
         'deadline' => 'date',
         'progress' => 'integer',
     ];
+
+    public function client()
+    {
+        return $this->belongsTo(Client::class);
+    }
 
     public function tasks()
     {
@@ -41,10 +56,9 @@ class Project extends Model
 
     public function activityLogs()
     {
-        return $this->hasMany(ActivityLog::class);
+        return $this->hasMany(ActivityLog::class)->latest();
     }
 
-    // Warna badge status untuk dipakai di view
     public function statusColor(): string
     {
         return match ($this->status) {
@@ -82,10 +96,13 @@ class Project extends Model
         return $progress;
     }
 
+    // Ditulis ke tabel activity_logs yang sudah ada (kolom: action, status), bukan tabel baru
     public function logActivity(string $description): void
     {
-        $this->activityLogs()->create(['description' => $description]);
+        $this->activityLogs()->create([
+            'client_name' => $this->client_name,
+            'action' => $description,
+            'status' => 'info',
+        ]);
     }
-
-
 }
