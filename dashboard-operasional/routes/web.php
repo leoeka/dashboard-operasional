@@ -21,21 +21,20 @@ Route::middleware(['auth'])->group(function () {
 
 
     // 2. CRM
-    Route::get('/crm', function () {
-        return view('pages.crm');
-    })->name('pages.crm');
+    // 1. Route Statis & Form (Taruh Paling Atas)
+    Route::get('/clients/view', [RequestOrderController::class, 'clients'])->name('pages.crm');
+    Route::get('/clients/create', [RequestOrderController::class, 'create'])->name('pages.request');
+    Route::post('/clients', [RequestOrderController::class, 'store'])->name('clients.store');
 
+    // 2. Route Dynamic Parameter (Taruh Paling Bawah)
+    Route::get('/clients/{client}', [RequestOrderController::class, 'clientView'])->name('pages.crm-view');
+
+    
     // 3. Project
     Route::get('/projects', function () {
         return view('pages.projects');
     })->name('pages.projects');
 
-    // 4. Request Order
-   // Menampilkan halaman form tambah client & project
-    Route::get('/clients/create', [requestOrderController::class, 'create'])->name('pages.request');
-
-    // Menyimpan data dari form
-    Route::post('/clients', [requestOrderController::class, 'store'])->name('clients.store');
 
     // 5. AI Workspace
     Route::get('/ai-workspace', function () {

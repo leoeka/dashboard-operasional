@@ -91,4 +91,29 @@ class requestOrderController extends Controller
                 ->with('error', 'Gagal menyimpan data: ' . $e->getMessage());
         }
     }
+
+    public function clients(Request $request)
+    {
+        $search = $request->input('search');
+
+        $clients = Client::with(['projects']) // Eager loading relasi projects
+            ->when($search, function ($query, $search) {
+                return $query->where('company_name', 'like', "%{$search}%")
+                    ->orWhere('contact_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
+            })
+            ->latest()
+            ->paginate(10)
+            ->withQueryString();
+
+        return view('pages.crm', compact('clients'));
+    }
+
+    public function clientView(Client $client)
+    {
+        $client->load(['projects.requirement', 'projects.assets']);
+
+        return view('pages.crm-view', compact('client'));
+    }
 }
