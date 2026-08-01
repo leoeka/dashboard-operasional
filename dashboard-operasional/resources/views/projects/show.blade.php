@@ -11,6 +11,9 @@
     @if (session('success'))
         <div class="mb-6 px-4 py-3 rounded-lg bg-emerald-50 text-emerald-600 text-sm">{{ session('success') }}</div>
     @endif
+    @if (session('error'))
+        <div class="mb-6 px-4 py-3 rounded-lg bg-red-50 text-red-600 text-sm">{{ session('error') }}</div>
+    @endif
 
     {{-- INFORMASI UMUM --}}
     <x-card class="mb-6">
@@ -89,63 +92,95 @@
             </div>
         </x-card>
 
-        {{-- FILES --}}
+        {{-- PROPOSAL --}}
         <x-card>
-            <h2 class="font-semibold text-slate-800 mb-4">Files</h2>
-
-            <form method="POST" action="{{ route('pages.projects.files.store', $project) }}" enctype="multipart/form-data"
-                class="flex gap-2 mb-4">
-                @csrf
-                <select name="category" class="bg-slate-50 text-slate-700 rounded-lg px-2 py-2 text-xs outline-none">
-                    <option value="logo">Logo</option>
-                    <option value="company_profile">Company Profile</option>
-                    <option value="foto">Foto</option>
-                    <option value="dokumen">Dokumen</option>
-                    <option value="pendukung">File Pendukung</option>
-                </select>
-                <input type="file" name="file" required
-                    class="flex-1 text-xs text-slate-500 file:mr-2 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:bg-slate-100 file:text-slate-600">
-                <button type="submit" class="grad-blue text-white text-sm px-4 rounded-lg hover:opacity-90 transition">
-                    <i class='bx bx-upload'></i>
-                </button>
-            </form>
-
-            <div class="divide-y divide-slate-100">
-                @forelse ($project->files as $file)
-                    <div class="py-3 flex items-center justify-between">
-                        <div class="flex items-center gap-2 min-w-0">
-                            @php $isImage = in_array(pathinfo($file->original_name, PATHINFO_EXTENSION), ['jpg', 'jpeg', 'png', 'gif', 'webp']); @endphp
-                            @if ($isImage)
-                                <img src="{{ $file->url() }}" class="w-9 h-9 rounded object-cover flex-shrink-0"
-                                    alt="{{ $file->original_name }}">
-                            @else
-                                <i class='bx bx-file text-slate-400 text-xl flex-shrink-0'></i>
-                            @endif
-                            <div class="min-w-0">
-                                <a href="{{ $file->url() }}" target="_blank"
-                                    class="text-sm font-medium text-slate-700 hover:underline truncate block">
-                                    {{ $file->original_name }}
-                                </a>
-                                <p class="text-xs text-slate-400">{{ $file->categoryLabel() }}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3 flex-shrink-0">
-                            <a href="{{ $file->url() }}" download class="text-slate-400 hover:text-brand-500"
-                                title="Download"><i class='bx bx-download text-lg'></i></a>
-                            <form method="POST" action="{{ route('pages.projects.files.destroy', [$project, $file]) }}"
-                                onsubmit="return confirm('Hapus file ini?')">
-                                @csrf @method('DELETE')
-                                <button type="submit" class="text-red-400 hover:text-red-500" title="Hapus"><i
-                                        class='bx bx-trash text-lg'></i></button>
-                            </form>
-                        </div>
-                    </div>
-                @empty
-                    <p class="text-sm text-slate-400 py-4 text-center">Belum ada file diunggah.</p>
-                @endforelse
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="font-semibold text-slate-800">Proposal</h2>
+                <form method="POST" action="{{ route('pages.projects.proposal.generate', $project) }}">
+                    @csrf
+                    <button type="submit" class="grad-blue text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 transition">
+                        <i class='bx bx-magic-wand'></i> {{ $project->proposal_content ? 'Generate Ulang' : 'Generate Proposal' }}
+                    </button>
+                </form>
             </div>
+
+            @if ($project->proposal_content)
+                <form method="POST" action="{{ route('pages.projects.proposal.update', $project) }}">
+                    @csrf @method('PUT')
+                    <textarea name="proposal_content" rows="10"
+                              class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500 font-mono">{{ $project->proposal_content }}</textarea>
+                    <button type="submit" class="mt-2 text-sm px-4 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
+                        Simpan Perubahan
+                    </button>
+                </form>
+            @else
+                <p class="text-sm text-slate-400 py-4 text-center">Belum ada proposal. Klik "Generate Proposal" untuk membuat draft awal.</p>
+            @endif
         </x-card>
+
     </div>
+
+    {{-- MOCKUP --}}
+    <x-card class="mt-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold text-slate-800">Mockup</h2>
+            <a href="{{ route('pages.mockup') }}" class="text-xs text-brand-500 hover:underline">Kelola Katalog</a>
+        </div>
+
+        @if ($project->mockupTemplate)
+            <div class="mb-4 p-3 bg-emerald-50 rounded-lg flex items-center gap-3">
+                @if ($project->mockupTemplate->previewUrl())
+                    <img src="{{ $project->mockupTemplate->previewUrl() }}" class="w-14 h-14 rounded object-cover">
+                @endif
+                <div class="flex-1">
+                    <p class="text-sm font-semibold text-emerald-700">{{ $project->mockupTemplate->name }}</p>
+                    <p class="text-xs text-emerald-600">Terpilih untuk project ini</p>
+                </div>
+                <form method="POST" action="{{ route('pages.projects.mockup.install', $project) }}">
+                    @csrf
+                    <button type="submit" class="text-xs px-3 py-1.5 rounded-lg bg-white border border-emerald-200 text-emerald-700 hover:bg-emerald-100">
+                        Install ke WordPress
+                    </button>
+                </form>
+            </div>
+        @endif
+
+        <p class="text-xs text-slate-400 mb-2">
+            Rekomendasi berdasarkan jenis website: <span class="font-medium text-slate-600">{{ $project->type ?? '-' }}</span>
+        </p>
+
+        @php
+            $categoryKey = collect(\App\Models\MockupTemplate::categories())->search($project->type);
+            $recommendations = \App\Models\MockupTemplate::when($categoryKey, fn($q) => $q->where('category', $categoryKey))->take(4)->get();
+        @endphp
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            @forelse ($recommendations as $tpl)
+                <div class="border border-slate-100 rounded-lg overflow-hidden">
+                    @if ($tpl->previewUrl())
+                        <img src="{{ $tpl->previewUrl() }}" class="w-full h-24 object-cover">
+                    @else
+                        <div class="w-full h-24 bg-slate-50 flex items-center justify-center text-slate-300">
+                            <i class='bx bx-image text-2xl'></i>
+                        </div>
+                    @endif
+                    <div class="p-2">
+                        <p class="text-xs font-medium text-slate-700 truncate">{{ $tpl->name }}</p>
+                        <form method="POST" action="{{ route('pages.projects.mockup.select', $project) }}" class="mt-1">
+                            @csrf @method('PUT')
+                            <input type="hidden" name="mockup_template_id" value="{{ $tpl->id }}">
+                            <button type="submit" class="text-xs text-brand-500 hover:underline">Pilih</button>
+                        </form>
+                    </div>
+                </div>
+            @empty
+                <p class="text-sm text-slate-400 py-4 text-center col-span-4">
+                    Belum ada template di katalog untuk kategori ini.
+                    <a href="{{ route('pages.mockup') }}" class="text-brand-500 hover:underline">Tambah sekarang</a>
+                </p>
+            @endforelse
+        </div>
+    </x-card>
 
     {{-- ACTIVITY LOG --}}
     <x-card class="mt-6">

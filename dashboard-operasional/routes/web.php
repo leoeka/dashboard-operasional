@@ -72,9 +72,13 @@ Route::middleware(['auth'])->group(function () {
     // 10. Settings
     Route::get('/settings', [SettingController::class, 'index'])->name('pages.settings');
 
-
+    // 10. Profile
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
     Route::post('/logout', [ProfileController::class, 'logout'])->name('logout');
+
+    // 10. Proposal
+    Route::post('/projects/{project}/proposal/generate', [ProjectController::class, 'generateProposal'])->name('pages.projects.proposal.generate');
+    Route::put('/projects/{project}/proposal', [ProjectController::class, 'updateProposal'])->name('pages.projects.proposal.update');
 });
 
 
