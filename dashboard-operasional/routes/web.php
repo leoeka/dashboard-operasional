@@ -3,6 +3,7 @@
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\requestOrderController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingController;
@@ -30,9 +31,11 @@ Route::middleware(['auth'])->group(function () {
     })->name('pages.projects');
 
     // 4. Request Order
-    Route::get('/request-order', function () {
-        return view('pages.request');
-    })->name('pages.request');
+   // Menampilkan halaman form tambah client & project
+    Route::get('/clients/create', [requestOrderController::class, 'create'])->name('pages.request');
+
+    // Menyimpan data dari form
+    Route::post('/clients', [requestOrderController::class, 'store'])->name('clients.store');
 
     // 5. AI Workspace
     Route::get('/ai-workspace', function () {

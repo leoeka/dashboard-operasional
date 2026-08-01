@@ -48,4 +48,6 @@ class Project extends Model
             default => 'slate',
         };
     }
+
+    
 }
