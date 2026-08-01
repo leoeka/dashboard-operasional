@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Pengaturan')
+@section('title', 'CRM')
 
 @section('content')
 
@@ -12,8 +12,8 @@
             </div>
             <div>
                 <a href="{{ route('pages.request') }}"
-                    class="bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition shadow">
-                    + Tambah Client Baru
+                    class="grad-blue text-white text-sm font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 hover:opacity-90 transition">
+                    <i class='bx bx-plus'></i> Tambah Client Baru
                 </a>
             </div>
         </div>

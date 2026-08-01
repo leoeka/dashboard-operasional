@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Pengaturan')
+@section('title', 'Request Order')
 
 @section('content')
     <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md">
