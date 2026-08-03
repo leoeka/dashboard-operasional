@@ -12,7 +12,7 @@
         </div>
         <div>
             <a href="{{ route('pages.request') }}"
-                class="grad-blue text-white text-sm font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 hover:opacity-90 transition">
+                class="grad-blue text-white text-sm font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 hover:opacity-90 transition w-fit">
                 <i class='bx bx-plus'></i> Tambah Client Baru
             </a>
         </div>
@@ -27,20 +27,22 @@
 
     <!-- FITUR PENCARIAN -->
     <div class="bg-white p-4 rounded-lg shadow mb-6">
-        <form action="{{ route('pages.crm') }}" method="GET" class="flex gap-2">
+        <form action="{{ route('pages.crm') }}" method="GET" class="flex flex-col sm:flex-row gap-2">
             <input type="text" name="search" value="{{ request('search') }}"
                 placeholder="Cari berdasarkan perusahaan, nama, email, atau HP..."
-                class="w-full md:w-1/3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-            <button type="submit"
-                class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900">
-                Cari
-            </button>
-            @if (request('search'))
-                <a href="{{ route('pages.crm') }}"
-                    class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-300">
-                    Reset
-                </a>
-            @endif
+                class="w-full sm:w-1/3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <div class="flex gap-2">
+                <button type="submit"
+                    class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900">
+                    Cari
+                </button>
+                @if (request('search'))
+                    <a href="{{ route('pages.crm') }}"
+                        class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-300">
+                        Reset
+                    </a>
+                @endif
+            </div>
         </form>
     </div>
 
@@ -49,8 +51,7 @@
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr
-                       class="text-left text-slate-400 border-b border-slate-100">
+                    <tr class="text-left text-slate-400 border-b border-slate-100">
                         <th class="px-6 py-4 font-medium">Perusahaan</th>
                         <th class="px-6 py-4 font-medium">Nama Kontak</th>
                         <th class="px-6 py-4 font-medium">Kontak Info</th>

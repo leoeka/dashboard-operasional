@@ -16,12 +16,12 @@
 
     {{-- INFORMASI UMUM --}}
     <x-card class="mb-6">
-        <div class="flex items-start justify-between mb-5">
-            <div>
-                <p class="font-bold text-slate-800 text-lg">{{ $project->name }}</p>
+        <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
+            <div class="min-w-0">
+                <p class="font-bold text-slate-800 text-lg truncate">{{ $project->name }}</p>
                 <p class="text-sm text-slate-400">{{ $project->client_name }}</p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-shrink-0">
                 <x-badge :color="$project->statusColor()">{{ $project->statusLabel() }}</x-badge>
                 <a href="{{ route('pages.projects.edit', $project) }}"
                     class="text-sm px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
@@ -59,27 +59,27 @@
             <form method="POST" action="{{ route('pages.projects.tasks.store', $project) }}" class="flex gap-2 mb-4">
                 @csrf
                 <input type="text" name="title" placeholder="Tambah task baru..." required
-                    class="flex-1 bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
-                <button type="submit" class="grad-blue text-white text-sm px-4 rounded-lg hover:opacity-90 transition">
+                    class="flex-1 min-w-0 bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
+                <button type="submit" class="grad-blue text-white text-sm px-4 rounded-lg hover:opacity-90 transition flex-shrink-0">
                     <i class='bx bx-plus'></i>
                 </button>
             </form>
 
             <div class="space-y-1">
                 @forelse ($project->tasks as $task)
-                    <div class="flex items-center justify-between group py-1.5">
+                    <div class="flex items-center justify-between gap-2 group py-1.5">
                         <form method="POST" action="{{ route('pages.projects.tasks.toggle', [$project, $task]) }}"
-                            class="flex items-center gap-3 flex-1">
+                            class="flex items-center gap-3 flex-1 min-w-0">
                             @csrf @method('PATCH')
-                            <button type="submit" class="flex items-center gap-3 text-left flex-1">
+                            <button type="submit" class="flex items-center gap-3 text-left flex-1 min-w-0">
                                 <i
-                                    class='bx {{ $task->is_done ? 'bx-checkbox-checked text-brand-500' : 'bx-checkbox text-slate-300' }} text-xl'></i>
+                                    class='bx {{ $task->is_done ? 'bx-checkbox-checked text-brand-500' : 'bx-checkbox text-slate-300' }} text-xl flex-shrink-0'></i>
                                 <span
-                                    class="text-sm {{ $task->is_done ? 'text-slate-400 line-through' : 'text-slate-700' }}">{{ $task->title }}</span>
+                                    class="text-sm truncate {{ $task->is_done ? 'text-slate-400 line-through' : 'text-slate-700' }}">{{ $task->title }}</span>
                             </button>
                         </form>
                         <form method="POST" action="{{ route('pages.projects.tasks.destroy', [$project, $task]) }}"
-                            class="opacity-0 group-hover:opacity-100 transition">
+                            class="opacity-0 group-hover:opacity-100 transition flex-shrink-0">
                             @csrf @method('DELETE')
                             <button type="submit" class="text-slate-300 hover:text-red-500"><i
                                     class='bx bx-x text-lg'></i></button>
@@ -94,13 +94,13 @@
         {{-- PROPOSAL --}}
         <x-card class="mt-6">
             <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div class="flex items-start gap-3">
+                <div class="flex items-start gap-3 min-w-0">
                     <div
                         class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
                         <i class='bx bx-file-blank text-xl'></i>
                     </div>
-                    <div>
-                        <div class="flex items-center gap-2">
+                    <div class="min-w-0">
+                        <div class="flex items-center gap-2 flex-wrap">
                             <h2 class="font-bold text-slate-800 text-sm">Proposal Proyek</h2>
                             @if ($project->latestProposal)
                                 <span
@@ -152,19 +152,19 @@
         @if ($project->mockupTemplate)
             <div class="mb-4 p-3 bg-emerald-50 rounded-lg flex items-center gap-3">
                 @if ($project->mockupTemplate->previewUrl())
-                    <img src="{{ $project->mockupTemplate->previewUrl() }}" class="w-12 h-12 rounded object-cover">
+                    <img src="{{ $project->mockupTemplate->previewUrl() }}" class="w-12 h-12 rounded object-cover flex-shrink-0">
                 @endif
-                <div class="flex-1">
-                    <p class="text-sm font-semibold text-emerald-700">{{ $project->mockupTemplate->name }}</p>
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm font-semibold text-emerald-700 truncate">{{ $project->mockupTemplate->name }}</p>
                     <p class="text-xs text-emerald-600">Mockup yang dipilih client</p>
                 </div>
             </div>
         @endif
 
-        <form method="POST" action="{{ route('pages.projects.mockup.add', $project) }}" class="flex gap-2 mb-4">
+        <form method="POST" action="{{ route('pages.projects.mockup.add', $project) }}" class="flex flex-col sm:flex-row gap-2 mb-4">
             @csrf @method('PUT')
             <select name="mockup_template_id" required
-                class="flex-1 bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
+                class="flex-1 min-w-0 bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
                 <option value="">-- Pilih mockup yang disetujui client --</option>
                 @foreach (\App\Models\MockupTemplate::orderBy('name')->get() as $tpl)
                     <option value="{{ $tpl->id }}" @selected($project->mockup_template_id == $tpl->id)>
@@ -172,7 +172,7 @@
                     </option>
                 @endforeach
             </select>
-            <button type="submit" class="grad-blue text-white text-sm px-4 rounded-lg hover:opacity-90 transition">
+            <button type="submit" class="grad-blue text-white text-sm px-4 py-2 rounded-lg hover:opacity-90 transition flex-shrink-0">
                 Simpan
             </button>
         </form>
@@ -198,8 +198,8 @@
                 <div class="flex gap-3">
                     <span
                         class="text-xs text-slate-400 font-mono w-12 flex-shrink-0 pt-0.5">{{ $log->created_at->format('H:i') }}</span>
-                    <div class="flex-1 pb-4 border-l border-slate-100 pl-4 -ml-px">
-                        <p class="text-sm text-slate-700">{{ $log->action }}</p>
+                    <div class="flex-1 min-w-0 pb-4 border-l border-slate-100 pl-4 -ml-px">
+                        <p class="text-sm text-slate-700 break-words">{{ $log->action }}</p>
                         <p class="text-xs text-slate-400 mt-0.5">{{ $log->created_at->translatedFormat('d M Y') }}</p>
                     </div>
                 </div>

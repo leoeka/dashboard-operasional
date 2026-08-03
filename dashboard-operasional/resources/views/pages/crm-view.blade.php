@@ -9,19 +9,19 @@
 
     <x-card class="mb-6">
         <div class="flex items-center gap-4 mb-5">
-            <div class="w-14 h-14 rounded-2xl grad-purple flex items-center justify-center text-white font-bold text-lg">
+            <div class="w-14 h-14 rounded-2xl grad-purple flex items-center justify-center text-white font-bold text-lg flex-shrink-0">
                 {{ strtoupper(substr($client->company_name, 0, 2)) }}
             </div>
-            <div>
-                <p class="font-bold text-slate-800 text-lg">{{ $client->company_name }}</p>
-                <p class="text-sm text-slate-400">{{ $client->contact_name }}</p>
+            <div class="min-w-0">
+                <p class="font-bold text-slate-800 text-lg truncate">{{ $client->company_name }}</p>
+                <p class="text-sm text-slate-400 truncate">{{ $client->contact_name }}</p>
             </div>
         </div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-6 text-sm">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 text-sm">
             <div>
                 <p class="text-slate-400 mb-1">Email</p>
-                <p class="font-medium text-slate-700">{{ $client->email ?? '-' }}</p>
+                <p class="font-medium text-slate-700 break-words">{{ $client->email ?? '-' }}</p>
             </div>
             <div>
                 <p class="text-slate-400 mb-1">Telepon</p>
@@ -29,7 +29,7 @@
             </div>
             <div>
                 <p class="text-slate-400 mb-1">Alamat</p>
-                <p class="font-medium text-slate-700">{{ $client->address ?? '-' }}</p>
+                <p class="font-medium text-slate-700 break-words">{{ $client->address ?? '-' }}</p>
             </div>
         </div>
     </x-card>
@@ -38,12 +38,13 @@
         <h2 class="font-semibold text-slate-800 mb-4">Riwayat Project</h2>
         <div class="divide-y divide-slate-100">
             @forelse ($client->projects as $project)
-                <a href="{{ route('pages.projects.show', $project) }}" class="py-3 flex items-center justify-between hover:bg-slate-50 -mx-2 px-2 rounded">
-                    <div>
-                        <p class="text-sm font-medium text-slate-700">{{ $project->name }}</p>
+                <a href="{{ route('pages.projects.show', $project) }}"
+                   class="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 hover:bg-slate-50 -mx-2 px-2 rounded">
+                    <div class="min-w-0">
+                        <p class="text-sm font-medium text-slate-700 truncate">{{ $project->name }}</p>
                         <p class="text-xs text-slate-400">{{ $project->type }}</p>
                     </div>
-                    <x-badge :color="$project->statusColor()">{{ $project->statusLabel() }}</x-badge>
+                    <x-badge :color="$project->statusColor()" class="w-fit">{{ $project->statusLabel() }}</x-badge>
                 </a>
             @empty
                 <p class="text-sm text-slate-400 py-4 text-center">Belum ada project untuk client ini.</p>

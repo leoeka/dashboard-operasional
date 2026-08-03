@@ -2,7 +2,7 @@
 @section('title', 'Request Order')
 
 @section('content')
-    <div class="max-w-4xl mx-auto bg-white p-8 rounded-lg shadow-md">
+    <div class="max-w-4xl mx-auto bg-white p-4 sm:p-8 rounded-lg shadow-md">
         <h2 class="text-2xl font-bold mb-6 text-gray-800">Tambah Client & Draft Project Baru</h2>
 
         {{-- Pesan Alert Error --}}
@@ -124,9 +124,9 @@
             </div>
 
             <!-- BUTTON SUBMIT -->
-            <div class="flex justify-end gap-3 pt-4">
+            <div class="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4">
                 <a href="{{ route('pages.projects') }}"
-                    class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400">Batal</a>
+                    class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 text-center">Batal</a>
                 <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-semibold">
                     Simpan Draft
                 </button>

@@ -3,7 +3,7 @@
 
 @section('content')
     <!-- Header Halaman -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
             <a href="{{ route('pages.projects.show', $project) }}"
                 class="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1 mb-1">
@@ -17,29 +17,28 @@
         <!-- Tombol Cetak / Download -->
         <div class="flex gap-2">
             <a href="{{ route('pages.projects.proposal.generate', $project) }}" download
-                class="inline-flex items-center gap-2 bg-emerald-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-emerald-700 transition shadow-sm">
+                class="inline-flex items-center gap-2 bg-emerald-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-emerald-700 transition shadow-sm w-fit">
                 <i class='bx bx-download text-base'></i> Download PDF
             </a>
         </div>
     </div>
 
     <!-- Grid Split Screen (1: Edit Form, 2: Preview PDF) -->
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 h-[80vh]">
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[80vh]">
 
-        <!-- Side Panel: Form Edit (35% Lebar) -->
+        <!-- Side Panel: Form Edit -->
         <div
-            class="lg:col-span-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm overflow-y-auto flex flex-col justify-between">
+            class="lg:col-span-4 bg-white p-5 rounded-xl border border-slate-200 shadow-sm lg:overflow-y-auto flex flex-col lg:justify-between">
             <div>
                 <h2 class="text-sm font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2">Pengaturan Proposal
                 </h2>
 
-                <!-- Box Informasi Rekomendasi AI -->
                 {{-- @if ($aiReasoning)
-                        <div class="mb-5 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
-                            <span class="font-bold text-blue-700 block mb-1">🤖 Rekomendasi AI:</span>
-                            <p class="text-blue-600">{{ $aiReasoning }}</p>
-                        </div>
-                    @endif --}}
+                <div class="mb-5 p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs">
+                    <span class="font-bold text-blue-700 block mb-1">🤖 Rekomendasi AI:</span>
+                    <p class="text-blue-600">{{ $aiReasoning }}</p>
+                </div>
+                @endif --}}
 
                 <form action="{{ route('pages.projects.proposal.update', $project) }}" method="POST" class="space-y-4">
                     @csrf
@@ -62,7 +61,8 @@
                     <div>
                         <label class="block text-xs font-semibold text-slate-700 mb-1">Catatan Tambahan
                             Klien</label>
-                        <textarea name="proposal_notes" rows="4" placeholder="Tambahkan catatan khusus dari klien jika ada..."
+                        <textarea name="proposal_notes" rows="4"
+                            placeholder="Tambahkan catatan khusus dari klien jika ada..."
                             class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-lg p-2.5 outline-none focus:border-blue-500">{{ old('proposal_notes', $project->proposal_notes ?? '') }}</textarea>
                     </div>
 
@@ -80,9 +80,9 @@
             </div>
         </div>
 
-        <!-- Live Preview PDF (65% Lebar) -->
-        <!-- Live Preview PDF Fisik dari Storage -->
-        <div class="lg:col-span-8 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden shadow-inner">
+        <!-- Live Preview PDF -->
+        <div
+            class="lg:col-span-8 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden shadow-inner h-[60vh] lg:h-full">
             <iframe src="{{ route('pages.projects.proposal.stream', $project) }}" class="w-full h-full border-0"></iframe>
         </div>
     </div>

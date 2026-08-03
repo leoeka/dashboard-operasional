@@ -4,22 +4,24 @@
 @section('content')
 
     <a href="{{ $project->exists ? route('pages.projects.show', $project) : route('pages.projects') }}"
-       class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
+        class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
         <i class='bx bx-arrow-back'></i> Kembali
     </a>
 
     <x-page-header :title="$project->exists ? 'Edit Project' : 'Tambah Project'" />
 
     <x-card class="max-w-2xl">
-        <form method="POST" action="{{ $project->exists ? route('pages.projects.update', $project) : route('pages.projects.store') }}" class="space-y-5">
+        <form method="POST"
+            action="{{ $project->exists ? route('pages.projects.update', $project) : route('pages.projects.store') }}"
+            class="space-y-5">
             @csrf
             @if ($project->exists) @method('PUT') @endif
 
             <div>
                 <label class="text-sm font-medium text-slate-600 mb-1 block">Client (dari CRM)</label>
                 <select name="client_id"
-                        onchange="document.querySelector('[name=client_name]').value = this.options[this.selectedIndex].dataset.name || ''"
-                        class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                    onchange="document.querySelector('[name=client_name]').value = this.options[this.selectedIndex].dataset.name || ''"
+                    class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                     <option value="">-- Tanpa data client di CRM --</option>
                     @foreach ($clients as $c)
                         <option value="{{ $c->id }}" data-name="{{ $c->company_name }}" @selected(old('client_id', $project->client_id) == $c->id)>
@@ -32,41 +34,48 @@
             <div>
                 <label class="text-sm font-medium text-slate-600 mb-1 block">Nama Project</label>
                 <input type="text" name="name" value="{{ old('name', $project->name) }}" placeholder="mis. Website PT ABC"
-                       class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-                @error('name') <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
+                    class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                @error('name')
+                <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
                 <label class="text-sm font-medium text-slate-600 mb-1 block">Nama Client (tampil di tabel)</label>
                 <input type="text" name="client_name" value="{{ old('client_name', $project->client_name) }}"
-                       class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-                @error('client_name') <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
-                <p class="text-xs text-slate-400 mt-1">Otomatis terisi kalau pilih Client di atas. Bisa diedit manual kalau perlu.</p>
+                    class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                @error('client_name')
+                <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
+                <p class="text-xs text-slate-400 mt-1">Otomatis terisi kalau pilih Client di atas. Bisa diedit manual kalau
+                    perlu.</p>
             </div>
 
             <div>
                 <label class="text-sm font-medium text-slate-600 mb-1 block">Jenis Website</label>
-                <input type="text" name="type" value="{{ old('type', $project->type) }}" placeholder="mis. Company Profile, E-commerce"
-                       class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                <input type="text" name="type" value="{{ old('type', $project->type) }}"
+                    placeholder="mis. Company Profile, E-commerce"
+                    class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
             </div>
 
-            <div class="grid grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label class="text-sm font-medium text-slate-600 mb-1 block">Status</label>
-                    <select name="status" class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                    <select name="status"
+                        class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                         @foreach (['request' => 'Request', 'proposal' => 'Proposal', 'mockup' => 'Mockup', 'development' => 'Development', 'qa' => 'QA', 'done' => 'Selesai'] as $value => $label)
-                            <option value="{{ $value }}" @selected(old('status', $project->status) === $value)>{{ $label }}</option>
+                            <option value="{{ $value }}" @selected(old('status', $project->status) === $value)>{{ $label }}
+                            </option>
                         @endforeach
                     </select>
                 </div>
                 <div>
                     <label class="text-sm font-medium text-slate-600 mb-1 block">Deadline</label>
                     <input type="date" name="deadline" value="{{ old('deadline', $project->deadline?->format('Y-m-d')) }}"
-                           class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                        class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                 </div>
             </div>
 
-            <button type="submit" class="grad-blue text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:opacity-90 transition">
+            <button type="submit"
+                class="grad-blue text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:opacity-90 transition">
                 {{ $project->exists ? 'Simpan Perubahan' : 'Buat Project' }}
             </button>
         </form>
