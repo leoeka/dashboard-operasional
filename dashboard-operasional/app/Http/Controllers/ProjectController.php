@@ -193,4 +193,17 @@ class ProjectController extends Controller
 
         return back()->with('success', 'File dihapus.');
     }
+
+    public function addmockupTemplate(Request $request, Project $project)
+    {
+        $request->validate([
+            'mockup_template_id' => 'required|exists:mockup_templates,id',
+        ]);
+
+        $project->update(['mockup_template_id' => $request->mockup_template_id]);
+
+        $project->logActivity("Mockup template dipilih: {$request->mockup_template_id}");
+
+        return back()->with('success');
+    }
 }

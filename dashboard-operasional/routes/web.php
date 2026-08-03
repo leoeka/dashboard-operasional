@@ -43,6 +43,8 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/projects/{project}/tasks/{task}', [ProjectController::class, 'destroyTask'])->name('pages.projects.tasks.destroy');
     Route::post('/projects/{project}/files', [ProjectController::class, 'storeFile'])->name('pages.projects.files.store');
     Route::delete('/projects/{project}/files/{file}', [ProjectController::class, 'destroyFile'])->name('pages.projects.files.destroy');
+    Route::put('/projects/{project}/mockup', [ProjectController::class, 'addmockupTemplate'])
+        ->name('pages.projects.mockup.add');
 
     // 5. AI Workspace
     Route::get('/ai-workspace', function () {

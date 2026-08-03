@@ -141,7 +141,7 @@
             </div>
         @endif
 
-        <form method="POST" action="{{ route('pages.projects.mockup.select', $project) }}" class="flex gap-2 mb-4">
+        <form method="POST" action="{{ route('pages.projects.mockup.add', $project) }}" class="flex gap-2 mb-4">
             @csrf @method('PUT')
             <select name="mockup_template_id" required
                 class="flex-1 bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
