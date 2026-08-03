@@ -25,6 +25,7 @@ class SendInvoiceReminders extends Command
             ->get();
 
         foreach ($invoices as $invoice) {
+             /** @var \App\Models\Invoice $invoice */
             $client = $invoice->project->client;
 
             if (!$client) {
