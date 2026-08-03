@@ -7,6 +7,8 @@ use App\Http\Controllers\requestOrderController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingController;
+use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\ReportController;
 
 /*
 |--------------------------------------------------------------------------
@@ -61,9 +63,9 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.proposal.stream');
 
     // 5. AI Workspace
-    Route::get('/ai-workspace', function () {
-        return view('pages.ai-workspace');
-    })->name('pages.ai-workspace');
+    Route::get('/ai-workspace', [ProjectController::class, 'aiWorkspace'])->name('pages.ai-workspace');
+    Route::post('/ai-workspace/{project}/generate', [ProjectController::class, 'generateAiContent'])->name('pages.ai-workspace.generate');
+
 
     // 6. Mockup
     Route::get('/mockup', function () {
@@ -76,14 +78,16 @@ Route::middleware(['auth'])->group(function () {
     })->name('pages.website');
 
     // 8. Finance
-    Route::get('/finance', function () {
-        return view('pages.finance');
-    })->name('pages.finance');
+    Route::get('/finance', [InvoiceController::class, 'index'])->name('pages.finance');
+    Route::post('/finance', [InvoiceController::class, 'store'])->name('pages.finance.store');
+    Route::patch('/finance/{invoice}/paid', [InvoiceController::class, 'markPaid'])->name('pages.finance.paid');
+    Route::post('/finance/{invoice}/remind', [InvoiceController::class, 'sendReminderNow'])->name('pages.finance.remind');
+    Route::delete('/finance/{invoice}', [InvoiceController::class, 'destroy'])->name('pages.finance.destroy');
 
     // 9. Reports
-    Route::get('/reports', function () {
-        return view('pages.reports');
-    })->name('pages.reports');
+    Route::get('/reports', [ReportController::class, 'index'])->name('pages.reports');
+    Route::get('/reports/download', [ReportController::class, 'downloadPdf'])->name('pages.reports.download');
+    Route::get('/reports/download-excel', [ReportController::class, 'downloadExcel'])->name('pages.reports.download-excel');
 
     // 10. Settings
     Route::get('/settings', [SettingController::class, 'index'])->name('pages.settings');

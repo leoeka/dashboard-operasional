@@ -70,7 +70,7 @@
                             ['label' => 'Request Order', 'route' => 'pages.request', 'icon' => 'bx-list-plus'],
                             ['label' => 'AI Workspace', 'route' => 'pages.ai-workspace', 'icon' => 'bx-cube'],
                             ['label' => 'Mockup', 'route' => 'pages.mockup', 'icon' => 'bx-shape-square'],
-                            ['label' => 'Website', 'route' => 'pages.website', 'icon' => 'bx-code-alt'],
+                            // ['label' => 'Website', 'route' => 'pages.website', 'icon' => 'bx-code-alt'],
                             ['label' => 'Finance', 'route' => 'pages.finance', 'icon' => 'bx-wallet'],
                             ['label' => 'Reports', 'route' => 'pages.reports', 'icon' => 'bx-bar-chart-alt-2'],
                             ['label' => 'Settings', 'route' => 'pages.settings', 'icon' => 'bx-cog'],

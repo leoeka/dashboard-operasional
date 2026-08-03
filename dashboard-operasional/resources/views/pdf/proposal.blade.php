@@ -17,7 +17,7 @@
         }
 
         .cover {
-            background-image: url('{{ public_path('images/pdf/cover-bg.jpg') }}');
+            background-image: url('{{ public_path('images/cover-bg.jpg') }}');
             background-size: cover;
             width: 100%;
             height: 100%;
@@ -60,7 +60,7 @@
         }
 
         .header-band {
-            background-image: url('{{ public_path('images/pdf/header-bg.jpg') }}');
+            background-image: url('{{ public_path('images/header-bg.jpg') }}');
             background-size: cover;
             height: 90px;
             margin: -30px -50px 20px -50px;
@@ -98,7 +98,7 @@
 
     {{-- HALAMAN SAMPUL --}}
     <div class="cover">
-        <img src="{{ public_path('images/pdf/logo-transparent.png') }}" class="logo">
+        <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
         <div class="title">
             {{ strtoupper($project->client_name) }}<br>
             WEB PROPOSAL DEVELOPMENT
@@ -110,7 +110,7 @@
     {{-- HALAMAN ISI: GREETING --}}
     <div class="content-page">
         <div class="header-band">
-            <img src="{{ public_path('images/pdf/logo-transparent.png') }}" class="logo">
+            <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
             <span class="date">{{ now()->translatedFormat('d/m/Y') }}</span>
         </div>
 
@@ -129,7 +129,7 @@
     @if ($project->mockupTemplate)
         <div class="content-page">
             <div class="header-band">
-                <img src="{{ public_path('images/pdf/logo-transparent.png') }}" class="logo">
+                <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
                 <span class="date">{{ now()->translatedFormat('d/m/Y') }}</span>
             </div>
 
