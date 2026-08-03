@@ -17,7 +17,7 @@ class InvoiceController extends Controller
         $invoices = Invoice::query()
             ->when($request->status === 'unpaid', fn($q) => $q->where('status', 'unpaid'))
             ->when($request->status === 'paid', fn($q) => $q->where('status', 'paid'))
-            ->when($request->status === 'overdue', fn($q) => $q->where('status', 'unpaid')->whereDate('due_date', '<', now()))
+            ->when($request->status === 'overdue', fn ($q) => $q->where('status', 'unpaid')->where('due_date', '<', now()))
             ->with('project')
             ->latest()
             ->paginate(15)
