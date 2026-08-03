@@ -77,8 +77,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/logout', [ProfileController::class, 'logout'])->name('logout');
 
     // 10. Proposal
-    Route::post('/projects/{project}/proposal/generate', [ProjectController::class, 'generateProposal'])->name('pages.projects.proposal.generate');
-    Route::put('/projects/{project}/proposal', [ProjectController::class, 'updateProposal'])->name('pages.projects.proposal.update');
+    Route::post('/projects/{project}/proposal/items', [ProjectController::class, 'addProposalItem'])->name('pages.projects.proposal.items.store');
+    Route::patch('/projects/{project}/proposal/items/{item}', [ProjectController::class, 'updateProposalItem'])->name('pages.projects.proposal.items.update');
+    Route::delete('/projects/{project}/proposal/items/{item}', [ProjectController::class, 'destroyProposalItem'])->name('pages.projects.proposal.items.destroy');
+    Route::get('/projects/{project}/proposal/pdf', [ProjectController::class, 'proposalPdf'])->name('pages.projects.proposal.pdf');
+
+    Route::resource('service-packages', \App\Http\Controllers\ServicePackageController::class)->except(['show']);
 });
 
 
