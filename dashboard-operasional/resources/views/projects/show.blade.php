@@ -92,34 +92,65 @@
             </div>
         </x-card>
 
+
         {{-- PROPOSAL --}}
         <x-card>
             <div class="flex items-center justify-between mb-4">
                 <h2 class="font-semibold text-slate-800">Proposal</h2>
-                <form method="POST" action="{{ route('pages.projects.proposal.generate', $project) }}">
-                    @csrf
-                    <button type="submit"
+                @if ($project->proposalItems->count())
+                    <a href="{{ route('pages.projects.proposal.pdf', $project) }}"
                         class="grad-blue text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 transition">
-                        <i class='bx bx-magic-wand'></i>
-                        {{ $project->proposal_content ? 'Generate Ulang' : 'Generate Proposal' }}
-                    </button>
-                </form>
+                        <i class='bx bx-download'></i> Unduh PDF
+                    </a>
+                @endif
             </div>
 
-            @if ($project->proposal_content)
-                <form method="POST" action="{{ route('pages.projects.proposal.update', $project) }}">
-                    @csrf @method('PUT')
-                    <textarea name="proposal_content" rows="10"
-                        class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500 font-mono">{{ $project->proposal_content }}</textarea>
-                    <button type="submit"
-                        class="mt-2 text-sm px-4 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
-                        Simpan Perubahan
-                    </button>
-                </form>
-            @else
-                <p class="text-sm text-slate-400 py-4 text-center">Belum ada proposal. Klik "Generate Proposal" untuk membuat
-                    draft awal.</p>
-            @endif
+            <form method="POST" action="{{ route('pages.projects.proposal.items.store', $project) }}"
+                class="flex gap-2 mb-4">
+                @csrf
+                <select name="service_package_id" required
+                    class="flex-1 bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
+                    <option value="">-- Tambah paket ke proposal --</option>
+                    @foreach (\App\Models\ServicePackage::orderBy('category')->orderBy('name')->get() as $pkg)
+                        <option value="{{ $pkg->id }}">{{ $pkg->name }} (Rp{{ number_format($pkg->price, 0, ',', '.') }})
+                        </option>
+                    @endforeach
+                </select>
+                <button type="submit" class="grad-blue text-white text-sm px-4 rounded-lg hover:opacity-90 transition">
+                    <i class='bx bx-plus'></i>
+                </button>
+            </form>
+
+            <div class="divide-y divide-slate-100">
+                @forelse ($project->proposalItems as $item)
+                    <div class="py-3 flex items-center justify-between">
+                        <p class="text-sm font-medium text-slate-700">{{ $item->name }}</p>
+                        <div class="flex items-center gap-2">
+                            <form method="POST" action="{{ route('pages.projects.proposal.items.update', [$project, $item]) }}"
+                                class="flex items-center gap-1">
+                                @csrf @method('PATCH')
+                                <span class="text-xs text-slate-400">Rp</span>
+                                <input type="number" name="price" value="{{ $item->price }}"
+                                    class="w-24 bg-slate-50 text-slate-700 rounded px-2 py-1 text-xs outline-none">
+                                <button type="submit" class="text-xs text-brand-500 hover:underline">Simpan</button>
+                            </form>
+                            <form method="POST"
+                                action="{{ route('pages.projects.proposal.items.destroy', [$project, $item]) }}">
+                                @csrf @method('DELETE')
+                                <button type="submit" class="text-red-400 hover:text-red-500"><i
+                                        class='bx bx-trash'></i></button>
+                            </form>
+                        </div>
+                    </div>
+                @empty
+                    <p class="text-sm text-slate-400 py-4 text-center">Belum ada paket dipilih untuk proposal ini.</p>
+                @endforelse
+            </div>
+
+            <p class="text-xs text-slate-400 mt-3">
+                Kelola daftar paket & harga baku di <a href="{{ route('service-packages.index') }}"
+                    class="text-brand-500 hover:underline">Katalog Paket Layanan</a>.
+            </p>
         </x-card>
 
     </div>

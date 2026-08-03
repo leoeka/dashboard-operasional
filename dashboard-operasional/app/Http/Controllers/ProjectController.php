@@ -84,7 +84,7 @@ class ProjectController extends Controller
 
     public function show(Project $project)
     {
-        $project->load(['client', 'tasks', 'files', 'activityLogs']);
+        $project->load(['client', 'tasks', 'files', 'activityLogs', 'mockupTemplate', 'proposalItems']);
 
         return view('projects.show', compact('project'));
     }
@@ -192,6 +192,65 @@ class ProjectController extends Controller
         $project->logActivity("File {$file->original_name} dihapus");
 
         return back()->with('success', 'File dihapus.');
+    }
+
+    public function addProposalItem(Request $request, Project $project)
+    {
+        $request->validate(['service_package_id' => 'required|exists:service_packages,id']);
+
+        $pkg = \App\Models\ServicePackage::findOrFail($request->service_package_id);
+
+        $project->proposalItems()->create([
+            'service_package_id' => $pkg->id,
+            'name' => $pkg->name,
+            'price' => $pkg->price,
+            'unit' => $pkg->unit,
+            'features' => $pkg->features,
+        ]);
+
+        $project->logActivity("Paket ditambahkan ke proposal: {$pkg->name}");
+
+        return back()->with('success', 'Paket ditambahkan ke proposal.');
+    }
+
+    public function updateProposalItem(Request $request, Project $project, \App\Models\ProjectProposalItem $item)
+    {
+        $request->validate(['price' => 'required|numeric']);
+
+        $item->update(['price' => $request->price]);
+        $project->logActivity("Harga paket '{$item->name}' disesuaikan");
+
+        return back()->with('success', 'Harga berhasil disesuaikan.');
+    }
+
+    public function destroyProposalItem(Project $project, \App\Models\ProjectProposalItem $item)
+    {
+        $item->delete();
+
+        return back()->with('success', 'Paket dihapus dari proposal.');
+    }
+
+    public function selectMockup(Request $request, Project $project)
+    {
+        $request->validate(['mockup_template_id' => 'required|exists:mockup_templates,id']);
+
+        $project->update(['mockup_template_id' => $request->mockup_template_id]);
+
+        $template = \App\Models\MockupTemplate::find($request->mockup_template_id);
+        $project->logActivity("Mockup dipilih: {$template->name}");
+
+        return back()->with('success', 'Mockup berhasil dipilih.');
+    }
+
+    public function proposalPdf(Project $project)
+    {
+        $project->load('proposalItems', 'mockupTemplate');
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.proposal', compact('project'));
+
+        $project->logActivity('Proposal PDF diunduh');
+
+        return $pdf->download("Proposal-{$project->client_name}.pdf");
     }
 
     public function addmockupTemplate(Request $request, Project $project)
