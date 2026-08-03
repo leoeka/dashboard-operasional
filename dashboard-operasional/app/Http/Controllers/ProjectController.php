@@ -7,8 +7,11 @@ use App\Models\Project;
 use App\Models\ProjectFile;
 use App\Models\ProjectTask;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Models\MockupTemplate;
+use App\Models\Proposal;
+use Illuminate\Support\Facades\Storage;
 
 class ProjectController extends Controller
 {
@@ -200,18 +203,119 @@ class ProjectController extends Controller
 
     public function generateProposal(Project $project)
     {
+        // 1. Cek apakah proposal untuk proyek ini sudah pernah digenerate
+        $proposal = Proposal::where('project_id', $project->id)->latest()->first();
+
+        // JIKA SUDAH ADA: Langsung arahkan ke halaman edit proposal
+        if ($proposal) {
+            return redirect()->route('pages.projects.proposal.edit', $project);
+        }
+
+        // JIKA BELUM ADA: Jalankan proses pembuatan pertama kali
+        $templates = MockupTemplate::all(['id', 'name', 'category']);
+
+        // --- MODE TESTING AI (Nanti bisa diaktifkan kembali AiMockupRecommender) ---
+        $aiReasoning = '[MODE TESTING] Fitur AI dinonaktifkan sementara.';
+        $recommendedTemplate = $project->mockupTemplate ?? $templates->first();
+
+        if (!$project->mockup_template_id && $recommendedTemplate) {
+            $project->update(['mockup_template_id' => $recommendedTemplate->id]);
+        }
+
         $project->load('mockupTemplate');
 
-        // TODO: di sinilah nanti AI dipanggil — analisis template WordPress yang
-        // dipilih (mockupTemplate), lalu hasilkan konten/paket yang relevan untuk
-        // proposal ini. Untuk sekarang belum ada logika apa pun di sini (kosong),
-        // karena provider AI belum diputuskan dan belum ada sumber data pengganti
-        // tabel service_packages yang sudah dihapus.
+        // 2. Generate PDF & simpan file fisik ke Storage
+        $pdf = Pdf::loadView('pdf.proposal', compact('project', 'recommendedTemplate', 'aiReasoning'));
 
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.proposal', compact('project'));
+        $clientSlug = Str::slug($project->client_name, '-');
+        $fileName = "proposals/Proposal-{$clientSlug}-v1.pdf";
 
-        $project->logActivity('Proposal digenerate & diunduh');
+        Storage::disk('public')->put($fileName, $pdf->output());
 
-        return $pdf->download("Proposal-{$project->client_name}.pdf");
+        // 3. Simpan record proposal baru ke database
+        Proposal::create([
+            'project_id' => $project->id,
+            'mockup_template_id' => $project->mockup_template_id,
+            'client_name' => $project->client_name,
+            'status' => 'pending',
+            'pdf_path' => $fileName,
+            'version' => 1,
+            'ai_reasoning' => $aiReasoning,
+        ]);
+
+        // 4. Setelah selesai generate pertama kali, langsung redirect ke halaman edit
+        return redirect()->route('projects.proposal-edit', $project)
+            ->with('success', 'Proposal berhasil digenerate pertama kali!');
+    }
+
+    /**
+     * Halaman Editor Proposal
+     */
+    public function editProposal(Project $project)
+    {
+        $templates = MockupTemplate::orderBy('name')->get();
+        $proposal = Proposal::where('project_id', $project->id)->latest()->first();
+
+        $project->load('mockupTemplate');
+
+        return view('projects.proposal-edit', compact('project', 'templates', 'proposal'));
+    }
+
+    /**
+     * Simpan Perubahan Proposal & Re-generate PDF Baru
+     */
+    public function updateProposal(Request $request, Project $project)
+    {
+        $validated = $request->validate([
+            'mockup_template_id' => 'required|exists:mockup_templates,id',
+            'summary' => 'nullable|string',
+        ]);
+
+        // Update pilihan template di project
+        $project->update(['mockup_template_id' => $validated['mockup_template_id']]);
+        $project->load('mockupTemplate');
+
+        // Ambil proposal terkini atau buat jika belum ada
+        $proposal = Proposal::where('project_id', $project->id)->latest()->first();
+        $newVersion = $proposal ? $proposal->version + 1 : 1;
+
+        // Re-generate PDF fisik yang baru
+        $aiReasoning = $proposal->ai_reasoning ?? '[MODE TESTING] Fitur AI dinonaktifkan sementara.';
+        $pdf = Pdf::loadView('pdf.proposal', compact('project'));
+
+        $clientSlug = Str::slug($project->client_name, '-');
+        $fileName = "proposals/Proposal-{$clientSlug}-v{$newVersion}.pdf";
+
+        Storage::disk('public')->put($fileName, $pdf->output());
+
+        // Update / Buat record proposal baru dengan versi yang di-increment
+        Proposal::create([
+            'project_id' => $project->id,
+            'mockup_template_id' => $validated['mockup_template_id'],
+            'client_name' => $project->client_name,
+            'status' => 'pending',
+            'pdf_path' => $fileName,
+            'version' => $newVersion,
+            'summary' => $validated['summary'] ?? null,
+            'ai_reasoning' => $aiReasoning,
+        ]);
+
+        return back()->with('success', "Proposal versi {$newVersion} berhasil diperbarui!");
+    }
+
+    /**
+     * Stream file PDF fisik dari Storage ke Iframe
+     */
+    public function streamPdf(Project $project)
+    {
+        $proposal = Proposal::where('project_id', $project->id)->latest()->first();
+
+        if ($proposal && $proposal->pdf_path && Storage::disk('public')->exists($proposal->pdf_path)) {
+            return response()->file(storage_path('app/public/' . $proposal->pdf_path));
+        }
+
+        // Fallback jika file fisik belum ada
+        $pdf = Pdf::loadView('pdf.proposal', compact('project'));
+        return $pdf->stream("Proposal-{$project->client_name}.pdf");
     }
 }

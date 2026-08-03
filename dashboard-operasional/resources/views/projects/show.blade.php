@@ -3,8 +3,7 @@
 
 @section('content')
 
-    <a href="{{ route('pages.projects') }}"
-        class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
+    <a href="{{ route('pages.projects') }}" class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
         <i class='bx bx-arrow-back'></i> Kembali ke Projects
     </a>
 
@@ -74,7 +73,7 @@
                             @csrf @method('PATCH')
                             <button type="submit" class="flex items-center gap-3 text-left flex-1">
                                 <i
-                                    class='bx {{ $task->is_done ? "bx-checkbox-checked text-brand-500" : "bx-checkbox text-slate-300" }} text-xl'></i>
+                                    class='bx {{ $task->is_done ? 'bx-checkbox-checked text-brand-500' : 'bx-checkbox text-slate-300' }} text-xl'></i>
                                 <span
                                     class="text-sm {{ $task->is_done ? 'text-slate-400 line-through' : 'text-slate-700' }}">{{ $task->title }}</span>
                             </button>
@@ -93,19 +92,55 @@
         </x-card>
 
         {{-- PROPOSAL --}}
-        <x-card>
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="font-semibold text-slate-800">Proposal</h2>
-                <form method="POST" action="{{ route('pages.projects.proposal.generate', $project) }}">
-                    @csrf
-                    <button type="submit"
-                        class="grad-blue text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 transition">
-                        <i class='bx bx-magic-wand'></i> Generate Proposal
-                    </button>
-                </form>
+        <x-card class="mt-6">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="flex items-start gap-3">
+                    <div
+                        class="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0 mt-0.5">
+                        <i class='bx bx-file-blank text-xl'></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 class="font-bold text-slate-800 text-sm">Proposal Proyek</h2>
+                            @if ($project->latestProposal)
+                                <span
+                                    class="px-2 py-0.5 text-[10px] font-semibold bg-emerald-50 text-emerald-600 rounded-full border border-emerald-100">
+                                    Versi {{ $project->latestProposal->version }}
+                                </span>
+                            @else
+                                <span
+                                    class="px-2 py-0.5 text-[10px] font-semibold bg-slate-100 text-slate-500 rounded-full">
+                                    Belum Dibuat
+                                </span>
+                            @endif
+                        </div>
+                        <p class="text-xs text-slate-500 mt-1 max-w-xl leading-relaxed">
+                            @if ($project->latestProposal)
+                                Proposal sudah pernah digenerate. Klik untuk melihat preview, mengubah template, atau
+                                mengunduh PDF.
+                            @else
+                                Klik untuk membuat proposal pertama kali dengan rekomendasi AI Workspace.
+                            @endif
+                        </p>
+                    </div>
+                </div>
+
+                <div class="shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 flex items-center justify-end">
+                    @if ($project->latestProposal)
+                        <a href="{{ route('pages.projects.proposal.edit', $project) }}"
+                            class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 shadow-sm transition">
+                            <i class='bx bx-edit-alt text-sm'></i>
+                            <span>Edit & Preview Proposal</span>
+                        </a>
+                    @else
+                        <a href="{{ route('pages.projects.proposal.generate', $project) }}"
+                            class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 shadow-sm transition">
+                            <i class='bx bx-magic-wand text-sm'></i>
+                            <span>Generate Proposal AI</span>
+                        </a>
+                    @endif
+                </div>
             </div>
-            <p class="text-sm text-slate-400">Klik untuk generate & unduh proposal PDF — langsung diunduh, tidak disimpan di
-                sistem.</p>
         </x-card>
     </div>
 

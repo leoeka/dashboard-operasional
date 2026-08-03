@@ -46,6 +46,20 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/projects/{project}/mockup', [ProjectController::class, 'addmockupTemplate'])
         ->name('pages.projects.mockup.add');
 
+    Route::get('/projects/{project}/proposal/generate', [ProjectController::class, 'generateProposal'])
+        ->name('pages.projects.proposal.generate');
+
+    // Halaman Editor & Update Proposal
+    Route::get('/projects/{project}/proposal/edit', [ProjectController::class, 'editProposal'])
+        ->name('pages.projects.proposal.edit');
+
+    Route::put('/projects/{project}/proposal/update', [ProjectController::class, 'updateProposal'])
+        ->name('pages.projects.proposal.update');
+
+    // Stream File PDF Fisik dari Storage ke Iframe
+    Route::get('/projects/{project}/proposal/stream', [ProjectController::class, 'streamPdf'])
+        ->name('pages.projects.proposal.stream');
+
     // 5. AI Workspace
     Route::get('/ai-workspace', function () {
         return view('pages.ai-workspace');

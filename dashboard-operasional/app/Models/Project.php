@@ -110,12 +110,12 @@ class Project extends Model
     }
 
     public function mockupTemplate()
-{
-    return $this->belongsTo(MockupTemplate::class, 'mockup_template_id');
-}
+    {
+        return $this->belongsTo(MockupTemplate::class, 'mockup_template_id');
+    }
 
-public function proposalItems()
-{
-    return $this->hasMany(ProjectProposalItem::class);
-}
+    public function latestProposal()
+    {
+        return $this->hasOne(Proposal::class)->latestOfMany();
+    }
 }
