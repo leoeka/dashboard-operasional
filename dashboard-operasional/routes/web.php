@@ -53,14 +53,14 @@ Route::middleware(['auth'])->group(function () {
 
     // Halaman Editor & Update Proposal
     Route::get('/projects/{project}/proposal/edit', [ProjectController::class, 'editProposal'])
-        ->name('pages.projects.proposal.edit');
+        ->name('projects.proposal.edit');
 
     Route::put('/projects/{project}/proposal/update', [ProjectController::class, 'updateProposal'])
-        ->name('pages.projects.proposal.update');
+        ->name('projects.proposal.update');
 
     // Stream File PDF Fisik dari Storage ke Iframe
     Route::get('/projects/{project}/proposal/stream', [ProjectController::class, 'streamPdf'])
-        ->name('pages.projects.proposal.stream');
+        ->name('projects.proposal.stream');
 
     // 5. AI Workspace
     Route::get('/ai-workspace', [ProjectController::class, 'aiWorkspace'])->name('pages.ai-workspace');
