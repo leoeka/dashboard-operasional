@@ -6,27 +6,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
-/**
- * @property int $id
- * @property int $project_id
- * @property string $original_name
- * @property string $file_path
- * @property string|null $category
- * @property \Illuminate\Support\Carbon|null $created_at
- * @property \Illuminate\Support\Carbon|null $updated_at
- * @property-read \App\Models\Project $project
- * @method static \Illuminate\Database\Eloquent\Builder<static>|ProjectFile newModelQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|ProjectFile newQuery()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|ProjectFile query()
- * @method static \Illuminate\Database\Eloquent\Builder<static>|ProjectFile whereCategory($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|ProjectFile whereCreatedAt($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|ProjectFile whereFilePath($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|ProjectFile whereId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|ProjectFile whereOriginalName($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|ProjectFile whereProjectId($value)
- * @method static \Illuminate\Database\Eloquent\Builder<static>|ProjectFile whereUpdatedAt($value)
- * @mixin \Eloquent
- */
 class ProjectFile extends Model
 {
     use HasFactory;
