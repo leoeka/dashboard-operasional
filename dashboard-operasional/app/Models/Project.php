@@ -11,6 +11,54 @@ use App\Models\Invoice;
 
 
 
+/**
+ * @property int $id
+ * @property int|null $client_id
+ * @property string $code
+ * @property string|null $name
+ * @property string $client_name
+ * @property string|null $type
+ * @property int|null $mockup_template_id
+ * @property string|null $ai_generated_content
+ * @property string $status
+ * @property int $progress
+ * @property numeric|null $value
+ * @property \Illuminate\Support\Carbon|null $deadline
+ * @property \Illuminate\Support\Carbon|null $created_at
+ * @property \Illuminate\Support\Carbon|null $updated_at
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, ActivityLog> $activityLogs
+ * @property-read int|null $activity_logs_count
+ * @property-read \App\Models\Client|null $client
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\ProjectFile> $files
+ * @property-read int|null $files_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, Invoice> $invoices
+ * @property-read int|null $invoices_count
+ * @property-read MockupTemplate|null $mockupTemplate
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\ProjectProposalItem> $proposalItems
+ * @property-read int|null $proposal_items_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\Proposal> $proposals
+ * @property-read int|null $proposals_count
+ * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\ProjectTask> $tasks
+ * @property-read int|null $tasks_count
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project query()
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereAiGeneratedContent($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereClientId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereClientName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereCode($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereDeadline($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereMockupTemplateId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereName($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereProgress($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereStatus($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereType($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereUpdatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder<static>|Project whereValue($value)
+ * @mixin \Eloquent
+ */
 class Project extends Model
 {
     use HasFactory;
