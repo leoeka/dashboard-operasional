@@ -230,18 +230,6 @@ class ProjectController extends Controller
         return back()->with('success', 'Paket dihapus dari proposal.');
     }
 
-    public function selectMockup(Request $request, Project $project)
-    {
-        $request->validate(['mockup_template_id' => 'required|exists:mockup_templates,id']);
-
-        $project->update(['mockup_template_id' => $request->mockup_template_id]);
-
-        $template = \App\Models\MockupTemplate::find($request->mockup_template_id);
-        $project->logActivity("Mockup dipilih: {$template->name}");
-
-        return back()->with('success', 'Mockup berhasil dipilih.');
-    }
-
     public function proposalPdf(Project $project)
     {
         $project->load('proposalItems', 'mockupTemplate');

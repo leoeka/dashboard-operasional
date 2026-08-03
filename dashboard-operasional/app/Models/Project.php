@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Models\MockupTemplate;
+use App\Models\ProposalItem;
 
 class Project extends Model
 {
@@ -24,6 +26,7 @@ class Project extends Model
         'name',
         'client_name',
         'type',
+        'mockup_template_id',
         'status',
         'progress',
         'deadline',
@@ -105,4 +108,14 @@ class Project extends Model
             'status' => 'info',
         ]);
     }
+
+    public function mockupTemplate()
+{
+    return $this->belongsTo(MockupTemplate::class, 'mockup_template_id');
+}
+
+public function proposalItems()
+{
+    return $this->hasMany(ProjectProposalItem::class);
+}
 }
