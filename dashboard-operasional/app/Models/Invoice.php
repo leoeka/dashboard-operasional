@@ -73,7 +73,7 @@ class Invoice extends Model
 
     public function isOverdue(): bool
     {
-        return $this->status !== 'paid' && $this->due_date->isPast();
+        return $this->status !== 'paid' && $this->due_date->lt(today());
     }
 
     public function statusColor(): string
