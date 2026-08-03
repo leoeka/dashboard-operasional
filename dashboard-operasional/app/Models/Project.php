@@ -170,4 +170,9 @@ class Project extends Model
     {
         return $this->hasOne(Proposal::class)->latestOfMany();
     }
+
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
+    }
 }
