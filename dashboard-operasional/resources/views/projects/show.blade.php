@@ -136,7 +136,7 @@
                         <a href="{{ route('pages.projects.proposal.generate', $project) }}"
                             class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 shadow-sm transition">
                             <i class='bx bx-magic-wand text-sm'></i>
-                            <span>Generate Proposal AI</span>
+                            <span>Generate Proposal</span>
                         </a>
                     @endif
                 </div>
