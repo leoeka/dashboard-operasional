@@ -1,53 +1,104 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <meta charset="UTF-8">
     <style>
-        @page { margin: 0; }
-        body { font-family: Helvetica, Arial, sans-serif; color: #1e293b; font-size: 12px; line-height: 1.5; margin: 0; }
+        @page {
+            margin: 0;
+        }
+
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            color: #1e293b;
+            font-size: 12px;
+            line-height: 1.5;
+            margin: 0;
+        }
 
         .cover {
-            background-image: url('{{ public_path('images/cover-bg.jpg') }}');
+            background-image: url('{{ public_path('images/pdf/cover-bg.jpg') }}');
             background-size: cover;
-            width: 100%; height: 100%;
+            width: 100%;
+            height: 100%;
             padding: 60px 50px;
             page-break-after: always;
         }
-        .cover .logo { width: 160px; }
-        .cover .title { text-align: center; font-size: 22px; font-weight: bold; color: #1e3a5f; margin-top: 180px; }
-        .cover .agency { position: absolute; bottom: 60px; left: 50px; color: #fff; font-weight: bold; }
-        .cover .date { position: absolute; bottom: 40px; left: 50px; color: #fff; font-size: 11px; }
+
+        .cover .logo {
+            width: 160px;
+        }
+
+        .cover .title {
+            text-align: center;
+            font-size: 22px;
+            font-weight: bold;
+            color: #1e3a5f;
+            margin-top: 180px;
+        }
+
+        .cover .agency {
+            position: absolute;
+            bottom: 60px;
+            left: 50px;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .cover .date {
+            position: absolute;
+            bottom: 40px;
+            left: 50px;
+            color: #fff;
+            font-size: 11px;
+        }
 
         .content-page {
             padding: 30px 50px;
             page-break-after: always;
             position: relative;
         }
+
         .header-band {
-            background-image: url('{{ public_path('images/header-bg.jpg') }}');
+            background-image: url('{{ public_path('images/pdf/header-bg.jpg') }}');
             background-size: cover;
             height: 90px;
             margin: -30px -50px 20px -50px;
             padding: 20px 50px 0;
         }
-        .header-band .logo { width: 110px; }
-        .header-band .date { float: right; color: #fff; font-size: 11px; }
 
-        h2 { font-size: 15px; color: #1e40af; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-top: 10px; }
-        .mockup-img { display: block; margin: 12px auto; max-width: 340px; border: 1px solid #e2e8f0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; font-size: 11px; }
-        th { background: #f1f5f9; }
-        ul { margin: 0; padding-left: 16px; }
-        .total-row td { font-weight: bold; background: #eff6ff; }
-        .terms li { margin-bottom: 4px; font-size: 11px; }
+        .header-band .logo {
+            width: 110px;
+        }
+
+        .header-band .date {
+            float: right;
+            color: #fff;
+            font-size: 11px;
+        }
+
+        h2 {
+            font-size: 15px;
+            color: #1e40af;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 6px;
+            margin-top: 10px;
+        }
+
+        .mockup-img {
+            display: block;
+            margin: 12px auto;
+            max-width: 340px;
+            border: 1px solid #e2e8f0;
+        }
     </style>
 </head>
+
 <body>
 
     {{-- HALAMAN SAMPUL --}}
     <div class="cover">
-        <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
+        <img src="{{ public_path('images/pdf/logo-transparent.png') }}" class="logo">
         <div class="title">
             {{ strtoupper($project->client_name) }}<br>
             WEB PROPOSAL DEVELOPMENT
@@ -59,14 +110,15 @@
     {{-- HALAMAN ISI: GREETING --}}
     <div class="content-page">
         <div class="header-band">
-            <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
+            <img src="{{ public_path('images/pdf/logo-transparent.png') }}" class="logo">
             <span class="date">{{ now()->translatedFormat('d/m/Y') }}</span>
         </div>
 
         <p>Warmest Greeting from PT. Exito Bali Digital,</p>
         <p>
             Kami adalah agency yang menyediakan layanan Web Design &amp; Web Development, pemrograman web,
-            maintenance, promosi online, Search Engine Optimization, dan Digital Marketing skala lokal maupun internasional.
+            maintenance, promosi online, Search Engine Optimization, dan Digital Marketing skala lokal maupun
+            internasional.
         </p>
         <p>Melalui dokumen ini, kami mengajukan penawaran untuk layanan pengembangan website Anda.</p>
         <p>Terima kasih atas perhatiannya.</p>
@@ -77,7 +129,7 @@
     @if ($project->mockupTemplate)
         <div class="content-page">
             <div class="header-band">
-                <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
+                <img src="{{ public_path('images/pdf/logo-transparent.png') }}" class="logo">
                 <span class="date">{{ now()->translatedFormat('d/m/Y') }}</span>
             </div>
 
@@ -89,51 +141,6 @@
         </div>
     @endif
 
-    {{-- HALAMAN ISI: COST --}}
-    <div class="content-page">
-        <div class="header-band">
-            <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
-            <span class="date">{{ now()->translatedFormat('d/m/Y') }}</span>
-        </div>
-
-        <h2>Website Development Services Cost</h2>
-        <table>
-            <thead>
-                <tr><th style="width:35%">Layanan</th><th style="width:15%">Biaya</th><th>Deskripsi</th></tr>
-            </thead>
-            <tbody>
-                @php $total = 0; @endphp
-                @foreach ($project->proposalItems as $item)
-                    @php $total += $item->price; @endphp
-                    <tr>
-                        <td>{{ $item->name }}</td>
-                        <td>Rp{{ number_format($item->price, 0, ',', '.') }}{{ $item->unit }}</td>
-                        <td>
-                            <ul>
-                                @foreach ($item->featureList() as $feature)
-                                    <li>{{ $feature }}</li>
-                                @endforeach
-                            </ul>
-                        </td>
-                    </tr>
-                @endforeach
-                <tr class="total-row">
-                    <td colspan="2">Total</td>
-                    <td>Rp{{ number_format($total, 0, ',', '.') }}</td>
-                </tr>
-            </tbody>
-        </table>
-
-        <div class="terms" style="margin-top:20px;">
-            <strong>Syarat &amp; Ketentuan</strong>
-            <ul>
-                <li>Agreement Contract harus disepakati sebelum pekerjaan dimulai.</li>
-                <li>Deposit (DP) minimum 50% dari total invoice.</li>
-                <li>Estimasi waktu pengerjaan mengikuti jadwal yang berlaku, mohon konfirmasi ke tim kami.</li>
-                <li>Harga dapat berubah sesuai permintaan tambahan fitur dari client.</li>
-            </ul>
-        </div>
-    </div>
-
 </body>
+
 </html>

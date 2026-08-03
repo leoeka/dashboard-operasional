@@ -84,7 +84,7 @@ class ProjectController extends Controller
 
     public function show(Project $project)
     {
-        $project->load(['client', 'tasks', 'files', 'activityLogs', 'mockupTemplate', 'proposalItems']);
+        $project->load(['client', 'tasks', 'files', 'activityLogs', 'mockupTemplate',]);
 
         return view('projects.show', compact('project'));
     }
@@ -184,62 +184,6 @@ class ProjectController extends Controller
         return back()->with('success', 'File berhasil diunggah.');
     }
 
-    public function destroyFile(Project $project, ProjectFile $file)
-    {
-        Storage::disk('public')->delete($file->file_path);
-        $file->delete();
-
-        $project->logActivity("File {$file->original_name} dihapus");
-
-        return back()->with('success', 'File dihapus.');
-    }
-
-    public function addProposalItem(Request $request, Project $project)
-    {
-        $request->validate(['service_package_id' => 'required|exists:service_packages,id']);
-
-        $pkg = \App\Models\ServicePackage::findOrFail($request->service_package_id);
-
-        $project->proposalItems()->create([
-            'service_package_id' => $pkg->id,
-            'name' => $pkg->name,
-            'price' => $pkg->price,
-            'unit' => $pkg->unit,
-            'features' => $pkg->features,
-        ]);
-
-        $project->logActivity("Paket ditambahkan ke proposal: {$pkg->name}");
-
-        return back()->with('success', 'Paket ditambahkan ke proposal.');
-    }
-
-    public function updateProposalItem(Request $request, Project $project, \App\Models\ProjectProposalItem $item)
-    {
-        $request->validate(['price' => 'required|numeric']);
-
-        $item->update(['price' => $request->price]);
-        $project->logActivity("Harga paket '{$item->name}' disesuaikan");
-
-        return back()->with('success', 'Harga berhasil disesuaikan.');
-    }
-
-    public function destroyProposalItem(Project $project, \App\Models\ProjectProposalItem $item)
-    {
-        $item->delete();
-
-        return back()->with('success', 'Paket dihapus dari proposal.');
-    }
-
-    public function proposalPdf(Project $project)
-    {
-        $project->load('proposalItems', 'mockupTemplate');
-
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.proposal', compact('project'));
-
-        $project->logActivity('Proposal PDF diunduh');
-
-        return $pdf->download("Proposal-{$project->client_name}.pdf");
-    }
 
     public function addmockupTemplate(Request $request, Project $project)
     {
@@ -252,5 +196,22 @@ class ProjectController extends Controller
         $project->logActivity("Mockup template dipilih: {$request->mockup_template_id}");
 
         return back()->with('success');
+    }
+
+    public function generateProposal(Project $project)
+    {
+        $project->load('mockupTemplate');
+
+        // TODO: di sinilah nanti AI dipanggil — analisis template WordPress yang
+        // dipilih (mockupTemplate), lalu hasilkan konten/paket yang relevan untuk
+        // proposal ini. Untuk sekarang belum ada logika apa pun di sini (kosong),
+        // karena provider AI belum diputuskan dan belum ada sumber data pengganti
+        // tabel service_packages yang sudah dihapus.
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.proposal', compact('project'));
+
+        $project->logActivity('Proposal digenerate & diunduh');
+
+        return $pdf->download("Proposal-{$project->client_name}.pdf");
     }
 }
