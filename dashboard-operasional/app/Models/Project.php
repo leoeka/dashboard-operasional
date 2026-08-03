@@ -6,6 +6,10 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\MockupTemplate;
 use App\Models\ProposalItem;
+use App\Models\ActivityLog;
+use App\Models\Invoice;
+
+
 
 class Project extends Model
 {
@@ -30,6 +34,7 @@ class Project extends Model
         'status',
         'progress',
         'deadline',
+        'ai_generated_content',
     ];
 
     protected $casts = [
@@ -110,12 +115,18 @@ class Project extends Model
     }
 
     public function mockupTemplate()
-{
-    return $this->belongsTo(MockupTemplate::class, 'mockup_template_id');
-}
+    {
+        return $this->belongsTo(MockupTemplate::class, 'mockup_template_id');
+    }
 
-public function proposalItems()
-{
-    return $this->hasMany(ProjectProposalItem::class);
-}
+    public function proposalItems()
+    {
+        return $this->hasMany(ProjectProposalItem::class);
+    }
+
+    public function invoices()
+    {
+        return $this->hasMany(Invoice::class);
+    }
+
 }

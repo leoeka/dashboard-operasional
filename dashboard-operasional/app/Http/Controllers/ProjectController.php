@@ -214,4 +214,34 @@ class ProjectController extends Controller
 
         return $pdf->download("Proposal-{$project->client_name}.pdf");
     }
+
+    public function aiWorkspace(Request $request)
+    {
+        $projects = Project::orderBy('name')->get();
+
+        $project = null;
+        if ($request->project) {
+            $project = Project::with('mockupTemplate')->find($request->project);
+        }
+
+        return view('pages.ai-workspace', compact('projects', 'project'));
+    }
+
+    public function generateAiContent(Project $project)
+    {
+        // TODO: ganti isi generator ini dengan pemanggilan API AI sungguhan,
+        // pakai mockupTemplate + requirement_notes project sebagai konteks,
+        // begitu provider AI sudah diputuskan.
+        $mockupName = $project->mockupTemplate->name ?? 'mockup yang dipilih';
+
+        $content = "Desain website untuk {$project->client_name} dibuat mengikuti struktur \"{$mockupName}\".\n\n"
+            . "Jenis website: {$project->type}\n"
+            . "Ringkasan kebutuhan: " . ($project->requirement_notes ?? '-') . "\n\n"
+            . "[Hasil generate otomatis pada " . now()->translatedFormat('d M Y, H:i') . "]";
+
+        $project->update(['ai_generated_content' => $content]);
+        $project->logActivity('AI Workspace: konten digenerate');
+
+        return back()->with('success', 'Konten berhasil digenerate.');
+    }
 }
