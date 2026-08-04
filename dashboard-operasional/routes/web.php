@@ -48,19 +48,17 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/projects/{project}/mockup', [ProjectController::class, 'addmockupTemplate'])
         ->name('pages.projects.mockup.add');
 
-    Route::get('/projects/{project}/proposal/generate', [ProjectController::class, 'generateProposal'])
-        ->name('pages.projects.proposal.generate');
+    Route::get(
+        '/projects/{project}/proposal/preview',
+        [ProjectController::class, 'previewProposal']
+    )->name('pages.projects.proposal.preview');
 
-    // Halaman Editor & Update Proposal
-    Route::get('/projects/{project}/proposal/edit', [ProjectController::class, 'editProposal'])
-        ->name('projects.proposal.edit');
+    Route::get(
+        '/projects/{project}/proposal/download',
+        [ProjectController::class, 'downloadProposal']
+    )->name('pages.projects.proposal.download');
 
-    Route::put('/projects/{project}/proposal/update', [ProjectController::class, 'updateProposal'])
-        ->name('projects.proposal.update');
-
-    // Stream File PDF Fisik dari Storage ke Iframe
-    Route::get('/projects/{project}/proposal/stream', [ProjectController::class, 'streamPdf'])
-        ->name('projects.proposal.stream');
+    
 
     // 5. AI Workspace
     Route::get('/ai-workspace', [ProjectController::class, 'aiWorkspace'])->name('pages.ai-workspace');

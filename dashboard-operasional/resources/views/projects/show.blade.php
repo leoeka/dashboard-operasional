@@ -112,6 +112,7 @@
         {{-- PROPOSAL --}}
         <x-card class="flex flex-col justify-between h-full">
             <div class="space-y-4">
+                {{-- Header --}}
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex items-center gap-3">
                         <div
@@ -119,55 +120,87 @@
                             <i class='bx bx-file-blank text-xl'></i>
                         </div>
                         <div>
-                            <h2 class="font-bold text-slate-800 text-base">Proposal Proyek</h2>
-                            <p class="text-xs text-slate-400">Dokumen penawaran resmi</p>
+                            <h2 class="font-bold text-slate-800 text-base">
+                                Proposal Proyek
+                            </h2>
+                            <p class="text-xs text-slate-400">
+                                Analisis & dokumen penawaran
+                            </p>
                         </div>
                     </div>
-
+                    {{-- Status --}}
                     <div>
                         @if ($project->latestProposal)
                             <span
-                                class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200/60">
+                                class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold
+                        bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200/60">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                                 Versi {{ $project->latestProposal->version }}
                             </span>
                         @else
                             <span
-                                class="inline-flex items-center px-2.5 py-1 text-[11px] font-semibold bg-slate-100 text-slate-500 rounded-full">
+                                class="inline-flex items-center px-2.5 py-1 text-[11px] font-semibold
+                        bg-slate-100 text-slate-500 rounded-full">
                                 Belum Dibuat
+
                             </span>
                         @endif
                     </div>
                 </div>
-
+                {{-- Description --}}
                 <p class="text-xs text-slate-500 leading-relaxed">
                     @if ($project->latestProposal)
-                        Proposal sudah siap. Anda dapat meninjau ulang template, melakukan pengeditan isi, atau langsung
-                        mengunduh berkas PDF.
+                        Proposal telah berhasil dibuat berdasarkan data request proyek.
+                        Anda dapat melihat hasil analisis dan preview proposal sebelum
+                        membuat dokumen PDF.
                     @else
-                        Buat proposal resmi proyek ini secara otomatis dengan bantuan AI Workspace hanya dalam beberapa
-                        langkah mudah.
+                        Generate proposal berdasarkan data request proyek.
+                        Sistem akan menyiapkan analisis kebutuhan, strategi website,
+                        target market, dan struktur website.
                     @endif
                 </p>
             </div>
-
-            <div class="pt-5 mt-4 border-t border-slate-100 flex items-center justify-end">
+            {{-- Actions --}}
+            <div class="pt-5 mt-4 border-t border-slate-100">
                 @if ($project->latestProposal)
-                    <a href="{{ route('pages.projects.proposal.edit', $project) }}"
-                        class="w-full sm:w-auto inline-flex items-center justify-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2.5 rounded-lg hover:opacity-90 active:scale-95 shadow-sm transition">
-                        <i class='bx bx-edit-alt text-sm'></i>
-                        <span>Edit Proposal</span>
-                    </a>
+                    <div class="flex flex-col sm:flex-row gap-2">
+                        {{-- Preview --}}
+                        <a href="{{ route('pages.projects.proposal.preview', $project) }}"
+                            class="flex-1 inline-flex items-center justify-center gap-2
+                    bg-slate-100 text-slate-700 text-xs font-semibold
+                    px-4 py-2.5 rounded-lg
+                    hover:bg-slate-200 active:scale-95 transition">
+                            <i class='bx bx-show text-sm'></i>
+                            <span>Preview</span>
+                        </a>
+                    </div>
+                    {{-- Download jika PDF sudah tersedia --}}
+                    @if ($project->latestProposal->pdf_path)
+                        <a href="{{ route('pages.projects.proposal.download', $project) }}"
+                            class="mt-2 w-full inline-flex items-center justify-center gap-2
+                    text-slate-500 hover:text-blue-600
+                    text-xs font-medium py-2 transition">
+                            <i class='bx bx-download'></i>
+                            Download PDF Proposal
+                        </a>
+                    @endif
                 @else
-                    <a href="{{ route('pages.projects.proposal.generate', $project) }}"
-                        class="w-full sm:w-auto inline-flex items-center justify-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2.5 rounded-lg hover:opacity-90 active:scale-95 shadow-sm transition">
-                        <i class='bx bx-magic-wand text-sm'></i>
-                        <span>Generate Proposal</span>
-                    </a>
+                    {{-- Generate pertama kali --}}
+                    <form action="{{ route('pages.projects.proposal.generate', $project) }}" method="POST" class="w-full">
+                        @csrf
+                        <button type="submit"
+                            class="w-full inline-flex items-center justify-center gap-2
+                   grad-blue text-white text-xs font-semibold
+                   px-4 py-2.5 rounded-lg
+                   hover:opacity-90 active:scale-95
+                   shadow-sm transition">
+                            <i class='bx bx-magic-wand text-sm'></i>
+                            <span>Generate Proposal</span>
+                        </button>
+                    </form>
                 @endif
             </div>
         </x-card>
-
     </div>
 
     {{-- ADD MOCKUP --}}
