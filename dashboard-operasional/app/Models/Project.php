@@ -125,4 +125,22 @@ class Project extends Model
     {
         return $this->hasOne(Proposal::class)->latestOfMany();
     }
+
+    public function autoMatchMockupTemplate(): ?MockupTemplate
+    {
+        // TODO: nanti diganti pemanggilan AI sungguhan (baca requirement_notes
+        // secara semantik, bukan cuma cocokkan kategori). Untuk sekarang,
+        // cocokkan berdasarkan kategori dari `type` project ke kategori template.
+        $categoryKey = collect(MockupTemplate::categories())->search($this->type);
+
+        if ($categoryKey) {
+            $match = MockupTemplate::where('category', $categoryKey)->inRandomOrder()->first();
+            if ($match) {
+                return $match;
+            }
+        }
+
+        // Fallback kalau tidak ketemu kategori yang cocok sama sekali
+        return MockupTemplate::inRandomOrder()->first();
+    }
 }

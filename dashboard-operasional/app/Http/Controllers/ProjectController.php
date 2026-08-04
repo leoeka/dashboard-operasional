@@ -216,7 +216,7 @@ class ProjectController extends Controller
 
         // --- MODE TESTING AI (Nanti bisa diaktifkan kembali AiMockupRecommender) ---
         $aiReasoning = '[MODE TESTING] Fitur AI dinonaktifkan sementara.';
-        $recommendedTemplate = $project->mockupTemplate ?? $templates->first();
+        $recommendedTemplate = $project->mockupTemplate ?? $project->autoMatchMockupTemplate();
 
         if (!$project->mockup_template_id && $recommendedTemplate) {
             $project->update(['mockup_template_id' => $recommendedTemplate->id]);
