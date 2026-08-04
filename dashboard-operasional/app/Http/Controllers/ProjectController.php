@@ -10,10 +10,19 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Models\Proposal;
 use Illuminate\Support\Facades\Storage;
+use Barryvdh\DomPDF\Facade\Pdf;
+use App\Services\AiServices;
 
 
 class ProjectController extends Controller
 {
+
+    private AiServices $aiServices;
+
+    public function __construct(AiServices $aiServices)
+    {
+        $this->aiServices = $aiServices;
+    }
     private array $defaultTasks = [
         'Homepage',
         'About',
@@ -200,71 +209,156 @@ class ProjectController extends Controller
         return back()->with('success');
     }
 
-    public function generateProposal(Project $project)
+    public function generateProposal(Project $project, AiServices $aiService)
     {
-        // Ambil proposal terakhir jika sudah pernah dibuat
-        $proposal = Proposal::where('project_id', $project->id)
-            ->latest()
-            ->first();
+        // =====================================================
+        // 1. LOAD DATA PROJECT
+        // =====================================================
 
-        // Jika sudah ada, jangan membuat proposal baru otomatis
-        if ($proposal) {
-            return redirect()
-                ->route('pages.projects.show', $project)
-                ->with('info', 'Proposal untuk project ini sudah tersedia.');
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | DATA REQUEST
-        |--------------------------------------------------------------------------
-        | Untuk sementara kita gunakan data project/request yang sudah tersedia.
-        | AI belum diaktifkan.
-        */
-
-        $analysis = [
-            'business_analysis' => 'Analisis bisnis akan dihasilkan oleh AI.',
-            'market_analysis' => 'Analisis pasar akan dihasilkan oleh AI.',
-            'target_market' => 'Target market akan dianalisis oleh AI.',
-            'competitor_analysis' => 'Analisis kompetitor akan dihasilkan oleh AI.',
-            'website_objective' => 'Tujuan website akan dianalisis berdasarkan request client.',
-            'sitemap' => 'Sitemap akan dihasilkan berdasarkan kebutuhan website.',
-            'page_structure' => 'Struktur halaman akan dihasilkan berdasarkan hasil analisis.',
-            'content_strategy' => 'Strategi konten akan dihasilkan oleh AI.',
-            'cta_strategy' => 'Strategi CTA akan dihasilkan oleh AI.',
-            'design_direction' => 'Arah desain akan ditentukan pada tahap mockup.',
-        ];
-
-        /*
-        |--------------------------------------------------------------------------
-        | SIMPAN PROPOSAL
-        |--------------------------------------------------------------------------
-        */
-
-        $proposal = Proposal::create([
-            'project_id' => $project->id,
-            'client_name' => $project->client_name,
-            'status' => 'pending',
-            'version' => 1,
-
-            // Sementara menggunakan placeholder.
-            // Nanti bagian ini diisi hasil AI.
-            'ai_reasoning' => json_encode($analysis),
+        $project->load([
+            'client',
+            'files',
         ]);
 
-        $project->logActivity('Proposal berhasil dibuat.');
+        // =====================================================
+        // 2. AI ANALYSIS
+        // =====================================================
 
-        /*
-        |--------------------------------------------------------------------------
-        | REDIRECT KE PREVIEW PROPOSAL
-        |--------------------------------------------------------------------------
-        */
+        $analysis = $aiService->analyzeProject($project);
 
-        return redirect()
-            ->route('pages.projects.proposal.preview', $project)
-            ->with('success', 'Proposal berhasil dibuat.');
+        // Pastikan analysis selalu array
+        if (!is_array($analysis)) {
+            $analysis = [
+                'business_overview' => '',
+                'target_market' => '',
+                'website_goal' => '',
+                'recommended_structure' => [],
+                'recommended_features' => [],
+                'seo_strategy' => '',
+                'design_direction' => '',
+                'recommended_cta' => '',
+            ];
+        }
+
+        // =====================================================
+        // 3. GENERATE MOCKUP
+        // =====================================================
+
+        $mockup = $aiService->generateMockup(
+            $project,
+            $analysis
+        );
+
+        // Pastikan mockup selalu array
+        if (!is_array($mockup)) {
+            $mockup = [
+                'title' => 'Website Mockup',
+                'content_notes' => '',
+                'sections' => [],
+                'design_direction' => '',
+            ];
+        }
+
+        // =====================================================
+        // 4. DATA PROJECT UNTUK PDF
+        // =====================================================
+
+        $projectData = [
+            'project_name' => $project->name,
+
+            'client_name' => $project->client_name,
+
+            'website_type' =>
+                $project->type ?? 'Company Profile',
+
+            'project_code' => $project->code,
+
+            'generated_at' =>
+                now()->format('d F Y H:i'),
+        ];
+
+        // =====================================================
+        // 5. GENERATE PDF
+        // =====================================================
+
+        $pdf = Pdf::loadView(
+            'pdf.proposal',
+            [
+                'project' => $project,
+                'projectData' => $projectData,
+                'analysis' => $analysis,
+                'mockup' => $mockup,
+            ]
+        );
+
+        // =====================================================
+        // 6. SIMPAN PDF
+        // =====================================================
+
+        $clientSlug = Str::slug(
+            $project->client_name
+        );
+
+        $fileName =
+            "proposals/Proposal-Mockup-{$clientSlug}-{$project->code}.pdf";
+
+        Storage::disk('public')->put(
+            $fileName,
+            $pdf->output()
+        );
+
+        // =====================================================
+        // 7. SIMPAN PROPOSAL
+        // =====================================================
+
+        Proposal::updateOrCreate(
+            [
+                'project_id' => $project->id,
+            ],
+            [
+                'client_name' =>
+                    $project->client_name,
+
+                'status' =>
+                    'pending',
+
+                'pdf_path' =>
+                    $fileName,
+
+                'version' =>
+                    1,
+
+                'ai_reasoning' =>
+                    json_encode(
+                        $analysis,
+                        JSON_UNESCAPED_UNICODE
+                    ),
+
+                'summary' =>
+                    $mockup['content_notes'] ?? null,
+            ]
+        );
+
+        // =====================================================
+        // 8. LOG ACTIVITY
+        // =====================================================
+
+        $project->logActivity(
+            'AI Analysis dan Mockup berhasil dibuat'
+        );
+
+        // =====================================================
+        // 9. KE PREVIEW
+        // =====================================================
+
+        return redirect()->route(
+            'pages.projects.proposal.preview',
+            $project
+        )->with(
+                'success',
+                'Proposal berhasil dibuat.'
+            );
     }
-
     public function previewProposal(Project $project)
     {
         $proposal = Proposal::where('project_id', $project->id)
