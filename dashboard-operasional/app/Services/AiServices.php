@@ -10,9 +10,12 @@ use Illuminate\Support\Str;
 
 class AiServices
 {
+    // =====================================================
+    // ANALISIS TEKS PROJECT — tetap pakai Gemini (ini beda dari generate gambar)
+    // =====================================================
+
     public function analyzeProject(Project $project): array
     {
-        // Prompt yang memaksa keluaran JSON terstruktur
         $prompt = "Kamu adalah seorang Web Strategy Consultant profesional.
 Analisis request pembuatan website berikut dan berikan strategi yang terstruktur:
 - Nama Klien: {$project->client_name}
@@ -36,21 +39,16 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
 }";
 
         try {
-            // Panggil model gemini-2.5-flash langsung
-            $response = Gemini::generativeModel('gemini-2.5-flash')
+            $response = Gemini::generativeModel('gemini-3.5-flash')
                 ->generateContent($prompt);
 
             $responseText = $response->text();
-
-            // Saring markdown fence jika AI tidak sengaja menyertakan ```json ... ```
             $cleanJson = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($responseText));
-
             $result = json_decode($cleanJson, true);
 
             return $result ?: $this->getFallbackAnalysis();
         } catch (\Exception $e) {
             Log::error('Gemini AI Analysis Error: ' . $e->getMessage());
-
             return $this->getFallbackAnalysis();
         }
     }
@@ -71,52 +69,63 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
         ];
     }
 
+    // =====================================================
+    // GENERATE GAMBAR MOCKUP — PAKAI POLLINATIONS (gratis, tanpa API key)
+    // JANGAN ganti balik ke Flux/Gemini manual — dua-duanya sudah terbukti
+    // butuh billing berbayar (lihat riwayat log sebelumnya).
+    // =====================================================
+
     public function generateMockup(Project $project, array $analysis): ?string
     {
-        // 1. Susun Prompt Gambar yang Sangat Spesifik untuk UI/UX
         $prompt = $this->buildImagePrompt($project, $analysis);
 
         try {
-            // 2. Opsi A: Menggunakan API Black Forest Labs / Flux (Rekomendasi untuk UI Design)
-            // Jika Anda menggunakan provider seperti Replicate / Together AI / Fal.ai yang menyediakan model Flux:
-            $apiKey = config('services.flux.api_key', env('FLUX_API_KEY'));
+            $url = 'https://image.pollinations.ai/prompt/' . rawurlencode($prompt)
+                . '?width=1440&height=896&model=flux&nologo=true';
 
-            if (!$apiKey) {
-                Log::warning('Flux/Blackbox API Key tidak ditemukan. Menggunakan placeholder mockup.');
-                return null;
+            $response = Http::timeout(30)->get($url);
+
+            if (!$response->successful()) {
+                Log::error('Pollinations image gen gagal (pakai placeholder): status ' . $response->status());
+                return $this->generatePlaceholderMockup($project);
             }
 
-            // Contoh HTTP Request ke Provider Flux / Image AI API
-            $response = Http::withHeaders([
-                'Authorization' => "Bearer {$apiKey}",
-                'Content-Type' => 'application/json',
-            ])->post('https://api.bfl.ml/v1/flux-pro-1.1', [
-                        'prompt' => $prompt,
-                        'width' => 1440,
-                        'height' => 900,
-                        'aspect_ratio' => '16:9',
-                        'output_format' => 'png',
-                    ]);
+            $filename = 'mockups/project_' . $project->id . '_' . Str::random(10) . '.png';
+            Storage::disk('public')->put($filename, $response->body());
 
-            if ($response->successful()) {
-                $imageUrl = $response->json('result.sample'); // Sesuaikan dengan key JSON response API Anda
-
-                // Download gambar dan simpan ke local storage Laravel
-                return $this->downloadAndSaveImage($imageUrl, $project->id);
-            }
-
-            Log::error('Image Generation Error: ' . $response->body());
-            return null;
+            return 'storage/' . $filename;
 
         } catch (\Exception $e) {
-            Log::error('Mockup Generator Exception: ' . $e->getMessage());
-            return null;
+            Log::error('Pollinations Mockup Generator Exception (pakai placeholder): ' . $e->getMessage());
+            return $this->generatePlaceholderMockup($project);
         }
     }
 
     /**
-     * Formula Prompt UI/UX Design agar hasil estetik dan profesional.
+     * Fallback kalau Pollinations gagal/timeout — supaya alur PDF tetap jalan.
      */
+    private function generatePlaceholderMockup(Project $project): ?string
+    {
+        try {
+            $response = Http::timeout(15)->get(
+                'https://placehold.co/1440x896/2563eb/ffffff/png',
+                ['text' => 'AI Mockup Preview (Placeholder)']
+            );
+
+            if (!$response->successful()) {
+                return null;
+            }
+
+            $filename = 'mockups/project_' . $project->id . '_' . Str::random(10) . '.png';
+            Storage::disk('public')->put($filename, $response->body());
+
+            return 'storage/' . $filename;
+        } catch (\Exception $e) {
+            Log::error('Placeholder generator juga gagal: ' . $e->getMessage());
+            return null;
+        }
+    }
+
     private function buildImagePrompt(Project $project, array $analysis): string
     {
         $designDirection = $analysis['design_direction'] ?? 'Modern, clean, responsive';
@@ -126,20 +135,5 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
             "Theme: {$designDirection}. " .
             "Clean layout, modern typography, hero section with call-to-action button, " .
             "high quality 8k desktop view, elegant color palette, Figma UI concept, smooth gradients, no blur, sharp resolution.";
-    }
-
-    /**
-     * Simpan gambar dari URL API ke folder storage/app/public/mockups
-     */
-    private function downloadAndSaveImage(string $url, int $projectId): ?string
-    {
-        $contents = file_get_contents($url);
-        if (!$contents)
-            return null;
-
-        $filename = 'mockups/project_' . $projectId . '_' . Str::random(10) . '.png';
-        Storage::disk('public')->put($filename, $contents);
-
-        return 'storage/' . $filename;
     }
 }

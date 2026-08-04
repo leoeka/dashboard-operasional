@@ -503,6 +503,11 @@
         @elseif (!empty($mockup))
             {{-- Dummy Mockup Sementara --}}
 
+            @if (!empty($mockup['image_path']))
+                <img src="{{ storage_path('app/public/' . \Illuminate\Support\Str::after($mockup['image_path'], 'storage/')) }}"
+                    class="mockup-img">
+            @endif
+
             <div class="blue-box">
 
                 <strong>
@@ -565,7 +570,7 @@
             @endforeach
 
 
-            <div class="mockup-placeholder">
+            <!-- <div class="mockup-placeholder">
 
                 <strong>
                     WEBSITE MOCKUP PREVIEW
@@ -577,7 +582,7 @@
                 setelah template website perusahaan
                 terhubung ke sistem.
 
-            </div>
+            </div> -->
         @else
             <div class="mockup-placeholder">
 

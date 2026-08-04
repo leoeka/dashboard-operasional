@@ -244,20 +244,15 @@ class ProjectController extends Controller
         // 3. GENERATE MOCKUP
         // =====================================================
 
-        $mockup = $aiService->generateMockup(
-            $project,
-            $analysis
-        );
+        $mockupImagePath = $aiService->generateMockup($project, $analysis);
 
-        // Pastikan mockup selalu array
-        if (!is_array($mockup)) {
-            $mockup = [
-                'title' => 'Website Mockup',
-                'content_notes' => '',
-                'sections' => [],
-                'design_direction' => '',
-            ];
-        }
+        $mockup = [
+            'title' => $project->name . ' — Website Mockup',
+            'content_notes' => $analysis['design_direction'] ?? '',
+            'sections' => [],
+            'design_direction' => $analysis['design_direction'] ?? '',
+            'image_path' => $mockupImagePath,
+        ];
 
         // =====================================================
         // 4. DATA PROJECT UNTUK PDF
