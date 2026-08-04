@@ -8,10 +8,9 @@ use App\Models\ProjectFile;
 use App\Models\ProjectTask;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Barryvdh\DomPDF\Facade\Pdf;
-use App\Models\MockupTemplate;
 use App\Models\Proposal;
 use Illuminate\Support\Facades\Storage;
+
 
 class ProjectController extends Controller
 {
@@ -298,9 +297,10 @@ class ProjectController extends Controller
             return back()->with('error', 'File PDF tidak ditemukan.');
         }
 
-        return Storage::disk('public')->download(
+        return Storage::download(
             $proposal->pdf_path,
-            basename($proposal->pdf_path)
+            basename($proposal->pdf_path),
+            ['Content-Type' => 'application/pdf']
         );
     }
 
