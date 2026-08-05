@@ -58,7 +58,7 @@ Route::middleware(['auth'])->group(function () {
         [ProjectController::class, 'downloadProposal']
     )->name('pages.projects.proposal.download');
 
-    
+
 
     // 5. AI Workspace
     Route::get('/ai-workspace', [ProjectController::class, 'aiWorkspace'])->name('pages.ai-workspace');
@@ -66,9 +66,7 @@ Route::middleware(['auth'])->group(function () {
 
 
     // 6. Mockup
-    Route::get('/mockup', function () {
-        return view('pages.mockup');
-    })->name('pages.mockup');
+    Route::get('/mockup', [ProjectController::class, 'mockupTemplates'])->name('pages.mockup');
 
     // 7. Website
     Route::get('/website', function () {

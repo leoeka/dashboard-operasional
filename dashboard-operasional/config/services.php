@@ -38,6 +38,10 @@ return [
     'openai' => [
         'key' => env('OPENAI_API_KEY'),
     ],
-    
+
+    'zipwp' => [
+        'token' => env('ZIPWP_API_TOKEN'),
+        'mcp_url' => env('ZIPWP_MCP_URL', 'https://api.zipwp.com/mcp/zipwp'),
+    ],
 
 ];

@@ -25,7 +25,7 @@
 
         <!-- FILTER & SEARCH BAR SECTION (RAPI HARIZONTAL) -->
         <div class="bg-white p-4 rounded-xl border border-gray-100 shadow-sm">
-            <div class="flex flex-col md:flex-row gap-3 items-center">
+            <form action="{{ route('pages.mockup') }}" method="GET" class="flex flex-col md:flex-row gap-3 items-center">
 
                 <!-- Input Search -->
                 <div class="relative flex-1 w-full">
@@ -35,107 +35,76 @@
                                 d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                         </svg>
                     </div>
-                    <input type="text" placeholder="Search mockup..."
+                    <input type="text" name="search" value="{{ request('search') }}" placeholder="Search mockup..."
                         class="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition">
                 </div>
 
                 <!-- Dropdown Filter Horizontal -->
                 <div class="flex flex-wrap md:flex-nowrap gap-3 w-full md:w-auto">
-                    <select
-                        class="w-full md:w-40 py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                        <option value="">Industry ▼</option>
-                        <option value="spa">Spa</option>
-                        <option value="restaurant">Restaurant</option>
-                        <option value="hotel">Hotel</option>
-                    </select>
-
-                    <select
-                        class="w-full md:w-40 py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                        <option value="">Builder ▼</option>
-                        <option value="elementor">Elementor</option>
-                        <option value="betheme">BeTheme</option>
-                        <option value="divi">Divi</option>
-                    </select>
-
-                    <select
+                    <select name="is_premium" onchange="this.form.submit()"
                         class="w-full md:w-36 py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
-                        <option value="">Status ▼</option>
-                        <option value="active">Active</option>
-                        <option value="draft">Draft</option>
+                        <option value="">Status</option>
+                        <option value="free" {{ request('is_premium') == 'free' ? 'selected' : '' }}>Free</option>
+                        <option value="premium" {{ request('is_premium') == 'premium' ? 'selected' : '' }}>Premium</option>
+                    </select>
+
+                    <select name="page_builder" onchange="this.form.submit()"
+                        class="w-full md:w-40 py-2 px-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                        <option value="">Builder</option>
+                        <option value="elementor" {{ request('page_builder') == 'elementor' ? 'selected' : '' }}>Elementor</option>
+                        <option value="betheme" {{ request('page_builder') == 'betheme' ? 'selected' : '' }}>BeTheme</option>
+                        <option value="divi" {{ request('page_builder') == 'divi' ? 'selected' : '' }}>Divi</option>
                     </select>
                 </div>
-
-            </div>
+            </form>
         </div>
 
         <!-- MOCKUP GRID CARDS (STATIS TEMPORARY) -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
 
-            <!-- Card 1 -->
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition">
-                <div
-                    class="h-48 bg-gray-200 flex items-center justify-center text-gray-400 font-semibold uppercase tracking-wider">
-                    Preview Image
-                </div>
-                <div class="p-5">
-                    <h3 class="font-bold text-gray-800 text-lg">Luxury Spa</h3>
-                    <div class="flex items-center gap-2 mt-2">
-                        <span class="bg-blue-50 text-blue-600 text-xs px-2.5 py-1 rounded-md font-medium">Spa</span>
-                        <span class="text-xs text-gray-500 font-medium">• Elementor</span>
+            @forelse($templates as $template)
+                <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition">
+                    <div class="h-48 bg-gray-200 overflow-hidden relative">
+                        <iframe src="{{ $template['preview_url'] }}" class="pointer-events-none"
+                            style="width: 400%; height: 400%; transform: scale(0.25); transform-origin: 0 0; border: 0;"
+                            loading="lazy" sandbox="allow-same-origin">
+                        </iframe>
                     </div>
-                    <div class="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-gray-50">
-                        <button
-                            class="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition">Preview</button>
-                        <button
-                            class="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-lg transition">Edit</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Card 2 -->
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition">
-                <div
-                    class="h-48 bg-gray-200 flex items-center justify-center text-gray-400 font-semibold uppercase tracking-wider">
-                    Preview Image
-                </div>
-                <div class="p-5">
-                    <h3 class="font-bold text-gray-800 text-lg">Modern Restaurant</h3>
-                    <div class="flex items-center gap-2 mt-2">
-                        <span
-                            class="bg-green-50 text-green-600 text-xs px-2.5 py-1 rounded-md font-medium">Restaurant</span>
-                        <span class="text-xs text-gray-500 font-medium">• Elementor</span>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-gray-50">
-                        <button
-                            class="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition">Preview</button>
-                        <button
-                            class="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-lg transition">Edit</button>
+                    <div class="p-5">
+                        <h3 class="font-bold text-gray-800 text-lg">{{ $template['name'] }}</h3>
+                        <div class="flex items-center gap-2 mt-2">
+                            <span class="bg-blue-50 text-blue-600 text-xs px-2.5 py-1 rounded-md font-medium">
+                                {{ $template['categories'][0] ?? '-' }}
+                            </span>
+                            <span class="text-xs text-gray-500 font-medium">• {{ ucfirst($template['page_builder']) }}</span>
+                            @if($template['is_premium'])
+                                <span class="text-xs text-amber-600 font-semibold">★ Premium</span>
+                            @endif
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-gray-50">
+                            <a href="{{ $template['preview_url'] }}" target="_blank"
+                                class="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition text-center">Preview</a>
+                            <button
+                                class="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-lg transition">Edit</button>
+                        </div>
                     </div>
                 </div>
-            </div>
-
-            <!-- Card 3 -->
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition">
-                <div
-                    class="h-48 bg-gray-200 flex items-center justify-center text-gray-400 font-semibold uppercase tracking-wider">
-                    Preview Image
-                </div>
-                <div class="p-5">
-                    <h3 class="font-bold text-gray-800 text-lg">Bali Hotel</h3>
-                    <div class="flex items-center gap-2 mt-2">
-                        <span class="bg-purple-50 text-purple-600 text-xs px-2.5 py-1 rounded-md font-medium">Hotel</span>
-                        <span class="text-xs text-gray-500 font-medium">• BeTheme</span>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2 mt-5 pt-4 border-t border-gray-50">
-                        <button
-                            class="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-semibold rounded-lg transition">Preview</button>
-                        <button
-                            class="w-full py-2 bg-blue-50 hover:bg-blue-100 text-blue-600 text-xs font-semibold rounded-lg transition">Edit</button>
-                    </div>
-                </div>
-            </div>
+            @empty
+                <p class="col-span-full text-center text-gray-400 py-10">Tidak ada mockup ditemukan.</p>
+            @endforelse
 
         </div>
+
+        @if($lastPage > 1)
+            <div class="flex justify-center gap-2 mt-6">
+                @for($i = 1; $i <= $lastPage; $i++)
+                    <a href="{{ request()->fullUrlWithQuery(['page' => $i]) }}"
+                        class="px-3 py-1.5 rounded-lg text-sm {{ $currentPage == $i ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600' }}">
+                        {{ $i }}
+                    </a>
+                @endfor
+            </div>
+        @endif
 
     </div>
 @endsection

@@ -12,6 +12,7 @@ use App\Models\Proposal;
 use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\AiServices;
+use App\Services\ZipWpMcpService;
 
 
 class ProjectController extends Controller
@@ -207,6 +208,49 @@ class ProjectController extends Controller
         $project->logActivity("Mockup template dipilih: {$request->mockup_template_id}");
 
         return back()->with('success');
+    }
+
+    public function mockupTemplates(Request $request, ZipWpMcpService $zipWp)
+    {
+        $search = $request->search ?: $request->industry;
+
+        try {
+            $data = $zipWp->listTemplates(
+                search: $search,
+                page: (int) $request->get('page', 1),
+                perPage: 12
+            );
+        } catch (\Throwable $e) {
+            report($e);
+            return view('mockup.index', [
+                'templates' => [],
+                'currentPage' => 1,
+                'lastPage' => 1,
+                'totalItems' => 0,
+            ])->with('error', 'Gagal terhubung ke ZipWP. Coba lagi beberapa saat.');
+        }
+
+        $templates = $data['templates'] ?? [];
+
+        if ($request->filled('is_premium')) {
+            $templates = array_values(array_filter($templates, function ($t) use ($request) {
+                return ((bool) $t['is_premium']) === ($request->is_premium === 'premium');
+            }));
+        }
+
+        // TAMBAHKAN INI
+        if ($request->filled('page_builder')) {
+            $templates = array_values(array_filter($templates, function ($t) use ($request) {
+                return strtolower($t['page_builder']) === strtolower($request->page_builder);
+            }));
+        }
+
+        return view('pages.mockup', [
+            'templates' => $templates,
+            'currentPage' => $data['currentPage'] ?? 1,
+            'lastPage' => $data['lastPage'] ?? 1,
+            'totalItems' => $data['totalItems'] ?? 0,
+        ]);
     }
 
     public function generateProposal(Project $project, AiServices $aiService)
