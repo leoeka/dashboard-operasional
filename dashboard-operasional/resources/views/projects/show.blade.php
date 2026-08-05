@@ -205,48 +205,87 @@
 
     {{-- ADD MOCKUP --}}
     <x-card class="mt-6">
-        <h2 class="font-semibold text-slate-800 mb-4">Add Mockup</h2>
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="font-semibold text-slate-800">Add Mockup</h2>
+            @if ($project->mockupTemplate)
+                <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                    Mockup Aktif
+                </span>
+            @endif
+        </div>
 
+        {{-- DISPLAY MOCKUP HASIL GENERATE / PILIHAN --}}
         @if ($project->mockupTemplate)
-            <div class="mb-4 p-3 bg-emerald-50 rounded-lg flex items-center gap-3">
-                @if ($project->mockupTemplate->previewUrl())
-                    <img src="{{ $project->mockupTemplate->previewUrl() }}"
-                        class="w-12 h-12 rounded object-cover flex-shrink-0">
-                @endif
-                <div class="flex-1 min-w-0">
-                    <p class="text-sm font-semibold text-emerald-700 truncate">{{ $project->mockupTemplate->name }}</p>
-                    <p class="text-xs text-emerald-600">Mockup yang dipilih client</p>
+            <div class="mb-5 p-4 border border-slate-200 bg-slate-50 rounded-xl space-y-3">
+                <div class="flex items-start gap-4">
+                    {{-- Preview Gambar Utama --}}
+                    @if ($project->mockupTemplate->previewUrl())
+                        <a href="{{ $project->mockupTemplate->previewUrl() }}" target="_blank"
+                            class="block flex-shrink-0 group relative">
+                            <img src="{{ $project->mockupTemplate->previewUrl() }}"
+                                class="w-24 h-24 rounded-lg object-cover border border-slate-200 group-hover:opacity-80 transition shadow-sm">
+                            <div
+                                class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-black/30 rounded-lg">
+                                <i class='bx bx-search-alt text-white text-xl'></i>
+                            </div>
+                        </a>
+                    @endif
+
+                    <div class="flex-1 min-w-0">
+                        <h3 class="text-sm font-bold text-slate-800 truncate">
+                            {{ $project->mockupTemplate->name }}
+                        </h3>
+                        <p class="text-xs text-slate-500 mt-1 line-clamp-2">
+                            {{ $project->mockupTemplate->description ?? 'Mockup hasil analisa AI untuk project ini.' }}
+                        </p>
+                    </div>
+                </div>
+
+                {{-- Tombol Build ke AI Workspace --}}
+                <div class="pt-2 border-t border-slate-200/60 flex items-center gap-2">
+                    <a href="{{ route('pages.ai-workspace') }}?project={{ $project->id }}&template={{ $project->mockup_template_id }}"
+                        class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition">
+                        <i class='bx bx-wrench'></i> Build Mockup Ke AI Workspace
+                    </a>
                 </div>
             </div>
         @endif
 
-        <form method="POST" action="{{ route('pages.projects.mockup.add', $project) }}"
-            class="flex flex-col sm:flex-row gap-2 mb-4">
-            @csrf @method('PUT')
-            <select name="mockup_template_id" required
-                class="flex-1 min-w-0 bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
-                <option value="">-- Pilih mockup yang disetujui client --</option>
-                @foreach (\App\Models\MockupTemplate::orderBy('name')->get() as $tpl)
-                    <option value="{{ $tpl->id }}" @selected($project->mockup_template_id == $tpl->id)>
-                        {{ $tpl->name }} ({{ $tpl->categoryLabel() }})
-                    </option>
-                @endforeach
-            </select>
-            <button type="submit"
-                class="grad-blue text-white text-sm px-4 py-2 rounded-lg hover:opacity-90 transition flex-shrink-0">
-                Simpan
-            </button>
-        </form>
+        {{-- OPSI MANUAL / JAGA-JAGA (PILIH ATAU GANTI MOCKUP LAIN) --}}
+        <details class="group mb-2">
+            <summary
+                class="text-xs text-slate-500 hover:text-slate-700 cursor-pointer font-medium flex items-center gap-1 select-none">
+                <i class='bx bx-chevron-right group-open:rotate-90 transition-transform'></i>
+                {{ $project->mockupTemplate ? 'Ganti atau pilih mockup cadangan manual' : 'Pilih mockup manual' }}
+            </summary>
 
-        @if ($project->mockupTemplate)
-            <a href="{{ route('pages.ai-workspace') }}?project={{ $project->id }}"
-                class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 transition">
-                <i class='bx bx-magic-wand'></i> Generate ke AI Workspace
-            </a>
-        @else
-            <span class="inline-flex items-center gap-2 text-xs text-slate-300 px-3 py-1.5 rounded-lg bg-slate-50">
-                <i class='bx bx-magic-wand'></i> Generate ke AI Workspace
-            </span>
+            <form method="POST" action="{{ route('pages.projects.mockup.add', $project) }}"
+                class="mt-3 flex flex-col sm:flex-row gap-2">
+                @csrf
+                @method('PUT')
+
+                <select name="mockup_template_id" required
+                    class="flex-1 min-w-0 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                    <option value="">-- Pilih mockup dari daftar --</option>
+                    @foreach (\App\Models\MockupTemplate::orderBy('id', 'desc')->get() as $tpl)
+                        <option value="{{ $tpl->id }}" @selected($project->mockup_template_id == $tpl->id)>
+                            Mockup #{{ $tpl->id }} - {{ $tpl->name }} ({{ $tpl->categoryLabel() }})
+                        </option>
+                    @endforeach
+                </select>
+
+                <button type="submit"
+                    class="bg-slate-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-700 transition flex-shrink-0">
+                    Simpan Mockup
+                </button>
+            </form>
+        </details>
+
+        @if (!$project->mockupTemplate)
+            <div class="p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-700 text-xs flex items-center gap-2">
+                <i class='bx bx-info-circle text-base'></i>
+                <span>Mockup belum dipilih atau gagal di-generate. Silakan pilih manual dari opsi di atas.</span>
+            </div>
         @endif
     </x-card>
 

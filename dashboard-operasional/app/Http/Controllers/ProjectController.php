@@ -246,6 +246,19 @@ class ProjectController extends Controller
 
         $mockupImagePath = $aiService->generateMockup($project, $analysis);
 
+        // 1. Simpan/Buat Template Mockup Baru khusus dari AI ini
+        $mockupTemplate = \App\Models\MockupTemplate::create([
+            'name' => 'AI Generated - ' . $project->name,
+            'image_path' => $mockupImagePath, // Sesuaikan field kolom gambar di tabel Anda
+            'category' => $project->type ?? 'company_profile',
+            'description' => $analysis['design_direction'] ?? 'AI Generated Mockup',
+        ]);
+
+        // 2. Hubungkan langsung ID Template ke Project agar otomatis tampil
+        $project->update([
+            'mockup_template_id' => $mockupTemplate->id,
+        ]);
+
         $mockup = [
             'title' => $project->name . ' — Website Mockup',
             'content_notes' => $analysis['design_direction'] ?? '',
@@ -253,7 +266,6 @@ class ProjectController extends Controller
             'design_direction' => $analysis['design_direction'] ?? '',
             'image_path' => $mockupImagePath,
         ];
-
         // =====================================================
         // 4. DATA PROJECT UNTUK PDF
         // =====================================================
