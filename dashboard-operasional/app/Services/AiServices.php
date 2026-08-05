@@ -78,7 +78,7 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
     public function generateMockup(Project $project, array $analysis): ?string
     {
         $prompt = $this->buildImagePrompt($project, $analysis);
-        $apiKey = env('OPENAI_API_KEY');
+        $apiKey = config('services.openai.key');
 
         if (!$apiKey) {
             Log::warning('OpenAI API Key tidak ditemukan.');
@@ -90,10 +90,13 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
                 'Authorization' => "Bearer {$apiKey}",
                 'Content-Type' => 'application/json',
             ])->timeout(60)->post('https://api.openai.com/v1/images/generations', [
-                        'model' => 'dall-e-3',
+                        // gpt-image-1-mini jauh lebih murah dari gpt-image-1, cocok buat mockup preview
+                        'model' => 'gpt-image-1-mini',
                         'prompt' => $prompt,
                         'n' => 1,
-                        'size' => '1792x1024',
+                        'size' => '1536x1024',
+                        // quality low/medium menekan biaya lebih jauh (default gpt-image = 'auto'/high)
+                        'quality' => 'medium',
                     ]);
 
             if (!$response->successful()) {
@@ -101,12 +104,13 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
                 return $this->generatePlaceholderMockup($project);
             }
 
-            $imageUrl = $response->json('data.0.url');
-            if (!$imageUrl) {
+            // gpt-image-1 selalu mengembalikan base64 (b64_json), bukan url seperti dall-e-3
+            $b64 = $response->json('data.0.b64_json');
+            if (!$b64) {
                 return $this->generatePlaceholderMockup($project);
             }
 
-            $imageContents = Http::timeout(30)->get($imageUrl)->body();
+            $imageContents = base64_decode($b64);
             $filename = 'mockups/project_' . $project->id . '_' . Str::random(10) . '.png';
             Storage::disk('public')->put($filename, $imageContents);
 
