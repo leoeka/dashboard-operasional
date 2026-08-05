@@ -78,29 +78,45 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
     public function generateMockup(Project $project, array $analysis): ?string
     {
         $prompt = $this->buildImagePrompt($project, $analysis);
+        $apiKey = env('OPENAI_API_KEY');
+
+        if (!$apiKey) {
+            Log::warning('OpenAI API Key tidak ditemukan.');
+            return $this->generatePlaceholderMockup($project);
+        }
 
         try {
-            $url = 'https://image.pollinations.ai/prompt/' . rawurlencode($prompt)
-                . '?width=1440&height=896&model=flux&nologo=true';
-
-            $response = Http::timeout(30)->get($url);
+            $response = Http::withHeaders([
+                'Authorization' => "Bearer {$apiKey}",
+                'Content-Type' => 'application/json',
+            ])->timeout(60)->post('https://api.openai.com/v1/images/generations', [
+                        'model' => 'dall-e-3',
+                        'prompt' => $prompt,
+                        'n' => 1,
+                        'size' => '1792x1024',
+                    ]);
 
             if (!$response->successful()) {
-                Log::error('Pollinations image gen gagal (pakai placeholder): status ' . $response->status());
+                Log::error('OpenAI image gen gagal (pakai placeholder): ' . $response->body());
                 return $this->generatePlaceholderMockup($project);
             }
 
+            $imageUrl = $response->json('data.0.url');
+            if (!$imageUrl) {
+                return $this->generatePlaceholderMockup($project);
+            }
+
+            $imageContents = Http::timeout(30)->get($imageUrl)->body();
             $filename = 'mockups/project_' . $project->id . '_' . Str::random(10) . '.png';
-            Storage::disk('public')->put($filename, $response->body());
+            Storage::disk('public')->put($filename, $imageContents);
 
             return 'storage/' . $filename;
 
         } catch (\Exception $e) {
-            Log::error('Pollinations Mockup Generator Exception (pakai placeholder): ' . $e->getMessage());
+            Log::error('OpenAI Mockup Generator Exception (pakai placeholder): ' . $e->getMessage());
             return $this->generatePlaceholderMockup($project);
         }
     }
-
     /**
      * Fallback kalau Pollinations gagal/timeout — supaya alur PDF tetap jalan.
      */
