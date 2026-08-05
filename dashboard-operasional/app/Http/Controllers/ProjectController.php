@@ -253,7 +253,7 @@ class ProjectController extends Controller
         ]);
     }
 
-    public function generateProposal(Project $project, AiServices $aiService)
+    public function generateProposal(Project $project, AiServices $aiService, ZipWpMcpService $zipWp)
     {
         // =====================================================
         // 1. LOAD DATA PROJECT
@@ -288,20 +288,31 @@ class ProjectController extends Controller
         // 3. GENERATE MOCKUP
         // =====================================================
 
-        $mockupImagePath = $aiService->generateMockup($project, $analysis);
+        $candidates = $zipWp->listTemplates(search: $project->type, perPage: 30)['templates'] ?? [];
 
-        // 1. Simpan/Buat Template Mockup Baru khusus dari AI ini
-        $mockupTemplate = \App\Models\MockupTemplate::create([
-            'name' => 'AI Generated - ' . $project->name,
-            'image_path' => $mockupImagePath, // Sesuaikan field kolom gambar di tabel Anda
-            'category' => $project->type ?? 'company_profile',
-            'description' => $analysis['design_direction'] ?? 'AI Generated Mockup',
-        ]);
+        // Fallback: kalau search spesifik kosong, coba tanpa filter (ambil kandidat umum)
+        if (empty($candidates)) {
+            $candidates = $zipWp->listTemplates(perPage: 30)['templates'] ?? [];
+        }
+        $bestTemplate = $aiService->pickBestTemplate($project, $candidates);
 
-        // 2. Hubungkan langsung ID Template ke Project agar otomatis tampil
-        $project->update([
-            'mockup_template_id' => $mockupTemplate->id,
-        ]);
+        $mockupImagePath = null;
+
+        if ($bestTemplate) {
+            $project->update([
+                'zipwp_template_uuid' => $bestTemplate['uuid'],
+                'zipwp_template_name' => $bestTemplate['name'],
+                'zipwp_template_preview_url' => $bestTemplate['preview_url'],
+            ]);
+
+            $screenshotPath = $aiService->fetchTemplateScreenshot($bestTemplate['preview_url'], $project);
+
+            $logoPath = $project->client->logo_path
+                ? 'storage/' . $project->client->logo_path
+                : $aiService->generateLogo($project, $analysis);
+
+            $mockupImagePath = $aiService->compositeLogoOntoMockup($screenshotPath, $logoPath);
+        }
 
         $mockup = [
             'title' => $project->name . ' — Website Mockup',

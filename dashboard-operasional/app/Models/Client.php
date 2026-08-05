@@ -13,6 +13,7 @@ class Client extends Model
         'phone',
         'whatsapp',
         'address',
+        'logo_path',
         'website',
         'instagram',
         'notes',
