@@ -75,13 +75,9 @@ class requestOrderController extends Controller
 
             // D. Simpan Assets (Jika ada lampiran file)
             if ($request->hasFile('assets')) {
-                foreach ($request->file('assets') as $file) {
-                    // $path = $file->store('project-assets', 'public');
+                $logoPath = null;
 
-                    // $project->assets()->create([
-                    //     'file_path' => $path,
-                    //     'file_name' => $file->getClientOriginalName(),
-                    //     'file_type' => $file->getClientMimeType(),
+                foreach ($request->file('assets') as $file) {
                     $path = $file->store('project-files', 'public');
 
                     $project->files()->create([
@@ -89,9 +85,17 @@ class requestOrderController extends Controller
                         'file_path' => $path,
                         'category' => 'pendukung',
                     ]);
+
+                    // File gambar PERTAMA yang ketemu otomatis dipakai sebagai logo
+                    if (!$logoPath && str_starts_with($file->getClientMimeType(), 'image/')) {
+                        $logoPath = $path;
+                    }
+                }
+
+                if ($logoPath) {
+                    $client->update(['logo_path' => $logoPath]);
                 }
             }
-
             // Commit jika semua proses berhasil
             DB::commit();
 
@@ -127,7 +131,7 @@ class requestOrderController extends Controller
 
     public function clientView(Client $client)
     {
-         $client->load(['projects']);
+        $client->load(['projects']);
 
         return view('pages.crm-view', compact('client'));
     }

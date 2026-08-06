@@ -3,7 +3,8 @@
 
 @section('content')
 
-    <a href="{{ route('pages.projects') }}" class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
+    <a href="{{ route('pages.projects') }}"
+        class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
         <i class='bx bx-arrow-back'></i> Kembali ke Projects
     </a>
 
@@ -131,16 +132,14 @@
                     {{-- Status --}}
                     <div>
                         @if ($project->latestProposal)
-                            <span
-                                class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold
-                        bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200/60">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold
+                                bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200/60">
                                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                                 Versi {{ $project->latestProposal->version }}
                             </span>
                         @else
-                            <span
-                                class="inline-flex items-center px-2.5 py-1 text-[11px] font-semibold
-                        bg-slate-100 text-slate-500 rounded-full">
+                            <span class="inline-flex items-center px-2.5 py-1 text-[11px] font-semibold
+                                bg-slate-100 text-slate-500 rounded-full">
                                 Belum Dibuat
 
                             </span>
@@ -165,21 +164,19 @@
                 @if ($project->latestProposal)
                     <div class="flex flex-col sm:flex-row gap-2">
                         {{-- Preview --}}
-                        <a href="{{ route('pages.projects.proposal.preview', $project) }}"
-                            class="flex-1 inline-flex items-center justify-center gap-2
-                    bg-slate-100 text-slate-700 text-xs font-semibold
-                    px-4 py-2.5 rounded-lg
-                    hover:bg-slate-200 active:scale-95 transition">
+                        <a href="{{ route('pages.projects.proposal.preview', $project) }}" class="flex-1 inline-flex items-center justify-center gap-2
+                            bg-slate-100 text-slate-700 text-xs font-semibold
+                            px-4 py-2.5 rounded-lg
+                            hover:bg-slate-200 active:scale-95 transition">
                             <i class='bx bx-show text-sm'></i>
                             <span>Preview</span>
                         </a>
                     </div>
                     {{-- Download jika PDF sudah tersedia --}}
                     @if ($project->latestProposal->pdf_path)
-                        <a href="{{ route('pages.projects.proposal.download', $project) }}"
-                            class="mt-2 w-full inline-flex items-center justify-center gap-2
-                    text-slate-500 hover:text-blue-600
-                    text-xs font-medium py-2 transition">
+                        <a href="{{ route('pages.projects.proposal.download', $project) }}" class="mt-2 w-full inline-flex items-center justify-center gap-2
+                                text-slate-500 hover:text-blue-600
+                                text-xs font-medium py-2 transition">
                             <i class='bx bx-download'></i>
                             Download PDF Proposal
                         </a>
@@ -188,12 +185,11 @@
                     {{-- Generate pertama kali --}}
                     <form action="{{ route('pages.projects.proposal.generate', $project) }}" method="POST" class="w-full">
                         @csrf
-                        <button type="submit"
-                            class="w-full inline-flex items-center justify-center gap-2
-                   grad-blue text-white text-xs font-semibold
-                   px-4 py-2.5 rounded-lg
-                   hover:opacity-90 active:scale-95
-                   shadow-sm transition">
+                        <button type="submit" class="w-full inline-flex items-center justify-center gap-2
+                           grad-blue text-white text-xs font-semibold
+                           px-4 py-2.5 rounded-lg
+                           hover:opacity-90 active:scale-95
+                           shadow-sm transition">
                             <i class='bx bx-magic-wand text-sm'></i>
                             <span>Generate Proposal</span>
                         </button>
@@ -217,28 +213,55 @@
         {{-- DISPLAY MOCKUP HASIL GENERATE / PILIHAN --}}
         @if ($project->mockupTemplate)
             <div class="mb-5 p-4 border border-slate-200 bg-slate-50 rounded-xl space-y-3">
-                <div class="flex items-start gap-4">
-                    {{-- Preview Gambar Utama --}}
-                    @if ($project->mockupTemplate->previewUrl())
-                        <a href="{{ $project->mockupTemplate->previewUrl() }}" target="_blank"
-                            class="block flex-shrink-0 group relative">
-                            <img src="{{ $project->mockupTemplate->previewUrl() }}"
-                                class="w-24 h-24 rounded-lg object-cover border border-slate-200 group-hover:opacity-80 transition shadow-sm">
-                            <div
-                                class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition bg-black/30 rounded-lg">
-                                <i class='bx bx-search-alt text-white text-xl'></i>
-                            </div>
-                        </a>
-                    @endif
+                <div class="flex flex-col gap-4">
+                    <div class="flex items-start gap-4">
+                        {{-- Thumbnail kecil, tetap dari screenshot statis --}}
+                        @if ($project->mockupTemplate->previewUrl())
+                            <a href="{{ $project->mockupTemplate->previewUrl() }}" target="_blank"
+                                class="block flex-shrink-0 group relative">
+                                <img src="{{ $project->mockupTemplate->previewUrl() }}"
+                                    class="w-16 h-16 rounded-lg object-cover border border-slate-200 group-hover:opacity-80 transition shadow-sm">
+                            </a>
+                        @endif
 
-                    <div class="flex-1 min-w-0">
-                        <h3 class="text-sm font-bold text-slate-800 truncate">
-                            {{ $project->mockupTemplate->name }}
-                        </h3>
-                        <p class="text-xs text-slate-500 mt-1 line-clamp-2">
-                            {{ $project->mockupTemplate->description ?? 'Mockup hasil analisa AI untuk project ini.' }}
-                        </p>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-sm font-bold text-slate-800 truncate">
+                                {{ $project->mockupTemplate->name }}
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-1 line-clamp-2">
+                                {{ $project->mockupTemplate->description ?? 'Mockup hasil analisa AI untuk project ini.' }}
+                            </p>
+                        </div>
                     </div>
+
+                    {{--
+                    LIVE PREVIEW: embed situs demo asli dari ZipWP (source_url)
+                    lewat iframe, bukan cuma gambar screenshot statis. Kalau
+                    template ini nggak punya source_url (mis. template katalog
+                    manual lama yang belum pernah diisi field itu), fallback
+                    ke gambar screenshot statis biasa.
+                    --}}
+                    @if ($project->mockupTemplate->source_url)
+                        <div class="rounded-xl border border-slate-200 overflow-hidden bg-white">
+                            <div class="flex items-center justify-between px-3 py-2 bg-slate-100 border-b border-slate-200">
+                                <span class="text-xs font-medium text-slate-500 flex items-center gap-1.5">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                                    Live Preview
+                                </span>
+                                <a href="{{ $project->mockupTemplate->source_url }}" target="_blank" rel="noopener"
+                                    class="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
+                                    Buka di tab baru <i class='bx bx-link-external'></i>
+                                </a>
+                            </div>
+                            <iframe src="{{ $project->mockupTemplate->source_url }}" loading="lazy" referrerpolicy="no-referrer"
+                                sandbox="allow-scripts allow-same-origin" class="w-full aspect-video"
+                                title="Live preview mockup {{ $project->mockupTemplate->name }}">
+                            </iframe>
+                        </div>
+                    @elseif ($project->mockupTemplate->previewUrl())
+                        <img src="{{ $project->mockupTemplate->previewUrl() }}"
+                            class="w-full rounded-xl border border-slate-200 object-cover shadow-sm">
+                    @endif
                 </div>
 
                 {{-- Tombol Build ke AI Workspace --}}
@@ -267,7 +290,23 @@
                 <select name="mockup_template_id" required
                     class="flex-1 min-w-0 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">-- Pilih mockup dari daftar --</option>
-                    @foreach (\App\Models\MockupTemplate::orderBy('id', 'desc')->get() as $tpl)
+                    {{--
+                    FIX: sebelumnya query ini nampilin SEMUA baris mockup_templates,
+                    termasuk hasil AI-generate milik client lain (yang sudah ada
+                    logo/nama client lain nempel di gambarnya) — bikin bingung
+                    karena kelihatannya seperti "template" padahal itu hasil jadi
+                    khusus client lain.
+
+                    Sekarang difilter: sembunyikan baris yang theme_slug-nya
+                    diawali "ai:{project_id_lain}:" (AI-generate punya project
+                    lain). Template katalog manual biasa (theme_slug TIDAK
+                    diawali "ai:") dan hasil AI milik project INI SENDIRI
+                    (kalau pernah di-generate ulang beberapa kali) tetap tampil.
+                    --}}
+                    @foreach (\App\Models\MockupTemplate::where(function ($q) use ($project) {
+                            $q->where('theme_slug', 'not like', 'ai:%')
+                                ->orWhere('theme_slug', 'like', 'ai:' . $project->id . ':%');
+                        })->orderBy('id', 'desc')->get() as $tpl)
                         <option value="{{ $tpl->id }}" @selected($project->mockup_template_id == $tpl->id)>
                             Mockup #{{ $tpl->id }} - {{ $tpl->name }} ({{ $tpl->categoryLabel() }})
                         </option>

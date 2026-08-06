@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\MockupTemplate;
 use App\Models\Project;
 use App\Models\ProjectFile;
 use App\Models\ProjectTask;
@@ -10,10 +11,11 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Models\Proposal;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\AiServices;
 use App\Services\ZipWpMcpService;
-use Illuminate\Support\Facades\Log;
+
 
 
 class ProjectController extends Controller
@@ -289,7 +291,7 @@ class ProjectController extends Controller
      * GANTI SELURUH METHOD generateProposal() DENGAN INI
      * ============================================================
      */
-    public function generateProposal(Project $project, AiServices $aiService)
+    public function generateProposal(Project $project, AiServices $aiService, ZipWpMcpService $zipWp)
     {
         // =====================================================
         // 1. LOAD DATA PROJECT
@@ -339,28 +341,158 @@ class ProjectController extends Controller
                 ->with('error', 'Gagal membuat mockup. Silakan coba lagi.');
         }
 
-        $mockupImagePath = $mockupResult['merged'] ?? null;   // 1 gambar panjang, buat thumbnail/preview
-        $mockupSections = $mockupResult['sections'] ?? [];     // 3 gambar terpisah, buat ditaruh di PDF
+        $mockupImagePath = null;
+        $mockupSections = [];
+        $bestTemplate = null;
+        $mockupFailReason = null;
 
         $designDirectionRaw = $analysis['design_direction'] ?? null;
 
-        $mockupTemplate = \App\Models\MockupTemplate::create([
-            'name' => 'AI Generated - ' . $project->name,
-            'image_path' => $mockupImagePath,
-            'category' => $project->type ?? 'company_profile',
-            'description' => $this->safeText($designDirectionRaw, 'AI Generated Mockup'),
-        ]);
+        try {
 
-        $project->update([
-            'mockup_template_id' => $mockupTemplate->id,
-        ]);
+            $candidates = $zipWp->listTemplates(
+            search: $project->type,
+            perPage: 30
+            )['templates'] ?? [];
+
+            // fallback kalau kosong
+            if (empty($candidates)) {
+                $candidates = $zipWp->listTemplates(
+                perPage: 30
+                )['templates'] ?? [];
+            }
+
+            if (empty($candidates)) {
+                $mockupFailReason = 'Tidak ada template ZipWP yang tersedia dari API.';
+            } else {
+                $bestTemplate = $aiService->pickBestTemplate($project, $candidates);
+            }
+
+            if ($bestTemplate) {
+
+                $project->update([
+                    'zipwp_template_uuid' => $bestTemplate['uuid'],
+                    'zipwp_template_name' => $bestTemplate['name'],
+                    'zipwp_template_preview_url' => $bestTemplate['preview_url'],
+                ]);
+
+                $screenshotPath = $aiService->fetchTemplateScreenshot(
+                    $bestTemplate['preview_url'],
+                    $project
+                );
+
+                if (!$screenshotPath) {
+
+                    $mockupFailReason = 'Screenshot template gagal di-generate.';
+
+                } else {
+
+                    $logoPath = $project->client->logo_path
+                        ? 'storage/' . $project->client->logo_path
+                        : $aiService->generateLogo($project, $analysis);
+
+                    $mockupResult = $aiService->compositeLogoOntoMockup(
+                        $screenshotPath,
+                        $logoPath
+                    );
+
+                    // Support output lama maupun baru
+                    if (is_array($mockupResult)) {
+
+                        $mockupImagePath = $mockupResult['merged'] ?? null;
+                        $mockupSections = $mockupResult['sections'] ?? [];
+
+                    } else {
+
+                        $mockupImagePath = $mockupResult;
+                    }
+                }
+
+            } elseif (!$mockupFailReason) {
+
+                $mockupFailReason = 'AI tidak berhasil memilih template yang cocok.';
+            }
+
+        } catch (\Throwable $e) {
+
+            Log::error(
+                'Generate Proposal - Mockup gagal : ' . $e->getMessage(),
+                [
+                    'project_id' => $project->id,
+                ]
+            );
+
+            $mockupFailReason = 'Terjadi error teknis saat proses generate mockup.';
+        }
+
+
+        // ======================================================
+// Simpan Mockup Template
+// ======================================================
+
+        if ($mockupImagePath) {
+
+            $mockupTemplate = MockupTemplate::create([
+
+                'name' => ($bestTemplate['name'] ?? 'AI Generated')
+                    . ' (AI - ' . $project->client_name . ')',
+
+                'category' => $project->type ?? 'company_profile',
+
+                // sesuaikan dengan struktur tabel
+                'preview_image' => Str::after($mockupImagePath, 'storage/'),
+
+                'theme_slug' => 'ai:'
+                    . $project->id
+                    . ':'
+                    . ($bestTemplate['uuid'] ?? Str::random(8)),
+
+                'source_url' => $bestTemplate['preview_url'] ?? null,
+
+                // jika memang ada kolom description
+                'description' => $this->safeText(
+                    $designDirectionRaw,
+                    'AI Generated Mockup'
+                ),
+
+            ]);
+
+            $project->update([
+                'mockup_template_id' => $mockupTemplate->id,
+            ]);
+
+        } else {
+
+            Log::warning(
+                'Generate Proposal - Mockup AI gagal',
+                [
+                    'project_id' => $project->id,
+                    'reason' => $mockupFailReason,
+                ]
+            );
+        }
+
+
+        // ======================================================
+// Data untuk PDF
+// ======================================================
 
         $mockup = [
+
             'title' => $project->name . ' — Website Mockup',
+
             'content_notes' => $this->safeText($designDirectionRaw),
-            'sections' => $mockupSections,   // <-- dipakai di blade PDF, 3 gambar terpisah
+
+            // dipakai Blade PDF
+            'sections' => $mockupSections,
+
             'design_direction' => $this->safeText($designDirectionRaw),
-            'image_path' => $mockupImagePath, // <-- tetap ada, buat keperluan lain (thumbnail dsb)
+
+            // thumbnail
+            'image_path' => $mockupImagePath,
+
+            // jika gagal tetap bisa ditampilkan
+            'fail_reason' => $mockupFailReason,
         ];
 
         // =====================================================
@@ -409,14 +541,26 @@ class ProjectController extends Controller
         // =====================================================
         // 8. LOG ACTIVITY
         // =====================================================
-        $project->logActivity('AI Analysis dan Mockup berhasil dibuat');
+
+        $project->logActivity(
+            $mockupImagePath
+            ? 'AI Analysis dan Mockup berhasil dibuat'
+            : 'AI Analysis berhasil dibuat, mockup gagal digenerate (' . ($mockupFailReason ?? 'unknown') . ')'
+        );
 
         // =====================================================
         // 9. KE PREVIEW
         // =====================================================
-        return redirect()
-            ->route('pages.projects.proposal.preview', $project)
-            ->with('success', 'Proposal berhasil dibuat.');
+
+        return redirect()->route(
+            'pages.projects.proposal.preview',
+            $project
+        )->with(
+                'success',
+                $mockupImagePath
+                ? 'Proposal berhasil dibuat.'
+                : 'Proposal berhasil dibuat, tapi mockup gagal digenerate otomatis. Silakan pilih mockup manual.'
+            );
     }
 
     public function previewProposal(Project $project)
