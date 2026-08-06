@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Storage;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\AiServices;
 use App\Services\ZipWpMcpService;
+use Illuminate\Support\Facades\Log;
 
 
 class ProjectController extends Controller
@@ -253,24 +254,66 @@ class ProjectController extends Controller
         ]);
     }
 
+    private function safeText($value, string $fallback = ''): string
+    {
+        if (is_array($value)) {
+            // Coba beberapa key umum yang sering muncul di struktur AI
+            $candidates = [
+                'ai_mockup_prompt_guide',
+                'grid_system',
+                'visual_identity_style',
+                'description',
+                'summary',
+            ];
+
+            foreach ($candidates as $key) {
+                if (isset($value[$key]) && is_string($value[$key])) {
+                    return $value[$key];
+                }
+            }
+
+            // Kalau tidak ketemu field string yang cocok, fallback ke JSON penuh
+            return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        }
+
+        if (is_null($value) || $value === '') {
+            return $fallback;
+        }
+
+        return (string) $value;
+    }
+
+
+    /**
+     * ============================================================
+     * GANTI SELURUH METHOD generateProposal() DENGAN INI
+     * ============================================================
+     */
     public function generateProposal(Project $project, AiServices $aiService)
     {
         // =====================================================
         // 1. LOAD DATA PROJECT
         // =====================================================
+        $project->load(['client', 'files']);
+        $client = $project->client;
 
-        $project->load([
-            'client',
-            'files',
-        ]);
+        if (!$client) {
+            return redirect()
+                ->back()
+                ->with('error', 'Project ini belum terhubung dengan data client.');
+        }
 
         // =====================================================
         // 2. AI ANALYSIS
         // =====================================================
+        try {
+            $analysis = $aiService->analyzeProject($project, $client);
+        } catch (\RuntimeException $e) {
+            return redirect()
+                ->back()
+                ->with('error', $e->getMessage());
+        }
 
-        $analysis = $aiService->analyzeProject($project);
-
-        // Pastikan analysis selalu array
         if (!is_array($analysis)) {
             $analysis = [
                 'business_overview' => '',
@@ -287,129 +330,95 @@ class ProjectController extends Controller
         // =====================================================
         // 3. GENERATE MOCKUP
         // =====================================================
+        try {
+            $mockupResult = $aiService->generateMockup($project, $analysis);
+        } catch (\Exception $e) {
+            Log::error('Mockup Generation Error: ' . $e->getMessage(), ['project_id' => $project->id]);
+            return redirect()
+                ->back()
+                ->with('error', 'Gagal membuat mockup. Silakan coba lagi.');
+        }
 
-        $mockupImagePath = $aiService->generateMockup($project, $analysis);
+        $mockupImagePath = $mockupResult['merged'] ?? null;   // 1 gambar panjang, buat thumbnail/preview
+        $mockupSections = $mockupResult['sections'] ?? [];     // 3 gambar terpisah, buat ditaruh di PDF
 
-        // 1. Simpan/Buat Template Mockup Baru khusus dari AI ini
+        $designDirectionRaw = $analysis['design_direction'] ?? null;
+
         $mockupTemplate = \App\Models\MockupTemplate::create([
             'name' => 'AI Generated - ' . $project->name,
-            'image_path' => $mockupImagePath, // Sesuaikan field kolom gambar di tabel Anda
+            'image_path' => $mockupImagePath,
             'category' => $project->type ?? 'company_profile',
-            'description' => $analysis['design_direction'] ?? 'AI Generated Mockup',
+            'description' => $this->safeText($designDirectionRaw, 'AI Generated Mockup'),
         ]);
 
-        // 2. Hubungkan langsung ID Template ke Project agar otomatis tampil
         $project->update([
             'mockup_template_id' => $mockupTemplate->id,
         ]);
 
         $mockup = [
             'title' => $project->name . ' — Website Mockup',
-            'content_notes' => $analysis['design_direction'] ?? '',
-            'sections' => [],
-            'design_direction' => $analysis['design_direction'] ?? '',
-            'image_path' => $mockupImagePath,
+            'content_notes' => $this->safeText($designDirectionRaw),
+            'sections' => $mockupSections,   // <-- dipakai di blade PDF, 3 gambar terpisah
+            'design_direction' => $this->safeText($designDirectionRaw),
+            'image_path' => $mockupImagePath, // <-- tetap ada, buat keperluan lain (thumbnail dsb)
         ];
+
         // =====================================================
         // 4. DATA PROJECT UNTUK PDF
         // =====================================================
-
         $projectData = [
             'project_name' => $project->name,
-
             'client_name' => $project->client_name,
-
-            'website_type' =>
-                $project->type ?? 'Company Profile',
-
+            'website_type' => $project->type ?? 'Company Profile',
             'project_code' => $project->code,
-
-            'generated_at' =>
-                now()->format('d F Y H:i'),
+            'generated_at' => now()->format('d F Y H:i'),
         ];
 
         // =====================================================
         // 5. GENERATE PDF
         // =====================================================
-
-        $pdf = Pdf::loadView(
-            'pdf.proposal',
-            [
-                'project' => $project,
-                'projectData' => $projectData,
-                'analysis' => $analysis,
-                'mockup' => $mockup,
-            ]
-        );
+        $pdf = Pdf::loadView('pdf.proposal', [
+            'project' => $project,
+            'projectData' => $projectData,
+            'analysis' => $analysis,
+            'mockup' => $mockup,
+        ]);
 
         // =====================================================
         // 6. SIMPAN PDF
         // =====================================================
-
-        $clientSlug = Str::slug(
-            $project->client_name
-        );
-
-        $fileName =
-            "proposals/Proposal-Mockup-{$clientSlug}-{$project->code}.pdf";
-
-        Storage::disk('public')->put(
-            $fileName,
-            $pdf->output()
-        );
+        $clientSlug = Str::slug($project->client_name);
+        $fileName = "proposals/Proposal-Mockup-{$clientSlug}-{$project->code}.pdf";
+        Storage::disk('public')->put($fileName, $pdf->output());
 
         // =====================================================
         // 7. SIMPAN PROPOSAL
         // =====================================================
-
         Proposal::updateOrCreate(
+            ['project_id' => $project->id],
             [
-                'project_id' => $project->id,
-            ],
-            [
-                'client_name' =>
-                    $project->client_name,
-
-                'status' =>
-                    'pending',
-
-                'pdf_path' =>
-                    $fileName,
-
-                'version' =>
-                    1,
-
-                'ai_reasoning' =>
-                    json_encode(
-                        $analysis,
-                        JSON_UNESCAPED_UNICODE
-                    ),
-
-                'summary' =>
-                    $mockup['content_notes'] ?? null,
+                'client_name' => $project->client_name,
+                'status' => 'pending',
+                'pdf_path' => $fileName,
+                'version' => 1,
+                'ai_reasoning' => json_encode($analysis, JSON_UNESCAPED_UNICODE),
+                'summary' => $this->safeText($designDirectionRaw),
             ]
         );
 
         // =====================================================
         // 8. LOG ACTIVITY
         // =====================================================
-
-        $project->logActivity(
-            'AI Analysis dan Mockup berhasil dibuat'
-        );
+        $project->logActivity('AI Analysis dan Mockup berhasil dibuat');
 
         // =====================================================
         // 9. KE PREVIEW
         // =====================================================
-
-        return redirect()->route(
-            'pages.projects.proposal.preview',
-            $project
-        )->with(
-                'success',
-                'Proposal berhasil dibuat.'
-            );
+        return redirect()
+            ->route('pages.projects.proposal.preview', $project)
+            ->with('success', 'Proposal berhasil dibuat.');
     }
+
     public function previewProposal(Project $project)
     {
         $proposal = Proposal::where('project_id', $project->id)
@@ -427,6 +436,7 @@ class ProjectController extends Controller
             'proposal'
         ));
     }
+
 
     public function downloadProposal(Project $project)
     {

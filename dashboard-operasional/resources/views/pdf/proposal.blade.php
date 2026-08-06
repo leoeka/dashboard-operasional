@@ -121,6 +121,19 @@
             width: 100%;
         }
 
+        /* ============================================================
+   TAMBAHKAN CSS INI DI DALAM <style> proposal.blade.php,
+   TARUH DEKAT .mockup-img YANG SUDAH ADA
+   ============================================================ */
+
+        .mockup-section-img {
+            display: block;
+            margin: 0 auto 14px;
+            max-width: 480px;
+            width: 100%;
+            page-break-inside: avoid;
+        }
+
         table.cost-table {
             width: 100%;
             border-collapse: collapse;
@@ -220,6 +233,25 @@
         <p class="agency-signoff">PT. EXITO BALI DIGITAL</p>
     </div>
 
+    {{--
+    ============================================================
+    GANTI SELURUH BLOK "HALAMAN 3: DESIGN MOCK UP" DI proposal.blade.php
+    DENGAN INI
+    ============================================================
+
+    Perubahan utama: dulu 1 gambar raksasa hasil gabungan ditaruh di 1
+    <img>, sekarang 3 gambar section (navbar+hero, content, footer)
+    ditaruh sebagai 3 <img> terpisah. Kalau perlu pindah halaman PDF,
+    dompdf akan motong DI ANTARA section (karena tiap section adalah
+    elemen <img> yang utuh dan reasonably-sized), bukan di TENGAH
+    section seperti sebelumnya.
+
+    Tambahan CSS: .mockup-section-img pakai page-break-inside: avoid
+    supaya dompdf berusaha tidak motong di tengah 1 section image;
+    kalau 1 section masih lebih tinggi dari sisa halaman, section itu
+    dipindah utuh ke halaman berikutnya, bukan dipotong.
+--}}
+
     {{-- ===== HALAMAN 3: DESIGN MOCK UP ===== --}}
     <div class="content-page">
         <div class="header-band">
@@ -229,7 +261,16 @@
 
         <h2 class="section-title">Design Mock Up</h2>
 
-        @if (!empty($mockup['image_path']))
+        @if (!empty($mockup['sections']))
+            {{-- Tampilkan 3 section terpisah: navbar+hero, content, footer --}}
+            @foreach (['top', 'middle', 'bottom'] as $sectionKey)
+                @if (!empty($mockup['sections'][$sectionKey]))
+                    <img src="{{ storage_path('app/public/' . \Illuminate\Support\Str::after($mockup['sections'][$sectionKey], 'storage/')) }}"
+                        class="mockup-section-img">
+                @endif
+            @endforeach
+        @elseif (!empty($mockup['image_path']))
+            {{-- Fallback: kalau sections tidak ada (misal proposal lama), pakai gambar gabungan --}}
             <img src="{{ storage_path('app/public/' . \Illuminate\Support\Str::after($mockup['image_path'], 'storage/')) }}"
                 class="mockup-img">
         @endif
