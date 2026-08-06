@@ -39,22 +39,54 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
   \"design_direction\": \"...\"
 }";
 
+        // FIX #1 (revisi): 'gemini-3.5-flash' tidak pernah ada di API Google.
+        // 'gemini-2.5-flash' sempat dipakai tapi per Agustus 2026 sudah
+        // "no longer available to new users" (lihat log error). Google sering
+        // deprecate model Flash generation lama dengan cepat — per Juli 2026
+        // model GA (stabil, production-ready) terbaru adalah gemini-3.6-flash.
+        // WAJIB taruh di config/env, JANGAN hardcode di kode — supaya kalau
+        // Google deprecate lagi, cukup ganti env var tanpa redeploy kode.
+        $modelName = config('services.gemini.model', 'gemini-3.6-flash');
+
         try {
-            $response = Gemini::generativeModel('gemini-3.5-flash')
+            $response = Gemini::generativeModel($modelName)
                 ->generateContent($prompt);
 
             $responseText = $response->text();
             $cleanJson = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($responseText));
             $result = json_decode($cleanJson, true);
 
-            return $result ?: $this->getFallbackAnalysis();
+            if (!$result || json_last_error() !== JSON_ERROR_NONE) {
+                Log::warning('Gemini AI Analysis: response bukan JSON valid, pakai fallback.', [
+                    'project_id' => $project->id,
+                    'raw_response' => $responseText ?? null,
+                ]);
+                return $this->getFallbackAnalysis(false);
+            }
+
+            // FIX #4: tandai hasil sebagai AI-generated supaya layer di atas
+            // (controller/PDF) tahu ini bukan data placeholder.
+            $result['_ai_generated'] = true;
+
+            return $result;
         } catch (\Exception $e) {
-            Log::error('Gemini AI Analysis Error: ' . $e->getMessage());
-            return $this->getFallbackAnalysis();
+            // Deteksi khusus pesan deprecation Google ("no longer available")
+            // supaya gampang di-grep di log/alert dan dibedakan dari error
+            // jaringan/timeout biasa — model deprecation butuh fix kode
+            // (ganti nama model), bukan sekadar retry.
+            $isDeprecation = Str::contains(strtolower($e->getMessage()), ['no longer available', 'not found', 'deprecated']);
+
+            Log::error('Gemini AI Analysis Error: ' . $e->getMessage(), [
+                'project_id' => $project->id,
+                'model' => $modelName,
+                'likely_model_deprecated' => $isDeprecation,
+            ]);
+
+            return $this->getFallbackAnalysis(false);
         }
     }
 
-    private function getFallbackAnalysis(): array
+    private function getFallbackAnalysis(bool $aiGenerated = false): array
     {
         return [
             'business_analysis' => 'Analisis bisnis standar untuk pengembangan website profesional.',
@@ -67,6 +99,10 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
             'content_strategy' => 'Konten informatif berbasis keunggulan layanan.',
             'cta_strategy' => 'Tombol Hubungi Kami via WhatsApp dan Formulir Penawaran.',
             'design_direction' => 'Desain modern, clean, dan responsif di semua perangkat.',
+            // FIX #4: flag eksplisit — dipakai controller/PDF generator untuk
+            // menandai proposal "perlu direview / regenerate", jangan
+            // ditampilkan ke client tapi berguna untuk internal QA / retry job.
+            '_ai_generated' => $aiGenerated,
         ];
     }
 
@@ -122,8 +158,9 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
             return $this->generatePlaceholderMockup($project);
         }
     }
+
     /**
-     * Fallback kalau Pollinations gagal/timeout — supaya alur PDF tetap jalan.
+     * Fallback kalau generator utama gagal/timeout — supaya alur PDF tetap jalan.
      */
     private function generatePlaceholderMockup(Project $project): ?string
     {
@@ -160,9 +197,10 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
             "Clean layout, modern typography, hero section with call-to-action button, " .
             "high quality 8k desktop view, elegant color palette, Figma UI concept, smooth gradients, no blur, sharp resolution.";
     }
+
     // =====================================================
-// PILIH TEMPLATE ZIPWP YANG PALING SESUAI (GPT)
-// =====================================================
+    // PILIH TEMPLATE ZIPWP YANG PALING SESUAI (GPT)
+    // =====================================================
 
     public function pickBestTemplate(Project $project, array $templates): ?array
     {
@@ -173,7 +211,7 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown/text tambahan seperti in
 
         $apiKey = config('services.openai.key');
         if (!$apiKey) {
-            return $templates[0];
+            return $this->fallbackTemplateByKeyword($project, $templates) ?? $templates[0];
         }
 
         $candidateList = collect($templates)->map(function ($t, $i) {
@@ -204,21 +242,81 @@ Pilih SATU template paling sesuai. Jawab HANYA JSON murni tanpa markdown:
                         'temperature' => 0,
                     ]);
 
+            if (!$response->successful()) {
+                throw new \Exception('OpenAI non-200 response: ' . $response->status() . ' — ' . $response->body());
+            }
+
             $content = $response->json('choices.0.message.content');
             $clean = preg_replace('/^```(?:json)?\s*|\s*```$/i', '', trim($content ?? ''));
             $result = json_decode($clean, true);
             $uuid = $result['uuid'] ?? null;
 
-            return collect($templates)->firstWhere('uuid', $uuid) ?? $templates[0];
+            $match = collect($templates)->firstWhere('uuid', $uuid);
+            if ($match) {
+                return $match;
+            }
+
+            // FIX #2: sebelumnya langsung asal ambil $templates[0] tanpa relevansi
+            // sama sekali kalau GPT gagal/return uuid yang tidak match. Sekarang
+            // coba cocokkan keyword lokal dulu sebagai fallback yang lebih masuk akal.
+            Log::warning('Pick Best Template: GPT tidak mengembalikan uuid yang valid, coba fallback keyword lokal.', [
+                'project_id' => $project->id,
+                'gpt_uuid' => $uuid,
+            ]);
+            return $this->fallbackTemplateByKeyword($project, $templates) ?? $templates[0];
+
         } catch (\Exception $e) {
             Log::error('Pick Best Template Error: ' . $e->getMessage());
-            return $templates[0];
+            return $this->fallbackTemplateByKeyword($project, $templates) ?? $templates[0];
         }
     }
 
+    /**
+     * FIX #2: fallback lokal berbasis pencocokan keyword sederhana antara
+     * tipe/kebutuhan project dengan kategori & keyword template, dipakai
+     * sebelum jatuh ke $templates[0] secara membabi buta.
+     */
+    private function fallbackTemplateByKeyword(Project $project, array $templates): ?array
+    {
+        $needleRaw = strtolower(trim(($project->type ?? '') . ' ' . ($project->requirement_notes ?? '')));
+        if ($needleRaw === '') {
+            return null;
+        }
+
+        $words = array_filter(explode(' ', $needleRaw), fn($w) => strlen($w) > 3);
+        if (empty($words)) {
+            return null;
+        }
+
+        $bestMatch = null;
+        $bestScore = 0;
+
+        foreach ($templates as $template) {
+            $haystack = strtolower(implode(' ', array_merge(
+                $template['categories'] ?? [],
+                $template['keywords'] ?? [],
+                [$template['name'] ?? '']
+            )));
+
+            $score = 0;
+            foreach ($words as $word) {
+                if (Str::contains($haystack, $word)) {
+                    $score++;
+                }
+            }
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestMatch = $template;
+            }
+        }
+
+        return $bestScore > 0 ? $bestMatch : null;
+    }
+
     // =====================================================
-// SCREENSHOT TEMPLATE ZIPWP ASLI
-// =====================================================
+    // SCREENSHOT TEMPLATE ZIPWP ASLI
+    // =====================================================
 
     public function fetchTemplateScreenshot(string $previewUrl, Project $project): ?string
     {
@@ -227,6 +325,7 @@ Pilih SATU template paling sesuai. Jawab HANYA JSON murni tanpa markdown:
 
             $imageContent = null;
             $maxAttempts = 4;
+            $minValidBytes = 20000; // di bawah ini biasanya masih placeholder "please wait" milik thum.io
 
             for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
                 $response = Http::timeout(30)->get($screenshotUrl);
@@ -234,26 +333,33 @@ Pilih SATU template paling sesuai. Jawab HANYA JSON murni tanpa markdown:
                 if ($response->successful()) {
                     $body = $response->body();
 
-                    // Placeholder thum.io ("please wait") biasanya jauh lebih kecil
-                    // dari screenshot asli. Kalau masih kecil, berarti belum siap.
-                    if (strlen($body) > 20000) {
+                    if (strlen($body) > $minValidBytes) {
                         $imageContent = $body;
                         break;
                     }
+
+                    Log::info('Screenshot thum.io masih placeholder/belum siap, retry.', [
+                        'project_id' => $project->id,
+                        'attempt' => $attempt,
+                        'bytes' => strlen($body),
+                    ]);
                 }
 
-                // Belum siap, tunggu sebelum coba lagi
                 if ($attempt < $maxAttempts) {
                     sleep(5);
                 }
             }
 
+            // FIX #3: sebelumnya di sini ada fallback yang menyimpan $body
+            // terakhir (bisa jadi masih placeholder "please wait" thum.io)
+            // sebagai hasil final. Sekarang kalau tidak ada gambar yang lolos
+            // validasi ukuran, return null secara eksplisit — jangan simpan
+            // gambar yang jelas-jelas gagal validasi.
             if (!$imageContent) {
-                Log::warning('Screenshot thum.io belum siap setelah beberapa percobaan, pakai hasil terakhir.');
-                $imageContent = $body ?? null;
-            }
-
-            if (!$imageContent) {
+                Log::warning('Screenshot thum.io belum siap setelah beberapa percobaan, tidak ada gambar valid untuk disimpan.', [
+                    'project_id' => $project->id,
+                    'preview_url' => $previewUrl,
+                ]);
                 return null;
             }
 
@@ -262,14 +368,17 @@ Pilih SATU template paling sesuai. Jawab HANYA JSON murni tanpa markdown:
 
             return 'storage/' . $filename;
         } catch (\Exception $e) {
-            Log::error('Screenshot fetch error: ' . $e->getMessage());
+            Log::error('Screenshot fetch error: ' . $e->getMessage(), [
+                'project_id' => $project->id,
+                'preview_url' => $previewUrl,
+            ]);
             return null;
         }
     }
 
     // =====================================================
-// GENERATE LOGO AI (FALLBACK KALAU KLIEN TIDAK PUNYA LOGO)
-// =====================================================
+    // GENERATE LOGO AI (FALLBACK KALAU KLIEN TIDAK PUNYA LOGO)
+    // =====================================================
 
     public function generateLogo(Project $project, array $analysis): ?string
     {
@@ -295,6 +404,11 @@ Pilih SATU template paling sesuai. Jawab HANYA JSON murni tanpa markdown:
                         'background' => 'transparent',
                     ]);
 
+            if (!$response->successful()) {
+                Log::error('Generate Logo gagal: ' . $response->body());
+                return null;
+            }
+
             $b64 = $response->json('data.0.b64_json');
             if (!$b64) {
                 return null;
@@ -311,8 +425,8 @@ Pilih SATU template paling sesuai. Jawab HANYA JSON murni tanpa markdown:
     }
 
     // =====================================================
-// TEMPEL LOGO KE SCREENSHOT MOCKUP
-// =====================================================
+    // TEMPEL LOGO KE SCREENSHOT MOCKUP
+    // =====================================================
 
     public function compositeLogoOntoMockup(?string $screenshotRelPath, ?string $logoRelPath): ?string
     {
@@ -329,6 +443,12 @@ Pilih SATU template paling sesuai. Jawab HANYA JSON murni tanpa markdown:
         $logoFull = storage_path('app/public/' . Str::after($logoRelPath, 'storage/'));
 
         if (!file_exists($screenshotFull) || !file_exists($logoFull)) {
+            Log::warning('Composite Logo: file screenshot atau logo tidak ditemukan di disk.', [
+                'screenshot_full' => $screenshotFull,
+                'screenshot_exists' => file_exists($screenshotFull),
+                'logo_full' => $logoFull,
+                'logo_exists' => file_exists($logoFull),
+            ]);
             return $screenshotRelPath;
         }
 
@@ -337,6 +457,31 @@ Pilih SATU template paling sesuai. Jawab HANYA JSON murni tanpa markdown:
             $logo = $this->loadImageFromFile($logoFull);
 
             if (!$base || !$logo) {
+                Log::warning('Composite Logo: gagal load image resource via GD (format tidak didukung / file korup).', [
+                    'screenshot_full' => $screenshotFull,
+                    'screenshot_loaded' => (bool) $base,
+                    'logo_full' => $logoFull,
+                    'logo_loaded' => (bool) $logo,
+                ]);
+                return $screenshotRelPath;
+            }
+
+            $logoOriginalWidth = imagesx($logo);
+            $logoOriginalHeight = imagesy($logo);
+
+            // FIX: sebelumnya kalau imagesx($logo) === 0 (logo korup/format
+            // aneh), pembagian ($logoWidth * (imagesy/imagesx)) bikin
+            // DivisionByZeroError — ini bukan turunan \Exception di PHP 8,
+            // jadi TIDAK ketangkep catch(\Exception $e) di bawah, errornya
+            // silently crash bagian ini tanpa log sama sekali.
+            if ($logoOriginalWidth <= 0 || $logoOriginalHeight <= 0) {
+                Log::warning('Composite Logo: dimensi logo tidak valid (0 atau negatif), kemungkinan file korup.', [
+                    'logo_full' => $logoFull,
+                    'width' => $logoOriginalWidth,
+                    'height' => $logoOriginalHeight,
+                ]);
+                imagedestroy($base);
+                imagedestroy($logo);
                 return $screenshotRelPath;
             }
 
@@ -344,26 +489,59 @@ Pilih SATU template paling sesuai. Jawab HANYA JSON murni tanpa markdown:
             imagesavealpha($logo, true);
 
             $logoWidth = 120;
-            $logoHeight = (int) ($logoWidth * (imagesy($logo) / imagesx($logo)));
+            $logoHeight = (int) ($logoWidth * ($logoOriginalHeight / $logoOriginalWidth));
 
             $resizedLogo = imagecreatetruecolor($logoWidth, $logoHeight);
             imagealphablending($resizedLogo, false);
             imagesavealpha($resizedLogo, true);
-            imagecopyresampled($resizedLogo, $logo, 0, 0, 0, 0, $logoWidth, $logoHeight, imagesx($logo), imagesy($logo));
+            imagecopyresampled($resizedLogo, $logo, 0, 0, 0, 0, $logoWidth, $logoHeight, $logoOriginalWidth, $logoOriginalHeight);
 
             $margin = 20;
             imagecopy($base, $resizedLogo, $margin, $margin, 0, 0, $logoWidth, $logoHeight);
 
             $filename = 'mockups/final_' . Str::random(10) . '.png';
-            imagepng($base, storage_path('app/public/' . $filename));
+            $targetPath = storage_path('app/public/' . $filename);
+            $writeSuccess = imagepng($base, $targetPath);
 
             imagedestroy($base);
             imagedestroy($logo);
             imagedestroy($resizedLogo);
 
+            // FIX: imagepng() return false kalau gagal nulis (folder tidak
+            // writable, disk penuh, dll) — sebelumnya return value ini tidak
+            // pernah dicek, jadi fungsi tetap "sukses" mengembalikan path ke
+            // file yang sebenarnya TIDAK PERNAH ADA di disk. Akibatnya URL
+            // gambar kelihatan valid tapi selalu 404 saat diakses browser.
+            if (!$writeSuccess) {
+                Log::error('Composite Logo: imagepng() gagal menulis file ke disk.', [
+                    'target_path' => $targetPath,
+                    'target_dir_exists' => is_dir(dirname($targetPath)),
+                    'target_dir_writable' => is_writable(dirname($targetPath)),
+                ]);
+                return $screenshotRelPath;
+            }
+
+            // Verifikasi tambahan: pastikan file beneran ada & bukan 0 byte
+            // setelah ditulis, sebelum diklaim sukses.
+            if (!file_exists($targetPath) || filesize($targetPath) === 0) {
+                Log::error('Composite Logo: imagepng() return true tapi file tidak valid setelah dicek ulang.', [
+                    'target_path' => $targetPath,
+                    'exists' => file_exists($targetPath),
+                    'size' => file_exists($targetPath) ? filesize($targetPath) : null,
+                ]);
+                return $screenshotRelPath;
+            }
+
             return 'storage/' . $filename;
-        } catch (\Exception $e) {
-            Log::error('Composite Logo Error: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            // FIX: ganti dari catch(\Exception) ke catch(\Throwable) supaya
+            // Error-turunan (DivisionByZeroError, TypeError, dll dari GD)
+            // ikut ketangkep dan ke-log, bukan silently crash bagian ini.
+            Log::error('Composite Logo Error: ' . $e->getMessage(), [
+                'exception_class' => get_class($e),
+                'screenshot_full' => $screenshotFull,
+                'logo_full' => $logoFull,
+            ]);
             return $screenshotRelPath;
         }
     }
