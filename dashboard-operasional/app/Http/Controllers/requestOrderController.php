@@ -71,8 +71,8 @@ class requestOrderController extends Controller
             // ]);
             $project->update([
                 'requirement_notes' => "Jenis usaha: {$validated['business_type']}\nDeskripsi: {$validated['business_description']}\nTujuan: {$validated['business_goal']}",
+                'description' => $validated['business_description'],
             ]);
-
             // D. Simpan Assets (Jika ada lampiran file)
             if ($request->hasFile('assets')) {
                 $logoPath = null;
