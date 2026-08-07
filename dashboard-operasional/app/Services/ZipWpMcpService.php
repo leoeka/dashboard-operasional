@@ -124,4 +124,59 @@ class ZipWpMcpService
 
         return $this->callTool('list-templates', $args);
     }
+    public function listAvailableTools(): array
+    {
+        $sessionId = $this->getSessionId();
+
+        $response = Http::withHeaders($this->headers($sessionId))
+            ->timeout(30)
+            ->post($this->baseUrl, [
+                'jsonrpc' => '2.0',
+                'id' => random_int(1000, 999999),
+                'method' => 'tools/list',
+                'params' => new \stdClass(),
+            ]);
+
+        return $response->json('result.tools', []);
+    }
+
+    public function createAiSite(array $params): array
+    {
+        $required = ['business_name', 'business_desc', 'business_category_name', 'template'];
+        foreach ($required as $field) {
+            if (empty($params[$field])) {
+                throw new \InvalidArgumentException("Field '{$field}' wajib diisi untuk create-ai-site.");
+            }
+        }
+
+        return $this->callTool('create-ai-site', $params);
+    }
+
+    /**
+     * Cek progress pembuatan site. Panggil ini berulang (misal tiap 10 detik)
+     * setelah createAiSite(), sampai status jadi "active" atau muncul error.
+     */
+    public function getSiteProgress(string $siteUuid): array
+    {
+        return $this->callTool('get-site-progress', ['site_uuid' => $siteUuid]);
+    }
+
+    /**
+     * List semua site di team ZipWP kamu — berguna buat cek ulang status
+     * atau ambil URL site yang sudah jadi tanpa perlu simpan UUID manual.
+     */
+    public function listSites(?string $search = null, ?string $status = null, int $page = 1, int $perPage = 15): array
+    {
+        $args = ['page' => $page, 'per_page' => $perPage];
+
+        if ($search) {
+            $args['search'] = $search;
+        }
+
+        if ($status) {
+            $args['status'] = $status;
+        }
+
+        return $this->callTool('list-sites', $args);
+    }
 }

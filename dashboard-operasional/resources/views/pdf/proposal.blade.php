@@ -242,6 +242,15 @@
         <p class="agency-signoff">PT. EXITO BALI DIGITAL</p>
     </div>
 
+    {{--
+    ============================================================
+    GANTI BLOK "HALAMAN: RINGKASAN STRATEGI" DENGAN INI
+    ============================================================
+    Sebelumnya pakai $analysis['...'] langsung (array, error).
+    Sekarang pakai $analysisSummary['...'] yang sudah di-convert
+    jadi string aman di controller (lewat safeText()).
+--}}
+
     {{-- ===== HALAMAN: RINGKASAN STRATEGI (AI ANALYSIS, DIGABUNG) ===== --}}
     <div class="content-page">
         <div class="header-band">
@@ -252,54 +261,58 @@
         <h2 class="section-title">Business &amp; Website Strategy Summary</h2>
 
         <div style="font-size: 11px;">
-            @if(!empty($analysis['business_analysis']))
-                <p><strong>Business Overview:</strong> {{ $analysis['business_analysis'] }}</p>
+            @if (!empty($analysisSummary['business_analysis']))
+                <p><strong>Business Overview:</strong> {{ $analysisSummary['business_analysis'] }}</p>
             @endif
 
-            @if(!empty($analysis['target_market']))
-                <p><strong>Target Market:</strong> {{ $analysis['target_market'] }}</p>
+            @if (!empty($analysisSummary['target_market']))
+                <p><strong>Target Market:</strong> {{ $analysisSummary['target_market'] }}</p>
             @endif
 
-            @if(!empty($analysis['website_objective']))
-                <p><strong>Website Objective:</strong> {{ $analysis['website_objective'] }}</p>
+            @if (!empty($analysisSummary['website_objective']))
+                <p><strong>Website Objective:</strong> {{ $analysisSummary['website_objective'] }}</p>
             @endif
 
-            @if(!empty($analysis['sitemap']))
-                <p><strong>Sitemap:</strong> {{ $analysis['sitemap'] }}</p>
+            @if (!empty($analysisSummary['sitemap']))
+                <p><strong>Sitemap:</strong> {{ $analysisSummary['sitemap'] }}</p>
             @endif
 
-            @if(!empty($analysis['content_strategy']))
-                <p><strong>Content &amp; CTA Strategy:</strong> {{ $analysis['content_strategy'] }}</p>
+            @if (!empty($analysisSummary['content_strategy']))
+                <p><strong>Content &amp; CTA Strategy:</strong> {{ $analysisSummary['content_strategy'] }}</p>
             @endif
         </div>
     </div>
 
-    {{-- ===== HALAMAN: DESIGN MOCK UP ===== --}}
+    {{-- ===== HALAMAN: DESIGN MOCK UP / WEBSITE PREVIEW ===== --}}
     <div class="content-page">
         <div class="header-band">
             <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
             <span class="date">{{ now()->format('n/j/Y') }}</span>
         </div>
 
-        <h2 class="section-title">Design Mock Up</h2>
+        <h2 class="section-title">Website Preview</h2>
 
-        @if (!empty($mockup['sections']))
-            {{-- Tampilkan 3 section terpisah: navbar+hero, content, footer --}}
-            @foreach (['top', 'middle', 'bottom'] as $sectionKey)
-                @if (!empty($mockup['sections'][$sectionKey]))
-                    <img src="{{ storage_path('app/public/' . \Illuminate\Support\Str::after($mockup['sections'][$sectionKey], 'storage/')) }}"
-                        class="mockup-section-img">
+        @if (!empty($mockup['site_url']))
+            <div style="text-align:center; margin-top: 30px;">
+                <p style="font-size: 13px; margin-bottom: 10px;">
+                    Website preview Anda sudah tersedia dan dapat diakses melalui link berikut:
+                </p>
+                <p style="font-size: 14px; font-weight: bold; color: #2563eb;">
+                    {{ $mockup['site_url'] }}
+                </p>
+                @if (!empty($mockup['template_name']))
+                    <p style="font-size: 11px; color: #64748b; margin-top: 15px;">
+                        Template: {{ $mockup['template_name'] }}
+                    </p>
                 @endif
-            @endforeach
-        @elseif (!empty($mockup['image_path']))
-            {{-- Fallback: kalau sections tidak ada (misal proposal lama), pakai gambar gabungan --}}
-            <img src="{{ storage_path('app/public/' . \Illuminate\Support\Str::after($mockup['image_path'], 'storage/')) }}"
-                class="mockup-img">
+            </div>
         @else
-            <p style="text-align:center; color:#94a3b8;">Mockup belum tersedia.</p>
+            <p style="text-align:center; color:#94a3b8;">
+                Website preview belum
+                tersedia{{ !empty($mockup['fail_reason']) ? ' (' . $mockup['fail_reason'] . ')' : '' }}.
+            </p>
         @endif
     </div>
-
     {{-- ===== HALAMAN: COST TABLE + OTHER SERVICES + SYARAT + KLIEN + PENUTUP ===== --}}
     <div class="content-page">
         <div class="header-band">

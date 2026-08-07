@@ -31,7 +31,7 @@ class Project extends Model
         'status',
         'progress',
         'deadline',
-        'ai_generated_content',
+        'description', // sebelumnya: 'ai_generated_content'
     ];
 
     protected $casts = [

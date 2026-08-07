@@ -10,8 +10,7 @@ class MockupTemplate extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'category', 'preview_image', 'theme_slug', 'source_url'];
-
+    protected $fillable = ['name', 'category', 'preview_image', 'theme_slug', 'source_url', 'site_uuid', 'description'];
     public static function categories(): array
     {
         return [

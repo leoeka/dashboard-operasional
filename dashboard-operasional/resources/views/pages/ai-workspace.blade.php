@@ -14,7 +14,7 @@
         <form method="GET" class="flex flex-col sm:flex-row sm:items-center gap-3">
             <label class="text-sm font-medium text-slate-600">Project:</label>
             <select name="project" onchange="this.form.submit()"
-                    class="flex-1 bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none">
+                class="flex-1 bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none">
                 <option value="">-- Pilih project --</option>
                 @foreach ($projects as $p)
                     <option value="{{ $p->id }}" @selected($project && $project->id === $p->id)>
@@ -25,12 +25,11 @@
         </form>
     </x-card>
 
-    @if (! $project)
+    @if (!$project)
         <x-card padding="p-16">
             <p class="text-sm text-slate-400 text-center">Pilih project di atas untuk generate konten AI.</p>
         </x-card>
     @else
-
         {{-- INFO PROJECT --}}
         <x-card class="mb-6">
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -39,7 +38,8 @@
                     <p class="text-sm text-slate-400">{{ $project->client_name }} &middot; {{ $project->type ?? '-' }}</p>
                 </div>
                 @if ($project->mockupTemplate)
-                    <div class="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg w-fit">
+                    <div
+                        class="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg w-fit">
                         <i class='bx bx-check-circle'></i> Mockup: {{ $project->mockupTemplate->name }}
                     </div>
                 @else
@@ -50,27 +50,6 @@
             </div>
         </x-card>
 
-        {{-- HASIL GENERATE --}}
-        <x-card>
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-                <h2 class="font-semibold text-slate-800">Hasil Generate</h2>
-                <form method="POST" action="{{ route('pages.ai-workspace.generate', $project) }}">
-                    @csrf
-                    <button type="submit" class="grad-blue text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:opacity-90 transition w-fit">
-                        <i class='bx bx-magic-wand'></i> {{ $project->ai_generated_content ? 'Generate Ulang' : 'Generate' }}
-                    </button>
-                </form>
-            </div>
-
-            @if ($project->ai_generated_content)
-                <div class="bg-slate-50 rounded-lg p-4 text-sm text-slate-700 whitespace-pre-line break-words">{{ $project->ai_generated_content }}</div>
-                <p class="text-xs text-slate-400 mt-2">
-                    Perubahan/penyesuaian ke mockup dilakukan di luar sistem (langsung di WordPress).
-                </p>
-            @else
-                <p class="text-sm text-slate-400 py-4 text-center">Belum ada konten. Klik "Generate" untuk membuat.</p>
-            @endif
-        </x-card>
     @endif
 
 @endsection
