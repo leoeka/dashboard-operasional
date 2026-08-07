@@ -60,8 +60,8 @@ Return a JSON object with EXACTLY these keys:
 Respond with ONLY valid JSON, no markdown formatting, no explanation.
 ";
 
-        $maxRetries = 2;
-        $attempt = 0;
+        $maxRetries = 3;
+        $attempt = 1;
 
         while ($attempt <= $maxRetries) {
             try {
@@ -76,45 +76,58 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                 $responseText = $response->text();
 
                 if (empty($responseText)) {
-                    Log::warning('Gemini Business Analysis: Empty response', ['project_id' => $project->id]);
-                    throw new \RuntimeException('AI (Gemini) tidak memberikan respons analisis bisnis.');
+                    throw new \RuntimeException('AI (Gemini) memberikan respons kosong.');
                 }
 
                 $result = json_decode($responseText, true);
 
                 if (json_last_error() !== JSON_ERROR_NONE) {
-                    Log::warning('Gemini Business Analysis: Invalid JSON', [
-                        'project_id' => $project->id,
-                        'raw' => $responseText,
-                        'json_error' => json_last_error_msg(),
-                    ]);
-                    throw new \RuntimeException('Format respons analisis bisnis (Gemini) tidak valid.');
+                    throw new \RuntimeException('Format JSON Gemini tidak valid: ' . json_last_error_msg());
                 }
 
+                // BERHASIL: Kembalikan hasil analisis
                 return $result;
 
-            } catch (\RuntimeException $e) {
-                throw $e;
-            } catch (\Exception $e) {
-                $isQuotaError = str_contains($e->getMessage(), 'quota') || str_contains($e->getMessage(), 'rate-limit');
+            } catch (\Throwable $e) {
+                $errorMessage = strtolower($e->getMessage());
 
-                if ($isQuotaError && $attempt < $maxRetries) {
+                // Cek apakah error termasuk error sementara (Quota, Server Sibuk, Timeout, Server Error)
+                $isTransientError = str_contains($errorMessage, 'quota')
+                    || str_contains($errorMessage, 'rate-limit')
+                    || str_contains($errorMessage, 'high demand')
+                    || str_contains($errorMessage, 'overloaded')
+                    || str_contains($errorMessage, 'timed out')
+                    || str_contains($errorMessage, 'curl error 28')
+                    || str_contains($errorMessage, '503')
+                    || str_contains($errorMessage, '500');
+
+                // Jika error sementara dan masih ada jatah retry
+                if ($isTransientError && $attempt < $maxRetries) {
+                    Log::warning("Gemini Analysis Attempt {$attempt} failed: {$e->getMessage()}. Retrying...", [
+                        'project_id' => $project->id
+                    ]);
+
+                    // Delay fleksibel: percobaan 1 = 3 detik, percobaan 2 = 6 detik
+                    sleep($attempt * 3);
                     $attempt++;
-                    sleep(60);
                     continue;
                 }
 
-                Log::error('Gemini Business Analysis Error: ' . $e->getMessage(), ['project_id' => $project->id]);
+                // Catat error fatal (sudah habis jatah retry / error permanen)
+                Log::error('Gemini Business Analysis Error Final: ' . $e->getMessage(), [
+                    'project_id' => $project->id,
+                    'attempts' => $attempt,
+                ]);
 
                 throw new \RuntimeException(
-                    $isQuotaError
-                    ? 'Kuota AI (Gemini) sudah habis. Silakan coba lagi dalam beberapa saat.'
-                    : 'Gagal menghubungi layanan AI (Gemini) untuk analisis bisnis.'
+                    $isTransientError
+                    ? 'Layanan AI Gemini sedang sibuk atau kuota habis. Silakan coba beberapa saat lagi.'
+                    : 'Gagal menghubungi AI Gemini: ' . $e->getMessage()
                 );
             }
         }
 
-        throw new \RuntimeException('Gagal mendapatkan analisis bisnis dari Gemini.');
+        throw new \RuntimeException('Gagal mendapatkan analisis bisnis dari Gemini setelah beberapa kali percobaan.');
     }
 
     /**
@@ -197,49 +210,61 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
             throw new \RuntimeException('Gagal menghubungi layanan AI (GPT) untuk analisis desain web.');
         }
     }
-    public function pickBestTemplate(Project $project, array $candidates, array $analysis = []): ?array
+    /**
+     * Pilih template terbaik berdasarkan kecocokan categories & keywords.
+     * Return ARRAY template lengkap (bukan string slug) supaya controller
+     * bisa akses uuid, name, preview_url secara langsung.
+     */
+    public function pickBestTemplate(array $templates, string $projectType, string $businessDesc = ''): ?array
     {
-        if (empty($candidates)) {
+        if (empty($templates)) {
             return null;
         }
 
-        // Kumpulkan kata kunci dari project + hasil analisis bisnis
-        $keywords = array_filter([
-            $project->type,
-            $analysis['business_analysis']['brand_identity'] ?? null,
-            $analysis['target_market']['demographics'] ?? null,
-        ]);
+        $projectTypeLower = strtolower($projectType);
+        $descLower = strtolower($businessDesc);
 
-        $keywordText = strtolower(implode(' ', array_map(
-            fn($v) => is_array($v) ? json_encode($v) : (string) $v,
-            $keywords
-        )));
+        $bestMatch = null;
+        $highestScore = -1;
 
-        $bestScore = -1;
-        $bestTemplate = null;
-
-        foreach ($candidates as $template) {
-            $templateText = strtolower(
-                ($template['name'] ?? '') . ' ' . ($template['category'] ?? '')
-            );
-
+        foreach ($templates as $template) {
             $score = 0;
-            foreach (preg_split('/\s+/', $templateText) as $word) {
-                $word = trim($word);
-                if (strlen($word) >= 4 && str_contains($keywordText, $word)) {
-                    $score++;
+
+            // Field asli ZipWP: 'categories' (array) dan 'keywords' (array)
+            $categories = array_map('strtolower', $template['categories'] ?? []);
+            $keywords = array_map('strtolower', $template['keywords'] ?? []);
+            $name = strtolower($template['name'] ?? '');
+
+            // 1. Kecocokan kategori dengan project_type (bobot tinggi)
+            foreach ($categories as $category) {
+                if (str_contains($category, $projectTypeLower) || str_contains($projectTypeLower, $category)) {
+                    $score += 10;
                 }
             }
 
-            if ($score > $bestScore) {
-                $bestScore = $score;
-                $bestTemplate = $template;
+            // 2. Kecocokan keywords dengan project_type & deskripsi bisnis
+            foreach ($keywords as $keyword) {
+                if (empty($keyword)) continue;
+                if (str_contains($projectTypeLower, $keyword)) {
+                    $score += 5;
+                }
+                if (!empty($descLower) && str_contains($descLower, $keyword)) {
+                    $score += 2;
+                }
+            }
+
+            // 3. Kecocokan nama template
+            if (str_contains($name, $projectTypeLower)) {
+                $score += 3;
+            }
+
+            if ($score > $highestScore) {
+                $highestScore = $score;
+                $bestMatch = $template; // simpan ARRAY LENGKAP, bukan slug
             }
         }
 
-        // Kalau tidak ada yang cocok sama sekali (score 0 semua),
-        // tetap ambil kandidat pertama daripada gagal total.
-        return $bestTemplate ?? $candidates[0] ?? null;
+        // Fallback ke template pertama kalau tidak ada yang cocok sama sekali
+        return $bestMatch ?? $templates[0] ?? null;
     }
-
 }

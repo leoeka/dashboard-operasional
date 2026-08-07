@@ -16,6 +16,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\AiServices;
 use App\Services\ZipWpMcpService;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Http\RedirectResponse; // <-- Tambahkan ini
+
 
 
 
@@ -292,7 +294,6 @@ class ProjectController extends Controller
         \App\Jobs\GenerateProposalJob::dispatch($project);
         return response()->json(['queued' => true]);
     }
-
     public function proposalStatus(Project $project)
     {
         return response()->json(
@@ -310,53 +311,46 @@ class ProjectController extends Controller
      * GANTI SELURUH METHOD generateProposal() DENGAN INI
      * ============================================================
      */
+    /**
+     * Jalankan proses pembuatan proposal & report progress ke Cache/DB.
+     */
     public function runProposalGeneration(Project $project, AiServices $aiService, ZipWpMcpService $zipWp): void
     {
-        // Proses ini bisa memakan waktu sampai ~2 menit (create-ai-site + polling),
-        // jadi kasih waktu eksekusi lebih panjang dari default.
-        set_time_limit(180);
+        @set_time_limit(180);
 
-        // =====================================================
-        // 1. LOAD DATA PROJECT
-        // =====================================================
+        // 1. UPDATE PROGRESS: Load Data
+        $this->reportProgress($project, 'processing', 10, 'Mengambil data project dan client...');
+
         $project->load(['client', 'files']);
         $client = $project->client;
 
         if (!$client) {
             $this->reportProgress($project, 'failed', 0, 'Project ini belum terhubung dengan data client.');
-            return;
+            throw new \Exception('Project belum terhubung dengan data client.');
         }
 
-        // =====================================================
-        // 2. AI ANALYSIS (Gemini: bisnis & pasar, GPT: struktur & desain)
-        // =====================================================
+        // 2. UPDATE PROGRESS: AI Analysis
+        $this->reportProgress($project, 'processing', 25, 'Menganalisis profil bisnis dengan AI...');
+
         try {
             $analysis = $aiService->analyzeProject($project, $client);
-        } catch (\RuntimeException $e) {
-            $this->reportProgress($project, 'failed', 0, $e->getMessage());
-            return;
+        } catch (\Throwable $e) {
+            $this->reportProgress($project, 'failed', 0, 'Gagal analisis AI: ' . $e->getMessage());
+            throw $e;
         }
 
-        // Kalau AI gagal balikin array yang benar, pakai struktur kosong sebagai fallback
         if (!is_array($analysis)) {
             $analysis = [
                 'business_analysis' => '',
                 'market_analysis' => '',
                 'target_market' => '',
-                'competitor_analysis' => '',
                 'website_objective' => '',
                 'sitemap' => '',
-                'page_structure' => '',
                 'content_strategy' => '',
-                'cta_strategy' => '',
                 'design_direction' => '',
             ];
         }
 
-        // Siapkan versi STRING dari field yang dipakai di halaman "Strategy Summary"
-        // PDF — field ini sekarang nested array (hasil Gemini+GPT), jadi wajib
-        // di-convert ke string dulu di sini. INI SELALU DIJALANKAN, tidak
-        // digantungkan pada kondisi apapun, supaya $analysisSummary selalu ada.
         $analysisSummary = [
             'business_analysis' => $this->safeText($analysis['business_analysis'] ?? null),
             'target_market' => $this->safeText($analysis['target_market'] ?? null),
@@ -367,26 +361,15 @@ class ProjectController extends Controller
 
         $designDirectionRaw = $analysis['design_direction'] ?? null;
 
-        // =====================================================
-        // 3. PILIH TEMPLATE ZIPWP & GENERATE WEBSITE BENERAN
-        // =====================================================
+        // 3. UPDATE PROGRESS: Mockup / ZipWP
+        $this->reportProgress($project, 'processing', 50, 'Memilih dan membuat website preview...');
+
         $bestTemplate = null;
         $zipWpSiteUuid = null;
         $zipWpSiteUrl = null;
         $mockupFailReason = null;
 
-        // GUARD: kalau project ini SUDAH punya website ZipWP aktif dari
-        // percobaan sebelumnya (misal request sebelumnya gagal di step PDF,
-        // TAPI site-nya sudah kadung jadi), JANGAN generate site baru lagi.
-        // Pakai yang sudah ada saja, supaya tidak numpuk site percobaan
-        // dan tidak buang-buang kuota ZipWP tiap kali retry.
         if (!empty($project->zipwp_site_url) && !empty($project->zipwp_site_uuid)) {
-
-            Log::info('Generate Proposal - Pakai ZipWP site yang sudah ada (skip create baru)', [
-                'project_id' => $project->id,
-                'existing_site_url' => $project->zipwp_site_url,
-            ]);
-
             $zipWpSiteUuid = $project->zipwp_site_uuid;
             $zipWpSiteUrl = $project->zipwp_site_url;
             $bestTemplate = [
@@ -394,41 +377,37 @@ class ProjectController extends Controller
                 'name' => $project->zipwp_template_name,
                 'preview_url' => $project->zipwp_template_preview_url,
             ];
-
         } else {
-
             try {
-                // 3a. Cari kandidat template berdasarkan kategori bisnis
                 $candidates = $zipWp->listTemplates(
-                search: $project->type,
+                search: $project->type ?? '',
                 perPage: 30
                 )['templates'] ?? [];
 
-                if (empty($candidates)) {
-                    $candidates = $zipWp->listTemplates(perPage: 30)['templates'] ?? [];
-                }
-
-                if (empty($candidates)) {
-                    $mockupFailReason = 'Tidak ada template ZipWP yang tersedia dari API.';
-                } else {
-                    // 3b. Pilih template terbaik berdasarkan hasil analisis Gemini+GPT
-                    $bestTemplate = $aiService->pickBestTemplate($project, $candidates, $analysis);
+                if (!empty($candidates)) {
+                    // pickBestTemplate sekarang return ARRAY template lengkap,
+                    // bukan string slug — jadi tidak perlu cari lagi di $candidates
+                    $bestTemplate = $aiService->pickBestTemplate(
+                        $candidates,
+                        $project->type ?? 'Company Profile',
+                        $project->description ?? ''
+                    );
                 }
 
                 if ($bestTemplate) {
-
                     $project->update([
-                        'zipwp_template_uuid' => $bestTemplate['uuid'],
-                        'zipwp_template_name' => $bestTemplate['name'],
-                        'zipwp_template_preview_url' => $bestTemplate['preview_url'] ?? null,
+                        'zipwp_template_uuid' => $bestTemplate['uuid'] ?? $bestTemplate['slug'] ?? $bestTemplate['id'] ?? null,
+                        'zipwp_template_name' => $bestTemplate['name'] ?? 'Template',
+                        'zipwp_template_preview_url' => $bestTemplate['preview_url'] ?? $bestTemplate['demo_url'] ?? null,
                     ]);
 
-                    // 3c. Generate website WordPress beneran dari template + data bisnis
+                    $enrichedDesc = $this->buildEnrichedBusinessDesc($project, $analysis);
+
                     $createResult = $zipWp->createAiSite([
                         'business_name' => $project->name,
-                        'business_desc' => $project->description ?: ($project->name . ' - ' . ($project->type ?? 'Business')),
+                        'business_desc' => $enrichedDesc,
                         'business_category_name' => $project->type ?? 'Business',
-                        'template' => $bestTemplate['uuid'],
+                        'template' => $bestTemplate['uuid'] ?? '',
                         'title' => $project->name,
                         'business_email' => $client->email ?? null,
                         'business_phone' => $client->phone ?? null,
@@ -437,46 +416,30 @@ class ProjectController extends Controller
 
                     $zipWpSiteUuid = $createResult['site_uuid'] ?? $createResult['uuid'] ?? null;
 
-                    if (!$zipWpSiteUuid) {
-                        Log::error('ZipWP create-ai-site tidak mengembalikan site_uuid', [
-                            'project_id' => $project->id,
-                            'response' => $createResult,
-                        ]);
-                        $mockupFailReason = 'ZipWP gagal memulai proses pembuatan site.';
-                    } else {
-
-                        // 3d. Polling progress sampai selesai (max ~2 menit, cek tiap 10 detik)
-                        $maxAttempts = 12;
+                    if ($zipWpSiteUuid) {
+                        // UBAH JEDA POLLING ZIPWP DARI 10 DETIK MENJADI 5 DETIK
+                        $maxAttempts = 20; // 20 attempt x 5 detik = 100 detik total max
                         $attempt = 0;
-                        $siteActive = false;
 
                         while ($attempt < $maxAttempts) {
-                            sleep(10);
+                            sleep(5); // <-- Ganti 10 jadi 5
                             $attempt++;
 
-                            $progress = $zipWp->getSiteProgress($zipWpSiteUuid);
-                            $status = $progress['status'] ?? null;
+                            // Update progress secara berkala saat polling
+                            $currentProgress = 50 + ($attempt * 2);
+                            $this->reportProgress($project, 'processing', $currentProgress, "Membangun website ZipWP (Langkah {$attempt}/20)...");
 
-                            Log::info('ZipWP site progress', [
-                                'project_id' => $project->id,
-                                'attempt' => $attempt,
-                                'status' => $status,
-                            ]);
+                            $progressStatus = $zipWp->getSiteProgress($zipWpSiteUuid);
 
-                            if (($progress['is_ready'] ?? false) === true) {
-                                $zipWpSiteUrl = $progress['site_url'] ?? null;
-                                $siteActive = true;
+                            if (($progressStatus['is_ready'] ?? false) === true) {
+                                $zipWpSiteUrl = $progressStatus['site_url'] ?? null;
                                 break;
                             }
 
-                            if ($status === 'failed' || $status === 'error') {
-                                $mockupFailReason = 'ZipWP gagal membangun site: ' . ($progress['message'] ?? 'unknown error');
+                            if (($progressStatus['status'] ?? null) === 'failed') {
+                                $mockupFailReason = 'ZipWP gagal membangun site.';
                                 break;
                             }
-                        }
-
-                        if (!$siteActive && !$mockupFailReason) {
-                            $mockupFailReason = 'Pembuatan site ZipWP memakan waktu lebih lama dari perkiraan. Cek status manual nanti di halaman project.';
                         }
 
                         if ($zipWpSiteUrl) {
@@ -486,28 +449,17 @@ class ProjectController extends Controller
                             ]);
                         }
                     }
-
-                } elseif (!$mockupFailReason) {
-                    $mockupFailReason = 'AI tidak berhasil memilih template yang cocok.';
                 }
-
             } catch (\Throwable $e) {
-                Log::error('Generate Proposal - ZipWP site gagal: ' . $e->getMessage(), [
-                    'project_id' => $project->id,
-                ]);
-                $mockupFailReason = 'Terjadi error teknis saat proses generate website.';
+                Log::error('ZipWP Error: ' . $e->getMessage());
+                $mockupFailReason = 'Gagal generate website otomatis.';
             }
+        }
 
-        } // <-- penutup blok "else" dari guard idempotency di atas
+        // 4. UPDATE PROGRESS: Generate PDF Proposal
+        $this->reportProgress($project, 'processing', 80, 'Menyusun dokumen PDF proposal...');
 
-        // =====================================================
-        // 4. SIMPAN MOCKUP TEMPLATE (referensi template + site yang dipakai)
-        // =====================================================
-        // Kalau project sudah punya mockup_template_id (dari percobaan
-        // sebelumnya yang berhasil bikin site tapi gagal di PDF), tidak
-        // perlu bikin row MockupTemplate baru lagi — pakai yang sudah ada.
         if ($bestTemplate && !$project->mockup_template_id) {
-
             $mockupTemplate = MockupTemplate::create([
                 'name' => ($bestTemplate['name'] ?? 'AI Generated') . ' (AI - ' . $project->client_name . ')',
                 'category' => $project->type ?? 'company_profile',
@@ -518,20 +470,9 @@ class ProjectController extends Controller
                 'description' => $this->safeText($designDirectionRaw, 'AI Generated Website'),
             ]);
 
-            $project->update([
-                'mockup_template_id' => $mockupTemplate->id,
-            ]);
-
-        } elseif (!$bestTemplate) {
-            Log::warning('Generate Proposal - ZipWP site gagal dibuat', [
-                'project_id' => $project->id,
-                'reason' => $mockupFailReason,
-            ]);
+            $project->update(['mockup_template_id' => $mockupTemplate->id]);
         }
 
-        // =====================================================
-        // 5. DATA MOCKUP UNTUK PDF (berisi URL live site, bukan gambar statis)
-        // =====================================================
         $mockup = [
             'title' => $project->name . ' — Website Preview',
             'site_url' => $zipWpSiteUrl,
@@ -540,9 +481,6 @@ class ProjectController extends Controller
             'fail_reason' => $mockupFailReason,
         ];
 
-        // =====================================================
-        // 6. DATA PROJECT UNTUK PDF
-        // =====================================================
         $projectData = [
             'project_name' => $project->name,
             'client_name' => $project->client_name,
@@ -551,14 +489,6 @@ class ProjectController extends Controller
             'generated_at' => now()->format('d F Y H:i'),
         ];
 
-        // =====================================================
-        // 7. GENERATE PDF
-        // =====================================================
-        // Dibungkus try-catch: kalau PDF gagal (misal error di blade),
-        // website ZipWP yang SUDAH TERLANJUR dibuat di step 3 tidak hilang
-        // percuma — project tetap tersimpan dengan zipwp_site_url terisi,
-        // dan idempotency guard di atas akan pakai ulang site ini di
-        // percobaan berikutnya (tidak generate site baru lagi).
         try {
             $pdf = Pdf::loadView('pdf.proposal', [
                 'project' => $project,
@@ -567,59 +497,66 @@ class ProjectController extends Controller
                 'analysisSummary' => $analysisSummary,
                 'mockup' => $mockup,
             ]);
+
+            $clientSlug = Str::slug($project->client_name);
+            $fileName = "proposals/Proposal-Mockup-{$clientSlug}-{$project->code}.pdf";
+            Storage::disk('public')->put($fileName, $pdf->output());
+
+            Proposal::updateOrCreate(
+                ['project_id' => $project->id],
+                [
+                    'client_name' => $project->client_name,
+                    'status' => 'pending',
+                    'pdf_path' => $fileName,
+                    'version' => 1,
+                    'ai_reasoning' => json_encode($analysis, JSON_UNESCAPED_UNICODE),
+                    'summary' => $this->safeText($designDirectionRaw),
+                ]
+            );
+
+            // 5. UPDATE PROGRESS: Selesai!
+            $this->reportProgress($project, 'completed', 100, 'Proposal dan Website berhasil dibuat!');
+
         } catch (\Throwable $e) {
-            Log::error('Generate Proposal - PDF gagal dibuat: ' . $e->getMessage(), [
-                'project_id' => $project->id,
-            ]);
-
-            $this->reportProgress($project, 'failed', 0, 'Website berhasil dibuat, tapi PDF proposal gagal digenerate. Silakan coba lagi — sistem akan memakai website yang sudah ada, tidak generate ulang.');
-            return;
+            Log::error('PDF Error: ' . $e->getMessage());
+            $this->reportProgress($project, 'failed', 0, 'PDF Proposal gagal dibuat: ' . $e->getMessage());
+            throw $e;
         }
-
-        // =====================================================
-        // 8. SIMPAN PDF
-        // =====================================================
-        $clientSlug = Str::slug($project->client_name);
-        $fileName = "proposals/Proposal-Mockup-{$clientSlug}-{$project->code}.pdf";
-        Storage::disk('public')->put($fileName, $pdf->output());
-
-        // =====================================================
-        // 9. SIMPAN PROPOSAL
-        // =====================================================
-        Proposal::updateOrCreate(
-            ['project_id' => $project->id],
-            [
-                'client_name' => $project->client_name,
-                'status' => 'pending',
-                'pdf_path' => $fileName,
-                'version' => 1,
-                'ai_reasoning' => json_encode($analysis, JSON_UNESCAPED_UNICODE),
-                'summary' => $this->safeText($designDirectionRaw),
-            ]
-        );
-
-        // =====================================================
-        // 10. LOG ACTIVITY
-        // =====================================================
-        $project->logActivity(
-            $zipWpSiteUrl
-            ? 'AI Analysis dan Website berhasil dibuat: ' . $zipWpSiteUrl
-            : 'AI Analysis berhasil dibuat, website ZipWP gagal digenerate (' . ($mockupFailReason ?? 'unknown') . ')'
-        );
-
-        // =====================================================
-        // 11. KE PREVIEW
-        // =====================================================
-        $this->reportProgress(
-            $project,
-            'done',
-            100,
-            $zipWpSiteUrl
-            ? 'Proposal berhasil dibuat, website preview sudah siap.'
-            : 'Proposal berhasil dibuat, tapi website ZipWP gagal digenerate otomatis.'
-        );
     }
 
+    private function buildEnrichedBusinessDesc(Project $project, array $analysis): string
+    {
+        $parts = [];
+
+        // Description dasar dari user (wajib ada)
+        $parts[] = $project->description ?: ($project->name . ' - ' . ($project->type ?? 'Business'));
+
+        // Value proposition dari business_analysis (kalau ada)
+        $valueProposition = $analysis['business_analysis']['value_proposition']
+            ?? $analysis['business_analysis']['brand_identity']
+            ?? null;
+        if ($valueProposition && is_string($valueProposition)) {
+            $parts[] = "Value proposition: {$valueProposition}";
+        }
+
+        // Target market ringkas
+        $targetDemo = $analysis['target_market']['demographics'] ?? null;
+        if ($targetDemo && is_string($targetDemo)) {
+            $parts[] = "Target market: {$targetDemo}";
+        }
+
+        // Tone of voice dari content_strategy
+        $tone = $analysis['content_strategy']['tone_of_voice'] ?? null;
+        if ($tone && is_string($tone)) {
+            $parts[] = "Brand tone: {$tone}";
+        }
+
+        $combined = implode('. ', $parts);
+
+        // Jaga-jaga kalau ZipWP ada limit panjang karakter (potong di ~500 karakter,
+        // sesuaikan angka ini kalau ternyata limitnya beda setelah dites)
+        return Str::limit($combined, 500, '');
+    }
 
     public function previewProposal(Project $project)
     {

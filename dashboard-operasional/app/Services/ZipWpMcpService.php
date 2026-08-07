@@ -84,7 +84,7 @@ class ZipWpMcpService
         $sessionId = $this->getSessionId();
 
         $response = Http::withHeaders($this->headers($sessionId))
-            ->timeout(30)
+            ->timeout(120) // dinaikkan dari 30 supaya create-ai-site + polling tidak timeout
             ->retry(2, 1000)
             ->post($this->baseUrl, [
                 'jsonrpc' => '2.0',
@@ -105,13 +105,57 @@ class ZipWpMcpService
         }
 
         $text = $json['result']['content'][0]['text'] ?? null;
+        $isError = $json['result']['isError'] ?? false;
 
+        // Ada text tapi isError = true — ZipWP kasih pesan error
+        if ($text && $isError) {
+            $errorMessage = trim($text);
+
+            Log::error("ZipWP MCP [{$toolName}] error: {$errorMessage}", [
+                'tool' => $toolName,
+                'arguments' => $arguments,
+            ]);
+
+            // Deteksi jenis error supaya pesan ke user lebih informatif
+            $lowerMsg = strtolower($errorMessage);
+
+            if (str_contains($lowerMsg, 'limit reached') || str_contains($lowerMsg, 'plan')) {
+                throw new \RuntimeException("Kuota ZipWP habis: {$errorMessage}. Silakan upgrade plan atau hapus site lama di dashboard ZipWP.");
+            }
+
+            if (str_contains($lowerMsg, 'unauthorized') || str_contains($lowerMsg, 'invalid token')) {
+                throw new \RuntimeException("Token ZipWP tidak valid atau sudah kadaluarsa. Periksa konfigurasi ZIPWP_TOKEN di .env.");
+            }
+
+            if (str_contains($lowerMsg, 'not found') || str_contains($lowerMsg, 'uuid')) {
+                throw new \RuntimeException("ZipWP: resource tidak ditemukan — {$errorMessage}");
+            }
+
+            // Error lain yang belum dikenali
+            throw new \RuntimeException("ZipWP [{$toolName}] gagal: {$errorMessage}");
+        }
+
+        // Tidak ada text sama sekali (response kosong/format salah)
         if (!$text) {
-            Log::warning('ZipWP MCP: response tidak sesuai format', ['body' => $json]);
+            Log::warning("ZipWP MCP [{$toolName}]: response kosong atau format tidak dikenal", [
+                'tool' => $toolName,
+                'body' => $json,
+            ]);
             return [];
         }
 
-        return json_decode($text, true) ?? [];
+        // Sukses — decode JSON dari text
+        $decoded = json_decode($text, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            Log::warning("ZipWP MCP [{$toolName}]: response bukan JSON valid", [
+                'tool' => $toolName,
+                'raw' => $text,
+            ]);
+            return [];
+        }
+
+        return $decoded ?? [];
     }
 
     public function listTemplates(?string $search = null, int $page = 1, int $perPage = 15): array
