@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\AiServices;
 use App\Services\ZipWpMcpService;
+use Illuminate\Support\Facades\Cache;
 
 
 
@@ -285,13 +286,31 @@ class ProjectController extends Controller
         return (string) $value;
     }
 
+    public function generateProposal(Project $project)
+    {
+        $this->reportProgress($project, 'queued', 0, 'Menunggu diproses...');
+        \App\Jobs\GenerateProposalJob::dispatch($project);
+        return response()->json(['queued' => true]);
+    }
+
+    public function proposalStatus(Project $project)
+    {
+        return response()->json(
+            Cache::get($this->progressCacheKey($project->id), [
+                'status' => 'idle',
+                'progress' => 0,
+                'message' => '',
+            ])
+        );
+    }
+
 
     /**
      * ============================================================
      * GANTI SELURUH METHOD generateProposal() DENGAN INI
      * ============================================================
      */
-    public function generateProposal(Project $project, AiServices $aiService, ZipWpMcpService $zipWp)
+    public function runProposalGeneration(Project $project, AiServices $aiService, ZipWpMcpService $zipWp): void
     {
         // Proses ini bisa memakan waktu sampai ~2 menit (create-ai-site + polling),
         // jadi kasih waktu eksekusi lebih panjang dari default.
@@ -304,9 +323,8 @@ class ProjectController extends Controller
         $client = $project->client;
 
         if (!$client) {
-            return redirect()
-                ->back()
-                ->with('error', 'Project ini belum terhubung dengan data client.');
+            $this->reportProgress($project, 'failed', 0, 'Project ini belum terhubung dengan data client.');
+            return;
         }
 
         // =====================================================
@@ -315,9 +333,8 @@ class ProjectController extends Controller
         try {
             $analysis = $aiService->analyzeProject($project, $client);
         } catch (\RuntimeException $e) {
-            return redirect()
-                ->back()
-                ->with('error', $e->getMessage());
+            $this->reportProgress($project, 'failed', 0, $e->getMessage());
+            return;
         }
 
         // Kalau AI gagal balikin array yang benar, pakai struktur kosong sebagai fallback
@@ -555,9 +572,8 @@ class ProjectController extends Controller
                 'project_id' => $project->id,
             ]);
 
-            return redirect()
-                ->back()
-                ->with('error', 'Website berhasil dibuat, tapi PDF proposal gagal digenerate. Silakan coba lagi — sistem akan memakai website yang sudah ada, tidak generate ulang.');
+            $this->reportProgress($project, 'failed', 0, 'Website berhasil dibuat, tapi PDF proposal gagal digenerate. Silakan coba lagi — sistem akan memakai website yang sudah ada, tidak generate ulang.');
+            return;
         }
 
         // =====================================================
@@ -594,18 +610,17 @@ class ProjectController extends Controller
         // =====================================================
         // 11. KE PREVIEW
         // =====================================================
-        return redirect()->route(
-            'pages.projects.proposal.preview',
-            $project
-        )->with(
-                'success',
-                $zipWpSiteUrl
-                ? 'Proposal berhasil dibuat, website preview sudah siap.'
-                : 'Proposal berhasil dibuat, tapi website ZipWP gagal digenerate otomatis.'
-            );
+        $this->reportProgress(
+            $project,
+            'done',
+            100,
+            $zipWpSiteUrl
+            ? 'Proposal berhasil dibuat, website preview sudah siap.'
+            : 'Proposal berhasil dibuat, tapi website ZipWP gagal digenerate otomatis.'
+        );
     }
 
-    
+
     public function previewProposal(Project $project)
     {
         $proposal = Proposal::where('project_id', $project->id)
@@ -656,6 +671,20 @@ class ProjectController extends Controller
         }
 
         return view('pages.ai-workspace', compact('projects', 'project'));
+    }
+
+    private function progressCacheKey(int $projectId): string
+    {
+        return "proposal_progress:{$projectId}";
+    }
+
+    private function reportProgress(Project $project, string $status, int $progress, string $message): void
+    {
+        Cache::put(
+            $this->progressCacheKey($project->id),
+            ['status' => $status, 'progress' => $progress, 'message' => $message],
+            now()->addMinutes(10)
+        );
     }
 
 }

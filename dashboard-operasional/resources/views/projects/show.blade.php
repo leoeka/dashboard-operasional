@@ -182,18 +182,15 @@
                         </a>
                     @endif
                 @else
-                    {{-- Generate pertama kali --}}
-                    <form action="{{ route('pages.projects.proposal.generate', $project) }}" method="POST" class="w-full">
-                        @csrf
-                        <button type="submit" class="w-full inline-flex items-center justify-center gap-2
+                    {{-- Generate pertama kali — JS-driven, memicu job async + progress bar di kartu Mockup di bawah --}}
+                    <button type="button" id="generate-proposal-btn" onclick="startGenerateProposal({{ $project->id }})" class="w-full inline-flex items-center justify-center gap-2
                            grad-blue text-white text-xs font-semibold
                            px-4 py-2.5 rounded-lg
                            hover:opacity-90 active:scale-95
-                           shadow-sm transition">
-                            <i class='bx bx-magic-wand text-sm'></i>
-                            <span>Generate Proposal</span>
-                        </button>
-                    </form>
+                           shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed">
+                        <i class='bx bx-magic-wand text-sm'></i>
+                        <span>Generate Proposal</span>
+                    </button>
                 @endif
             </div>
         </x-card>
@@ -202,7 +199,7 @@
     {{-- ADD MOCKUP --}}
     <x-card class="mt-6">
         <div class="flex items-center justify-between mb-4">
-            <h2 class="font-semibold text-slate-800">Add Mockup</h2>
+            <h2 class="font-semibold text-slate-800">Mockup</h2>
             @if ($project->mockupTemplate)
                 <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
                     Mockup Aktif
@@ -287,7 +284,7 @@
                 @csrf
                 @method('PUT')
 
-                <select name="mockup_template_id" required
+                <select name="mockup_template_id" required onchange="this.form.submit()"
                     class="flex-1 min-w-0 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="">-- Pilih mockup dari daftar --</option>
                     {{--
@@ -312,21 +309,88 @@
                         </option>
                     @endforeach
                 </select>
-
-                <button type="submit"
-                    class="bg-slate-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-slate-700 transition flex-shrink-0">
-                    Simpan Mockup
-                </button>
+                {{-- Tombol "Simpan Mockup" dihapus — pilih dari dropdown langsung tersimpan (auto-submit). --}}
             </form>
         </details>
 
+        {{--
+        Area ini menggantikan warning text "Mockup belum dipilih..." lama.
+        Default: kalau belum ada mockup, tampilkan progress bar (hidden,
+        di-unhide oleh JS saat tombol "Generate Proposal" diklik). Kalau
+        mockup sudah ada, area ini tidak ditampilkan sama sekali.
+        --}}
         @if (!$project->mockupTemplate)
-            <div class="p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-700 text-xs flex items-center gap-2">
+            <div id="mockup-progress-wrapper" class="hidden p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <div class="flex items-center justify-between text-xs mb-2">
+                    <span id="mockup-progress-message" class="text-blue-700 font-medium">Memulai proses...</span>
+                    <span id="mockup-progress-percent" class="text-blue-400">0%</span>
+                </div>
+                <div class="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
+                    <div id="mockup-progress-bar"
+                        class="h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-500 ease-out"
+                        style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div id="mockup-idle-warning"
+                class="p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-700 text-xs flex items-center gap-2">
                 <i class='bx bx-info-circle text-base'></i>
                 <span>Mockup belum dipilih atau gagal di-generate. Silakan pilih manual dari opsi di atas.</span>
             </div>
         @endif
     </x-card>
+
+    <script>
+        function startGenerateProposal(projectId) {
+            const btn = document.getElementById('generate-proposal-btn');
+            const progressWrapper = document.getElementById('mockup-progress-wrapper');
+            const idleWarning = document.getElementById('mockup-idle-warning');
+            const progressBar = document.getElementById('mockup-progress-bar');
+            const progressMessage = document.getElementById('mockup-progress-message');
+            const progressPercent = document.getElementById('mockup-progress-percent');
+
+            if (btn) {
+                btn.disabled = true;
+                btn.querySelector('span').innerText = 'Memproses...';
+            }
+            idleWarning?.classList.add('hidden');
+            progressWrapper?.classList.remove('hidden');
+
+            fetch(`/projects/${projectId}/proposal/generate`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                    'Accept': 'application/json',
+                },
+            }).then(() => pollProposalStatus(projectId));
+
+            function pollProposalStatus(projectId) {
+                fetch(`/projects/${projectId}/proposal/status`, {
+                    headers: { 'Accept': 'application/json' },
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        const pct = data.progress ?? 0;
+                        if (progressBar) progressBar.style.width = pct + '%';
+                        if (progressPercent) progressPercent.innerText = pct + '%';
+                        if (progressMessage) progressMessage.innerText = data.message || '';
+
+                        if (data.status === 'done') {
+                            window.location.reload();
+                        } else if (data.status === 'failed') {
+                            if (btn) {
+                                btn.disabled = false;
+                                btn.querySelector('span').innerText = 'Generate Proposal';
+                            }
+                            progressMessage.innerText = data.message || 'Gagal, silakan coba lagi.';
+                            progressBar.classList.add('bg-red-500');
+                        } else {
+                            setTimeout(() => pollProposalStatus(projectId), 1500);
+                        }
+                    });
+            }
+        }
+    </script>
 
     {{-- ACTIVITY LOG --}}
     <x-card class="mt-6">

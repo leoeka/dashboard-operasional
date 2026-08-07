@@ -95,6 +95,8 @@ Route::middleware(['auth'])->group(function () {
     // 10. Proposal
 
     Route::post('/projects/{project}/proposal/generate', [ProjectController::class, 'generateProposal'])->name('pages.projects.proposal.generate');
+    Route::get('/projects/{project}/proposal/status', [ProjectController::class, 'proposalStatus'])
+        ->name('pages.projects.proposal.status');
     Route::resource('service-packages', \App\Http\Controllers\ServicePackageController::class)->except(['show']);
 });
 
