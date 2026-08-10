@@ -46,6 +46,7 @@ class requestOrderController extends Controller
                 'contact_name' => $validated['client_name'],
                 'email' => $validated['email'] ?? null,
                 'phone' => $validated['phone'] ?? null,
+                'whatsapp' => $validated['phone'] ?? null,
                 'address' => $request->input('address'),
                 'created_by' => Auth::id(), // Mengambil ID user yang sedang login
             ]);
