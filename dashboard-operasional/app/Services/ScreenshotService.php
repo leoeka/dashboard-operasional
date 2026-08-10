@@ -30,7 +30,8 @@ class ScreenshotService
                 ->windowSize(1440, 900)
                 ->setOption('args', ['--no-sandbox', '--disable-setuid-sandbox']) // sering wajib di Windows/Linux tertentu
                 ->waitUntilNetworkIdle()   // tunggu sampai situs selesai load (biar gak nangkep halaman blank/loading)
-                ->timeout(60)
+                ->fullPage()               // tangkap SELURUH halaman (scroll sampai bawah), bukan cuma area viewport 900px
+                ->timeout(90)              // dinaikkan dikit, full-page render bisa lebih lama dari viewport biasa
                 ->save($fullPath);
 
             return $relativePath;

@@ -528,6 +528,18 @@ class ProjectController extends Controller
             }
         }
 
+        // 4B. FAIL-FAST: kalau mockup ZipWP gagal di titik manapun (gagal ambil
+        // daftar template, gagal create-ai-site, timeout polling, atau exception
+        // lain), STOP TOTAL di sini. Job ditandai failed, PDF proposal TIDAK
+        // dibuat sama sekali — daripada lanjut dengan status "berhasil" yang
+        // menyesatkan padahal mockup situsnya gagal.
+        if (!$reuseExistingSite && $mockupFailReason) {
+            $failMessage = 'Gagal membuat mockup website (ZipWP): ' . $mockupFailReason;
+            Log::error($failMessage, ['project_id' => $project->id]);
+            $this->reportProgress($project, 'failed', 0, $failMessage);
+            throw new \RuntimeException($failMessage);
+        }
+
         // 3B. Ambil screenshot dari situs ZipWP (kalau site_url tersedia) untuk ditempel di PDF
         $mockupScreenshotPath = null;
         if ($zipWpSiteUrl) {
