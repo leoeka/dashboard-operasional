@@ -14,7 +14,7 @@ use Gemini\Enums\ResponseMimeType;
 
 class AiServices
 {
-    public function analyzeProject(Project $project, Client $client): array
+    public function analyzeProject(Project $project, Client $client, array $zipWpTemplates = []): array
     {
         // =====================================================
         // TAHAP 1: GEMINI -> Analisis Bisnis & Target Pasar
@@ -22,9 +22,9 @@ class AiServices
         $businessAnalysis = $this->analyzeBusinessWithGemini($project, $client);
 
         // =====================================================
-        // TAHAP 2: GPT -> Sitemap, Struktur, Desain Web
+        // TAHAP 2: GPT -> Sitemap, Struktur, Desain Web, + PILIH TEMPLATE
         // =====================================================
-        $designAnalysis = $this->analyzeDesignWithGpt($project, $businessAnalysis);
+        $designAnalysis = $this->analyzeDesignWithGpt($project, $businessAnalysis, $zipWpTemplates);
 
         // =====================================================
         // GABUNGKAN HASIL KEDUANYA
@@ -69,6 +69,11 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                     ->withGenerationConfig(
                         generationConfig: new GenerationConfig(
                             responseMimeType: ResponseMimeType::APPLICATION_JSON,
+                            // Dinaikkan karena model Gemini 3.x memakai sebagian
+                            // budget ini untuk "thinking" internal sebelum menulis
+                            // JSON output-nya, jadi limit kecil bisa bikin JSON
+                            // kepotong tepat di penutup terakhir.
+                            maxOutputTokens: 32768,
                         )
                     )
                     ->generateContent($prompt);
@@ -79,9 +84,39 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                     throw new \RuntimeException('AI (Gemini) memberikan respons kosong.');
                 }
 
-                $result = json_decode($responseText, true);
+                // Bersihkan kemungkinan markdown code fence (```json ... ```)
+                // yang kadang masih dikirim model meski responseMimeType sudah JSON.
+                $cleanedText = trim($responseText);
+                $cleanedText = preg_replace('/^```(?:json)?\s*/i', '', $cleanedText);
+                $cleanedText = preg_replace('/\s*```$/', '', $cleanedText);
+
+                $result = json_decode($cleanedText, true);
+
+                // Auto-repair: kalau JSON kepotong (biasanya cuma kurang
+                // kurung kurawal/kurung siku penutup di ujung), coba tutup
+                // otomatis berdasarkan selisih jumlah buka vs tutup, lalu
+                // decode ulang sebelum benar-benar menyerah.
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    $repaired = $this->repairTruncatedJson($cleanedText);
+                    $retryResult = json_decode($repaired, true);
+
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        Log::warning('Gemini Business Analysis: JSON kepotong, berhasil auto-repair', [
+                            'project_id' => $project->id,
+                            'attempt' => $attempt,
+                        ]);
+                        $result = $retryResult;
+                    }
+                }
 
                 if (json_last_error() !== JSON_ERROR_NONE) {
+                    Log::warning('Gemini Business Analysis: Invalid JSON, raw response logged', [
+                        'project_id' => $project->id,
+                        'attempt' => $attempt,
+                        'json_error' => json_last_error_msg(),
+                        'raw_length' => strlen($responseText),
+                        'raw_response' => $responseText,
+                    ]);
                     throw new \RuntimeException('Format JSON Gemini tidak valid: ' . json_last_error_msg());
                 }
 
@@ -99,7 +134,8 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                     || str_contains($errorMessage, 'timed out')
                     || str_contains($errorMessage, 'curl error 28')
                     || str_contains($errorMessage, '503')
-                    || str_contains($errorMessage, '500');
+                    || str_contains($errorMessage, '500')
+                    || str_contains($errorMessage, 'format json gemini tidak valid');
 
                 // Jika error sementara dan masih ada jatah retry
                 if ($isTransientError && $attempt < $maxRetries) {
@@ -131,11 +167,68 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
     }
 
     /**
+     * Perbaikan sederhana untuk JSON yang kepotong di ujung (biasanya karena
+     * model kehabisan output token budget sebelum sempat menutup semua
+     * kurung). Menghitung selisih kurung buka vs tutup di luar string literal,
+     * lalu menambahkan penutup yang kurang di akhir teks.
+     * Bukan solusi sempurna (kalau kepotongnya di tengah value/string tetap
+     * gagal), tapi menyelamatkan kasus paling umum: kepotong tepat sebelum
+     * kurung penutup terakhir.
+     */
+    private function repairTruncatedJson(string $text): string
+    {
+        $text = rtrim($text);
+
+        // Kalau berakhir dengan koma sisa (trailing comma), buang dulu.
+        $text = preg_replace('/,\s*$/', '', $text);
+
+        $stack = [];
+        $inString = false;
+        $escaped = false;
+
+        for ($i = 0; $i < strlen($text); $i++) {
+            $char = $text[$i];
+
+            if ($inString) {
+                if ($escaped) {
+                    $escaped = false;
+                } elseif ($char === '\\') {
+                    $escaped = true;
+                } elseif ($char === '"') {
+                    $inString = false;
+                }
+                continue;
+            }
+
+            if ($char === '"') {
+                $inString = true;
+            } elseif ($char === '{' || $char === '[') {
+                $stack[] = $char;
+            } elseif ($char === '}' || $char === ']') {
+                array_pop($stack);
+            }
+        }
+
+        // Kalau kepotong di tengah string literal, tutup dulu string-nya.
+        if ($inString) {
+            $text .= '"';
+        }
+
+        // Tutup semua kurung yang masih terbuka, urutan terbalik (LIFO).
+        while (!empty($stack)) {
+            $open = array_pop($stack);
+            $text .= ($open === '{') ? '}' : ']';
+        }
+
+        return $text;
+    }
+
+    /**
      * TAHAP 2: GPT fokus ke sitemap, struktur halaman, content strategy,
      * CTA strategy, dan design direction. Menerima hasil analisis Gemini
      * sebagai konteks supaya keputusan desainnya nyambung dengan bisnisnya.
      */
-    private function analyzeDesignWithGpt(Project $project, array $businessAnalysis): array
+    private function analyzeDesignWithGpt(Project $project, array $businessAnalysis, array $zipWpTemplates = []): array
     {
         $apiKey = config('services.openai.key');
 
@@ -146,6 +239,23 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
 
         $businessContext = json_encode($businessAnalysis, JSON_UNESCAPED_UNICODE);
 
+        // Ringkas daftar template ZipWP jadi versi ringan (uuid, name,
+        // categories, keywords saja) supaya prompt tidak membengkak kalau
+        // template-nya banyak.
+        $templateOptions = array_map(function ($tpl) {
+            return [
+                'uuid' => $tpl['uuid'] ?? $tpl['slug'] ?? $tpl['id'] ?? null,
+                'name' => $tpl['name'] ?? null,
+                'categories' => $tpl['categories'] ?? [],
+                'keywords' => $tpl['keywords'] ?? [],
+            ];
+        }, $zipWpTemplates);
+        $templateOptionsJson = json_encode($templateOptions, JSON_UNESCAPED_UNICODE);
+
+        $templateInstruction = !empty($templateOptions)
+            ? "Pilih SATU template paling cocok dari daftar TEMPLATE_OPTIONS di bawah berdasarkan business & market context di atas. Wajib pilih uuid yang benar-benar ada di daftar, jangan mengarang uuid baru.\n\nTEMPLATE_OPTIONS:\n{$templateOptionsJson}"
+            : "TEMPLATE_OPTIONS kosong — set template_selection.uuid ke null.";
+
         $prompt = "
 You are a Senior UI/UX Designer and Information Architect.
 Based on the business and market analysis below, design the WEBSITE STRUCTURE and VISUAL DIRECTION.
@@ -153,6 +263,8 @@ DO NOT repeat or re-analyze the business/market — just use it as context.
  
 Business & Market Context:
 {$businessContext}
+
+{$templateInstruction}
  
 Return a JSON object with EXACTLY these keys:
 {
@@ -160,7 +272,8 @@ Return a JSON object with EXACTLY these keys:
   \"page_structure\": { \"homepage\": [...], \"product_detail_page\": [...], \"about_story_page\": [...] },
   \"content_strategy\": { \"tone_of_voice\": \"...\", \"key_messaging_pillars\": {...}, \"media_assets_requirements\": \"...\" },
   \"cta_strategy\": { \"primary_ctas\": {...}, \"secondary_ctas\": {...}, \"micro_conversions\": [...] },
-  \"design_direction\": { \"color_palette\": {...}, \"typography\": {...}, \"layout_style\": {...} }
+  \"design_direction\": { \"color_palette\": {...}, \"typography\": {...}, \"layout_style\": {...} },
+  \"template_selection\": { \"uuid\": \"...\", \"name\": \"...\", \"reason\": \"...\" }
 }
  
 Respond with ONLY valid JSON, no markdown formatting, no explanation.
@@ -200,6 +313,35 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                 ]);
                 throw new \RuntimeException('Format respons analisis desain web (GPT) tidak valid.');
             }
+
+            // Validasi: uuid yang dipilih GPT harus benar-benar ada di daftar
+            // template asli (jaga-jaga kalau GPT halusinasi/mengarang uuid).
+            // Kalau tidak valid, fallback ke scoring lokal pickBestTemplate().
+            $chosenUuid = $result['template_selection']['uuid'] ?? null;
+            $validUuids = array_column($zipWpTemplates, 'uuid');
+            $matchedTemplate = null;
+
+            if ($chosenUuid && in_array($chosenUuid, $validUuids, true)) {
+                $matchedTemplate = collect($zipWpTemplates)->firstWhere('uuid', $chosenUuid);
+            } else {
+                if ($chosenUuid) {
+                    Log::warning('GPT Design Analysis: uuid template yang dipilih tidak ditemukan di daftar, fallback ke scoring lokal', [
+                        'project_id' => $project->id,
+                        'chosen_uuid' => $chosenUuid,
+                    ]);
+                }
+                $matchedTemplate = $this->pickBestTemplate(
+                    $zipWpTemplates,
+                    $project->type ?? 'Company Profile',
+                    $project->description ?? ''
+                );
+            }
+
+            $result['template_selection'] = $matchedTemplate ? [
+                'uuid' => $matchedTemplate['uuid'] ?? null,
+                'name' => $matchedTemplate['name'] ?? null,
+                'reason' => $result['template_selection']['reason'] ?? null,
+            ] : null;
 
             return $result;
 
