@@ -44,4 +44,8 @@ return [
         'mcp_url' => env('ZIPWP_MCP_URL', 'https://api.zipwp.com/mcp/zipwp'),
     ],
 
+    'fonnte' => [
+        'token' => env('FONNTE_TOKEN'),
+    ],
+
 ];
