@@ -119,17 +119,13 @@
             width: 100%;
         }
 
-        /* ============================================================
-   TAMBAHKAN CSS INI DI DALAM <style> proposal.blade.php,
-   TARUH DEKAT .mockup-img YANG SUDAH ADA
-   ============================================================ */
-
         .mockup-section-img {
             display: block;
             margin: 0 auto 14px;
             max-width: 480px;
             width: 100%;
             page-break-inside: avoid;
+            border: 1px solid #e2e8f0;
         }
 
         table.cost-table {
@@ -242,15 +238,6 @@
         <p class="agency-signoff">PT. EXITO BALI DIGITAL</p>
     </div>
 
-    {{--
-    ============================================================
-    GANTI BLOK "HALAMAN: RINGKASAN STRATEGI" DENGAN INI
-    ============================================================
-    Sebelumnya pakai $analysis['...'] langsung (array, error).
-    Sekarang pakai $analysisSummary['...'] yang sudah di-convert
-    jadi string aman di controller (lewat safeText()).
---}}
-
     {{-- ===== HALAMAN: RINGKASAN STRATEGI (AI ANALYSIS, DIGABUNG) ===== --}}
     <div class="content-page">
         <div class="header-band">
@@ -292,7 +279,24 @@
 
         <h2 class="section-title">Website Preview</h2>
 
-        @if (!empty($mockup['site_url']))
+        @if (!empty($mockup['screenshot_path']) && file_exists($mockup['screenshot_path']))
+            {{-- Screenshot berhasil diambil: tampilkan sebagai gambar --}}
+            <img src="{{ $mockup['screenshot_path'] }}" class="mockup-section-img">
+
+            <div style="text-align:center; margin-top: 10px;">
+                @if (!empty($mockup['site_url']))
+                    <p style="font-size: 11px; color:#64748b;">
+                        Live preview: <span style="color:#2563eb;">{{ $mockup['site_url'] }}</span>
+                    </p>
+                @endif
+                @if (!empty($mockup['template_name']))
+                    <p style="font-size: 11px; color: #64748b;">
+                        Template: {{ $mockup['template_name'] }}
+                    </p>
+                @endif
+            </div>
+        @elseif (!empty($mockup['site_url']))
+            {{-- Screenshot gagal/belum ada, tapi site_url ada: fallback ke link seperti sebelumnya --}}
             <div style="text-align:center; margin-top: 30px;">
                 <p style="font-size: 13px; margin-bottom: 10px;">
                     Website preview Anda sudah tersedia dan dapat diakses melalui link berikut:

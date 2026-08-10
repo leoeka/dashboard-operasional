@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\AiServices;
 use App\Services\ZipWpMcpService;
+use App\Services\ScreenshotService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\RedirectResponse; // <-- Tambahkan ini
 
@@ -329,11 +330,75 @@ class ProjectController extends Controller
             throw new \Exception('Project belum terhubung dengan data client.');
         }
 
-        // 2. UPDATE PROGRESS: AI Analysis
+        // 2. UPDATE PROGRESS: Ambil daftar template ZipWP dulu (kalau belum
+        // ada site tersimpan), supaya bisa dikasih ke GPT sebagai konteks
+        // saat analisis desain — GPT yang langsung memilih template-nya,
+        // bukan proses terpisah setelah analisis selesai.
+        $bestTemplate = null;
+        $zipWpSiteUuid = null;
+        $zipWpSiteUrl = null;
+        $mockupFailReason = null;
+        $candidates = [];
+        $reuseExistingSite = !empty($project->zipwp_site_url) && !empty($project->zipwp_site_uuid);
+
+        if ($reuseExistingSite) {
+            $zipWpSiteUuid = $project->zipwp_site_uuid;
+            $zipWpSiteUrl = $project->zipwp_site_url;
+            $bestTemplate = [
+                'uuid' => $project->zipwp_template_uuid,
+                'name' => $project->zipwp_template_name,
+                'preview_url' => $project->zipwp_template_preview_url,
+            ];
+        } else {
+            $this->reportProgress($project, 'processing', 15, 'Mengambil daftar template ZipWP...');
+
+            try {
+                $candidates = $zipWp->listTemplates(
+                    search: $project->type ?? '',
+                    perPage: 30
+                )['templates'] ?? [];
+
+                Log::info('ZipWP listTemplates result', [
+                    'project_id' => $project->id,
+                    'search' => $project->type,
+                    'candidate_count' => count($candidates),
+                ]);
+
+                // Fallback: kalau pencarian dengan search=project->type tidak
+                // menghasilkan apa-apa (kemungkinan besar penamaan kategori
+                // di ZipWP beda dengan project->type kita), coba ambil daftar
+                // template tanpa filter search sama sekali.
+                if (empty($candidates)) {
+                    Log::info('ZipWP listTemplates: search kosong, mencoba tanpa filter search', [
+                        'project_id' => $project->id,
+                    ]);
+
+                    $candidates = $zipWp->listTemplates(
+                        search: null,
+                        perPage: 50
+                    )['templates'] ?? [];
+
+                    Log::info('ZipWP listTemplates (tanpa search) result', [
+                        'project_id' => $project->id,
+                        'candidate_count' => count($candidates),
+                    ]);
+                }
+
+                if (empty($candidates)) {
+                    $mockupFailReason = "Tidak ada template ZipWP yang tersedia sama sekali (dicoba dengan & tanpa filter search).";
+                    Log::warning($mockupFailReason, ['project_id' => $project->id]);
+                }
+            } catch (\Throwable $e) {
+                Log::error('ZipWP listTemplates Error: ' . $e->getMessage(), ['project_id' => $project->id]);
+                $mockupFailReason = 'Gagal mengambil daftar template ZipWP.';
+            }
+        }
+
+        // 3. UPDATE PROGRESS: AI Analysis (Gemini bisnis + GPT desain & pilih template)
         $this->reportProgress($project, 'processing', 25, 'Menganalisis profil bisnis dengan AI...');
 
         try {
-            $analysis = $aiService->analyzeProject($project, $client);
+            $analysis = $aiService->analyzeProject($project, $client, $candidates);
         } catch (\Throwable $e) {
             $this->reportProgress($project, 'failed', 0, 'Gagal analisis AI: ' . $e->getMessage());
             throw $e;
@@ -361,40 +426,30 @@ class ProjectController extends Controller
 
         $designDirectionRaw = $analysis['design_direction'] ?? null;
 
-        // 3. UPDATE PROGRESS: Mockup / ZipWP
-        $this->reportProgress($project, 'processing', 50, 'Memilih dan membuat website preview...');
+        // 4. UPDATE PROGRESS: Bangun website di ZipWP pakai template pilihan GPT
+        $this->reportProgress($project, 'processing', 50, 'Membuat website preview...');
 
-        $bestTemplate = null;
-        $zipWpSiteUuid = null;
-        $zipWpSiteUrl = null;
-        $mockupFailReason = null;
+        if (!$reuseExistingSite) {
+            // Template sekarang dipilih langsung oleh GPT sebagai bagian dari
+            // analisis desain (lihat template_selection di AiServices::analyzeDesignWithGpt),
+            // bukan proses cocok-cocokan keyword terpisah setelah analisis.
+            $gptSelection = $analysis['template_selection'] ?? null;
 
-        if (!empty($project->zipwp_site_url) && !empty($project->zipwp_site_uuid)) {
-            $zipWpSiteUuid = $project->zipwp_site_uuid;
-            $zipWpSiteUrl = $project->zipwp_site_url;
-            $bestTemplate = [
-                'uuid' => $project->zipwp_template_uuid,
-                'name' => $project->zipwp_template_name,
-                'preview_url' => $project->zipwp_template_preview_url,
-            ];
-        } else {
-            try {
-                $candidates = $zipWp->listTemplates(
-                search: $project->type ?? '',
-                perPage: 30
-                )['templates'] ?? [];
+            if ($gptSelection && !empty($gptSelection['uuid'])) {
+                $bestTemplate = collect($candidates)->firstWhere('uuid', $gptSelection['uuid']);
+            }
 
-                if (!empty($candidates)) {
-                    // pickBestTemplate sekarang return ARRAY template lengkap,
-                    // bukan string slug — jadi tidak perlu cari lagi di $candidates
-                    $bestTemplate = $aiService->pickBestTemplate(
-                        $candidates,
-                        $project->type ?? 'Company Profile',
-                        $project->description ?? ''
-                    );
-                }
+            if (!$bestTemplate && !empty($candidates)) {
+                // Fallback terakhir kalau GPT gagal / uuid tidak valid.
+                $bestTemplate = $aiService->pickBestTemplate(
+                    $candidates,
+                    $project->type ?? 'Company Profile',
+                    $project->description ?? ''
+                );
+            }
 
-                if ($bestTemplate) {
+            if ($bestTemplate) {
+                try {
                     $project->update([
                         'zipwp_template_uuid' => $bestTemplate['uuid'] ?? $bestTemplate['slug'] ?? $bestTemplate['id'] ?? null,
                         'zipwp_template_name' => $bestTemplate['name'] ?? 'Template',
@@ -415,6 +470,17 @@ class ProjectController extends Controller
                     ]);
 
                     $zipWpSiteUuid = $createResult['site_uuid'] ?? $createResult['uuid'] ?? null;
+
+                    Log::info('ZipWP createAiSite result', [
+                        'project_id' => $project->id,
+                        'site_uuid' => $zipWpSiteUuid,
+                        'raw_result' => $createResult,
+                    ]);
+
+                    if (!$zipWpSiteUuid) {
+                        $mockupFailReason = 'ZipWP tidak mengembalikan site_uuid saat create-ai-site.';
+                        Log::warning($mockupFailReason, ['project_id' => $project->id, 'raw_result' => $createResult]);
+                    }
 
                     if ($zipWpSiteUuid) {
                         // UBAH JEDA POLLING ZIPWP DARI 10 DETIK MENJADI 5 DETIK
@@ -438,8 +504,14 @@ class ProjectController extends Controller
 
                             if (($progressStatus['status'] ?? null) === 'failed') {
                                 $mockupFailReason = 'ZipWP gagal membangun site.';
+                                Log::warning($mockupFailReason, ['project_id' => $project->id, 'progress_status' => $progressStatus]);
                                 break;
                             }
+                        }
+
+                        if (!$zipWpSiteUrl && !$mockupFailReason) {
+                            $mockupFailReason = "Timeout: ZipWP belum selesai membangun site setelah {$maxAttempts}x percobaan (site_uuid: {$zipWpSiteUuid}).";
+                            Log::warning($mockupFailReason, ['project_id' => $project->id]);
                         }
 
                         if ($zipWpSiteUrl) {
@@ -449,10 +521,28 @@ class ProjectController extends Controller
                             ]);
                         }
                     }
+                } catch (\Throwable $e) {
+                    Log::error('ZipWP Error: ' . $e->getMessage());
+                    $mockupFailReason = 'Gagal generate website otomatis.';
                 }
-            } catch (\Throwable $e) {
-                Log::error('ZipWP Error: ' . $e->getMessage());
-                $mockupFailReason = 'Gagal generate website otomatis.';
+            }
+        }
+
+        // 3B. Ambil screenshot dari situs ZipWP (kalau site_url tersedia) untuk ditempel di PDF
+        $mockupScreenshotPath = null;
+        if ($zipWpSiteUrl) {
+            $this->reportProgress($project, 'processing', 75, 'Mengambil screenshot preview website...');
+
+            $screenshotService = app(ScreenshotService::class);
+            $savedPath = $screenshotService->capture($zipWpSiteUrl, "mockups/{$project->id}.png");
+
+            if ($savedPath) {
+                $mockupScreenshotPath = Storage::disk('public')->path($savedPath);
+            } else {
+                Log::warning('Screenshot mockup gagal/dilewati, PDF akan fallback ke link saja.', [
+                    'project_id' => $project->id,
+                    'site_url' => $zipWpSiteUrl,
+                ]);
             }
         }
 
@@ -479,6 +569,7 @@ class ProjectController extends Controller
             'template_name' => $bestTemplate['name'] ?? null,
             'design_direction' => $this->safeText($designDirectionRaw),
             'fail_reason' => $mockupFailReason,
+            'screenshot_path' => $mockupScreenshotPath,
         ];
 
         $projectData = [
