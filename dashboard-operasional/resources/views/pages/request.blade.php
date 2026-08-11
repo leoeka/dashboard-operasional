@@ -178,6 +178,29 @@
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
                     </div>
 
+                    {{--
+                        FIX: field ini sebelumnya ke-nested di dalam div
+                        "Kompetitor" (md:col-span-2), bukan jadi grid item
+                        sejajar — sekarang dipindah jadi sibling normal biar
+                        tampil rapi 2 kolom sesuai grid section ini.
+                    --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Platform Website Client <span
+                                class="text-red-500">*</span></label>
+                        <select name="seo_cms_platform"
+                            class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">
+                            <option value="">-- Pilih Platform --</option>
+                            <option value="wordpress" {{ old('seo_cms_platform') == 'wordpress' ? 'selected' : '' }}>WordPress</option>
+                            <option value="shopify" {{ old('seo_cms_platform') == 'shopify' ? 'selected' : '' }}>Shopify</option>
+                            <option value="wix" {{ old('seo_cms_platform') == 'wix' ? 'selected' : '' }}>Wix</option>
+                            <option value="lainnya" {{ old('seo_cms_platform') == 'lainnya' ? 'selected' : '' }}>Lainnya / Tidak Tahu</option>
+                            <option value="baru" {{ old('seo_cms_platform') == 'baru' ? 'selected' : '' }}>Website Baru (dibuat oleh kami)</option>
+                        </select>
+                        <p class="text-xs text-gray-500 mt-1">
+                            Menentukan apakah artikel bisa dipublish otomatis, atau perlu diunduh/dikirim manual.
+                        </p>
+                    </div>
+
                     <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-gray-700">Kompetitor (URL, opsional)</label>
                         <textarea name="seo_competitors" rows="2" placeholder="Satu URL per baris"
@@ -218,6 +241,32 @@
                         <input type="text" name="backlink_niche" placeholder="Contoh: Travel, Bisnis, Teknologi"
                             value="{{ old('backlink_niche') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    {{--
+                        FIX: 2 field ini sebelumnya ke-taruh di dalam
+                        section-seo (salah tempat) — jadi cuma muncul kalau
+                        centang SEO, padahal ini soal Backlink. Dipindah ke
+                        sini, section-backlink, tempat yang benar.
+                    --}}
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Jenis Anchor Text yang Diinginkan</label>
+                        <select name="backlink_anchor_type[]" multiple
+                            class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="exact_match">Exact Match (persis keyword)</option>
+                            <option value="partial_match">Partial Match</option>
+                            <option value="branding">Branding (nama brand)</option>
+                            <option value="generic">Generic (klik di sini, dst)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Prioritas</label>
+                        <select name="backlink_priority"
+                            class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
+                            <option value="quality">Kualitas (situs otoritas tinggi, lebih sedikit)</option>
+                            <option value="quantity">Kuantitas (lebih banyak, otoritas beragam)</option>
+                        </select>
                     </div>
                 </div>
             </div>

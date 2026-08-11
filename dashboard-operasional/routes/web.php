@@ -61,8 +61,8 @@ Route::middleware(['auth'])->group(function () {
 
 
     // 5. AI Workspace
-    Route::get('/ai-workspace', [ProjectController::class, 'aiWorkspace'])->name('pages.ai-workspace');
-    Route::post('/ai-workspace/{project}/generate', [ProjectController::class, 'generateAiContent'])->name('pages.ai-workspace.generate');
+    Route::get('/seo-backlink', [ProjectController::class, 'aiWorkspace'])->name('pages.seo-backlink');
+    Route::post('/seo-backlink/{project}/generate', [ProjectController::class, 'generateAiContent'])->name('pages.seo-backlink.generate');
 
 
     // 6. Mockup
