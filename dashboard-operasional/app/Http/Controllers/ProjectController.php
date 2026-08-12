@@ -18,6 +18,7 @@ use App\Services\ZipWpMcpService;
 use App\Services\ScreenshotService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\RedirectResponse; // <-- Tambahkan ini
+use Illuminate\Validation\Rule;
 
 
 
@@ -69,11 +70,49 @@ class ProjectController extends Controller
     {
         $clients = Client::orderBy('company_name')->get();
 
-        return view('projects.form', ['project' => new Project(), 'clients' => $clients]);
+        return view('projects.form', [
+            'project' => new Project(),
+            'clients' => $clients,
+            'clientWebsiteUrls' => $this->buildClientWebsiteUrlMap(),
+        ]);
     }
+
+    // public function store(Request $request)
+    // {
+    //     $data = $request->validate([
+    //         'client_id' => 'nullable|exists:clients,id',
+    //         'name' => 'required|string|max:255',
+    //         'client_name' => 'required|string|max:255',
+    //         'type' => 'nullable|string|max:255',
+    //         'status' => 'required|in:request,proposal,mockup,development,qa,active,done',
+    //         'deadline' => 'nullable|date',
+    //     ]);
+
+    //     $data['code'] = strtoupper(Str::random(3)) . '-' . random_int(1000, 9999);
+    //     $data['progress'] = 0;
+
+    //     $project = Project::create($data);
+
+    //     foreach ($this->defaultTasks as $i => $title) {
+    //         ProjectTask::create([
+    //             'project_id' => $project->id,
+    //             'title' => $title,
+    //             'position' => $i,
+    //         ]);
+    //     }
+
+    //     $project->logActivity('Project dibuat');
+
+    //     return redirect()->route('pages.projects.show', $project)->with('success', 'Project berhasil dibuat.');
+    // }
 
     public function store(Request $request)
     {
+        $serviceTypes = $request->input('service_type', []);
+        $wantsWebsite = in_array('website', $serviceTypes);
+        $wantsSeo = in_array('seo', $serviceTypes);
+        $wantsBacklink = in_array('backlink', $serviceTypes);
+
         $data = $request->validate([
             'client_id' => 'nullable|exists:clients,id',
             'name' => 'required|string|max:255',
@@ -81,12 +120,62 @@ class ProjectController extends Controller
             'type' => 'nullable|string|max:255',
             'status' => 'required|in:request,proposal,mockup,development,qa,active,done',
             'deadline' => 'nullable|date',
+
+            'service_type' => ['nullable', 'array'],
+            'service_type.*' => ['in:website,seo,backlink'],
+
+            'business_description' => ['nullable', 'string'],
+
+            'seo_target_url' => ['nullable', 'string', 'max:255'],
+            'seo_keywords' => ['nullable', 'string'],
+            'seo_location' => ['nullable', 'string', 'max:255'],
+            'seo_competitors' => ['nullable', 'string'],
+            'seo_cms_platform' => [Rule::requiredIf($wantsSeo), 'nullable', 'in:wordpress,lainnya,baru'],
+
+            'backlink_target_url' => [Rule::requiredIf($wantsBacklink), 'nullable', 'string', 'max:255'],
+            'backlink_quantity' => [Rule::requiredIf($wantsBacklink), 'nullable', 'integer', 'min:1'],
+            'backlink_anchor_text' => ['nullable', 'string', 'max:255'],
+            'backlink_niche' => ['nullable', 'string', 'max:255'],
+            'backlink_anchor_type' => ['nullable', 'array'],
+            'backlink_priority' => ['nullable', 'in:quality,quantity'],
         ]);
 
         $data['code'] = strtoupper(Str::random(3)) . '-' . random_int(1000, 9999);
         $data['progress'] = 0;
+        $data['wants_seo'] = $wantsSeo;
+        $data['wants_backlink'] = $wantsBacklink;
+        $data['description'] = $data['business_description'] ?? null;
+
+        // Field business_description bukan kolom projects, dipisah dulu
+        // sebelum Project::create() supaya tidak kena "unknown column".
+        unset($data['business_description'], $data['service_type']);
 
         $project = Project::create($data);
+
+        if ($wantsSeo) {
+            $project->update([
+                'seo_requirements' => [
+                    'target_url' => $request->input('seo_target_url'),
+                    'keywords' => $request->input('seo_keywords'),
+                    'location' => $request->input('seo_location'),
+                    'competitors' => $request->input('seo_competitors'),
+                    'cms_platform' => $request->input('seo_cms_platform'),
+                ],
+            ]);
+        }
+
+        if ($wantsBacklink) {
+            $project->update([
+                'backlink_requirements' => [
+                    'target_url' => $request->input('backlink_target_url'),
+                    'quantity' => $request->input('backlink_quantity'),
+                    'anchor_text' => $request->input('backlink_anchor_text'),
+                    'niche' => $request->input('backlink_niche'),
+                    'anchor_type' => $request->input('backlink_anchor_type', []),
+                    'priority' => $request->input('backlink_priority'),
+                ],
+            ]);
+        }
 
         foreach ($this->defaultTasks as $i => $title) {
             ProjectTask::create([
@@ -112,11 +201,68 @@ class ProjectController extends Controller
     {
         $clients = Client::orderBy('company_name')->get();
 
-        return view('projects.form', compact('project', 'clients'));
+        return view('projects.form', [
+            'project' => $project,
+            'clients' => $clients,
+            'clientWebsiteUrls' => $this->buildClientWebsiteUrlMap(),
+        ]);
     }
+
+    private function buildClientWebsiteUrlMap(): array
+    {
+        return Project::whereNotNull('client_id')
+            ->with('mockupTemplate')
+            ->get()
+            ->groupBy('client_id')
+            ->map(function ($projects) {
+                return $projects
+                    ->map(function ($p) {
+                        // Ambil dari mockup_templates.source_url (kolom yang
+                        // SUDAH ADA), fallback ke seo_requirements['target_url']
+                        // kalau project itu tidak punya mockup (kasus client
+                        // yang sudah punya website sendiri dari luar).
+                        return $p->mockupTemplate->source_url
+                            ?? ($p->seo_requirements['target_url'] ?? null);
+                    })
+                    ->filter()
+                    ->unique()
+                    ->values();
+            })
+            ->filter(fn($urls) => $urls->isNotEmpty())
+            ->toArray();
+    }
+
+    // public function update(Request $request, Project $project)
+    // {
+    //     $data = $request->validate([
+    //         'client_id' => 'nullable|exists:clients,id',
+    //         'name' => 'required|string|max:255',
+    //         'client_name' => 'required|string|max:255',
+    //         'type' => 'nullable|string|max:255',
+    //         'status' => 'required|in:request,proposal,mockup,development,qa,active,done',
+    //         'deadline' => 'nullable|date',
+    //     ]);
+
+    //     $statusChanged = $project->status !== $data['status'];
+
+    //     $project->update($data);
+
+    //     if ($statusChanged && $data['status'] === 'done') {
+    //         $project->logActivity('Project selesai');
+    //     } else {
+    //         $project->logActivity('Informasi project diperbarui');
+    //     }
+
+    //     return redirect()->route('pages.projects.show', $project)->with('success', 'Project berhasil diperbarui.');
+    // }
+
 
     public function update(Request $request, Project $project)
     {
+        $serviceTypes = $request->input('service_type', []);
+        $wantsSeo = in_array('seo', $serviceTypes);
+        $wantsBacklink = in_array('backlink', $serviceTypes);
+
         $data = $request->validate([
             'client_id' => 'nullable|exists:clients,id',
             'name' => 'required|string|max:255',
@@ -124,11 +270,56 @@ class ProjectController extends Controller
             'type' => 'nullable|string|max:255',
             'status' => 'required|in:request,proposal,mockup,development,qa,active,done',
             'deadline' => 'nullable|date',
+
+            'service_type' => ['nullable', 'array'],
+            'service_type.*' => ['in:website,seo,backlink'],
+
+            'seo_target_url' => ['nullable', 'string', 'max:255'],
+            'seo_keywords' => ['nullable', 'string'],
+            'seo_location' => ['nullable', 'string', 'max:255'],
+            'seo_competitors' => ['nullable', 'string'],
+            'seo_cms_platform' => [Rule::requiredIf($wantsSeo), 'nullable', 'in:wordpress,lainnya,baru'],
+
+            'backlink_target_url' => [Rule::requiredIf($wantsBacklink), 'nullable', 'string', 'max:255'],
+            'backlink_quantity' => [Rule::requiredIf($wantsBacklink), 'nullable', 'integer', 'min:1'],
+            'backlink_anchor_text' => ['nullable', 'string', 'max:255'],
+            'backlink_niche' => ['nullable', 'string', 'max:255'],
+            'backlink_anchor_type' => ['nullable', 'array'],
+            'backlink_priority' => ['nullable', 'in:quality,quantity'],
         ]);
+
+        $data['wants_seo'] = $wantsSeo;
+        $data['wants_backlink'] = $wantsBacklink;
+        unset($data['service_type']);
 
         $statusChanged = $project->status !== $data['status'];
 
         $project->update($data);
+
+        if ($wantsSeo) {
+            $project->update([
+                'seo_requirements' => [
+                    'target_url' => $request->input('seo_target_url'),
+                    'keywords' => $request->input('seo_keywords'),
+                    'location' => $request->input('seo_location'),
+                    'competitors' => $request->input('seo_competitors'),
+                    'cms_platform' => $request->input('seo_cms_platform'),
+                ],
+            ]);
+        }
+
+        if ($wantsBacklink) {
+            $project->update([
+                'backlink_requirements' => [
+                    'target_url' => $request->input('backlink_target_url'),
+                    'quantity' => $request->input('backlink_quantity'),
+                    'anchor_text' => $request->input('backlink_anchor_text'),
+                    'niche' => $request->input('backlink_niche'),
+                    'anchor_type' => $request->input('backlink_anchor_type', []),
+                    'priority' => $request->input('backlink_priority'),
+                ],
+            ]);
+        }
 
         if ($statusChanged && $data['status'] === 'done') {
             $project->logActivity('Project selesai');
@@ -138,6 +329,7 @@ class ProjectController extends Controller
 
         return redirect()->route('pages.projects.show', $project)->with('success', 'Project berhasil diperbarui.');
     }
+
 
     public function destroy(Project $project)
     {
@@ -354,8 +546,8 @@ class ProjectController extends Controller
 
             try {
                 $candidates = $zipWp->listTemplates(
-                    search: $project->type ?? '',
-                    perPage: 30
+                search: $project->type ?? '',
+                perPage: 30
                 )['templates'] ?? [];
 
                 Log::info('ZipWP listTemplates result', [
@@ -374,8 +566,8 @@ class ProjectController extends Controller
                     ]);
 
                     $candidates = $zipWp->listTemplates(
-                        search: null,
-                        perPage: 50
+                    search: null,
+                    perPage: 50
                     )['templates'] ?? [];
 
                     Log::info('ZipWP listTemplates (tanpa search) result', [
