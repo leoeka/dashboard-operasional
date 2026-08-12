@@ -261,11 +261,30 @@
                     @endif
                 </div>
 
-                {{-- Tombol Build ke AI Workspace --}}
+                {{-- Tombol Login ke WP-Admin + jalan pintas ke halaman situs di ZipWP --}}
                 <div class="pt-2 border-t border-slate-200/60 flex items-center gap-2">
-                    <a href="{{ route('pages.ai-workspace') }}?project={{ $project->id }}&template={{ $project->mockup_template_id }}"
-                        class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition">
-                        <i class='bx bx-wrench'></i> Build Mockup Ke AI Workspace
+                    @if ($project->mockupTemplate->source_url)
+                        <a href="{{ rtrim($project->mockupTemplate->source_url, '/') }}/wp-admin"
+                            target="_blank" rel="noopener"
+                            class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition">
+                            <i class='bx bx-log-in-circle'></i> Login ke WP-Admin
+                        </a>
+                    @endif
+
+                    {{--
+                    CATATAN: sebelumnya dicoba deep-link ke
+                    https://app.zipwp.com/sites/{site_uuid} berdasarkan cek manual
+                    di address bar, TAPI ternyata 404 — site_uuid yang kita simpan
+                    (dari respons create-ai-site) rupanya beda dengan ID yang
+                    dipakai ZipWP untuk routing halaman dashboard mereka. Karena
+                    nggak ada dokumentasi resmi soal pola URL ini, aman-nya
+                    arahkan ke dashboard umum saja — tetap perlu cari situsnya
+                    manual, tapi minimal nggak nyasar ke 404.
+                    --}}
+                    <a href="https://app.zipwp.com/sites"
+                        target="_blank" rel="noopener"
+                        class="inline-flex items-center gap-2 bg-slate-100 text-slate-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-slate-200 transition">
+                        <i class='bx bx-key'></i> Buka Dashboard ZipWP (lupa password?)
                     </a>
                 </div>
             </div>
