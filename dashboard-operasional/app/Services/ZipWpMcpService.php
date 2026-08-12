@@ -223,4 +223,12 @@ class ZipWpMcpService
 
         return $this->callTool('list-sites', $args);
     }
+
+    public function deleteSite(string $siteUuid): array
+    {
+        return $this->callTool('delete-site', [
+            'site_uuid' => $siteUuid,
+            'confirm' => true,
+        ]);
+    }
 }

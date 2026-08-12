@@ -9,6 +9,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ReportController;
+use App\Http\Controllers\SiteCleanupController;
 
 /*
 |--------------------------------------------------------------------------
@@ -48,6 +49,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/projects/{project}/mockup', [ProjectController::class, 'addmockupTemplate'])
         ->name('pages.projects.mockup.add');
 
+
     Route::get(
         '/projects/{project}/proposal/preview',
         [ProjectController::class, 'previewProposal']
@@ -57,6 +59,9 @@ Route::middleware(['auth'])->group(function () {
         '/projects/{project}/proposal/download',
         [ProjectController::class, 'downloadProposal']
     )->name('pages.projects.proposal.download');
+
+    Route::delete('/projects/{project}/mockup/zipwp-site', [SiteCleanupController::class, 'destroy'])
+        ->name('pages.projects.mockup.zipwp-delete');
 
 
 
@@ -102,7 +107,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/projects/{project}/proposal/status', [ProjectController::class, 'proposalStatus'])
         ->name('pages.projects.proposal.status');
     Route::resource('service-packages', \App\Http\Controllers\ServicePackageController::class)->except(['show']);
-});
 
+});
 
 require __DIR__ . '/auth.php';
