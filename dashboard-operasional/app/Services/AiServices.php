@@ -386,7 +386,8 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
 
             // 2. Kecocokan keywords dengan project_type & deskripsi bisnis
             foreach ($keywords as $keyword) {
-                if (empty($keyword)) continue;
+                if (empty($keyword))
+                    continue;
                 if (str_contains($projectTypeLower, $keyword)) {
                     $score += 5;
                 }
@@ -409,4 +410,192 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
         // Fallback ke template pertama kalau tidak ada yang cocok sama sekali
         return $bestMatch ?? $templates[0] ?? null;
     }
+
+    public function identifyTopicsFromWebsite(Project $project, array $siteContent): array
+    {
+        $headingsText = implode("\n", array_map(fn($h) => "- {$h}", array_slice($siteContent['headings'], 0, 15)));
+
+        $prompt = "
+You are an SEO Analyst.
+Berikut konten MENTAH dari website milik client kami sendiri (bukan
+kompetitor). Identifikasi topik inti dan seed keyword dari isi HALAMAN
+INI, bukan dari asumsi umum.
+ 
+Judul Halaman: {$siteContent['title']}
+Heading yang ditemukan:
+{$headingsText}
+ 
+Isi Teks (potongan):
+" . mb_substr($siteContent['body_text'], 0, 3000) . "
+ 
+Identifikasi:
+1. Topik/layanan inti yang dibahas situs ini
+2. Seed keyword awal berdasarkan topik itu (5-10 keyword)
+ 
+Wajib kembalikan HANYA format JSON murni tanpa markdown:
+{
+  \"core_topics\": [\"topik 1\", \"topik 2\", ...],
+  \"seed_keywords\": [\"keyword 1\", \"keyword 2\", ...]
+}
+";
+
+        $response = Gemini::generativeModel('gemini-3.6-flash')
+            ->withGenerationConfig(
+                generationConfig: new GenerationConfig(
+                    responseMimeType: ResponseMimeType::APPLICATION_JSON,
+                )
+            )
+            ->generateContent($prompt);
+
+        $responseText = $response->text();
+        $result = json_decode($responseText, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE || empty($result['seed_keywords'])) {
+            Log::warning('identifyTopicsFromWebsite: hasil tidak valid.', [
+                'project_id' => $project->id,
+                'raw' => $responseText,
+            ]);
+            // Fallback: pakai business_description project sebagai pengganti
+            // kalau AI gagal baca konten situs (situs kosong/gagal fetch, dst)
+            return [
+                'core_topics' => [$project->type ?? 'bisnis umum'],
+                'seed_keywords' => array_filter(explode(' ', strtolower($project->name))),
+            ];
+        }
+
+        return $result;
+    }
+
+    public function expandSeedKeywords(Project $project, string $seedKeywords, array $competitorContents = []): array
+    {
+        $competitorContext = '';
+        if (!empty($competitorContents)) {
+            $competitorContext = "\n\nKonten kompetitor (referensi, bukan untuk ditiru):\n";
+            foreach ($competitorContents as $c) {
+                $headingsText = implode(', ', array_slice($c['headings'], 0, 8));
+                $competitorContext .= "- {$c['url']} — Judul: \"{$c['title']}\" — Heading: {$headingsText}\n";
+            }
+        }
+
+        $prompt = "
+You are an SEO Keyword Research Assistant.
+Perluas seed keyword berikut jadi daftar KANDIDAT keyword yang lebih
+lengkap — termasuk variasi, sinonim, long-tail keyword, dan pertanyaan
+yang mungkin dicari orang terkait bisnis ini.
+ 
+Nama Bisnis: {$project->name}
+Tipe Bisnis: {$project->type}
+Seed keyword dari client: {$seedKeywords}
+{$competitorContext}
+ 
+Hasilkan 25-40 kandidat keyword (kombinasi dari seed + variasi + long-tail).
+Ini BARU KANDIDAT, belum keputusan final — jangan filter dulu, sebanyak
+mungkin ide relevan.
+ 
+Wajib kembalikan HANYA format JSON murni tanpa markdown:
+{\"candidates\": [\"keyword 1\", \"keyword 2\", ...]}
+";
+
+        $response = Gemini::generativeModel('gemini-3.6-flash')
+            ->withGenerationConfig(
+                generationConfig: new GenerationConfig(
+                    responseMimeType: ResponseMimeType::APPLICATION_JSON,
+                )
+            )
+            ->generateContent($prompt);
+
+        $responseText = $response->text();
+        $result = json_decode($responseText, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE || empty($result['candidates'])) {
+            Log::warning('expandSeedKeywords: hasil tidak valid, fallback ke seed asli saja.', [
+                'project_id' => $project->id,
+                'raw' => $responseText,
+            ]);
+            // Fallback: kalau AI gagal expand, tetap lanjut pakai seed keyword
+            // asli saja (dipecah per koma) daripada gagal total.
+            return array_filter(array_map('trim', explode(',', $seedKeywords)));
+        }
+
+        return $result['candidates'];
+    }
+
+    /**
+     * TAHAP 3: Dari kandidat + data volume Google Ads (kalau tersedia), pilih
+     * 10 keyword utama final + related keywords. AI di sini menganalisis DATA
+     * (kalau ada), bukan menebak dari nol lagi.
+     */
+    public function selectFinalKeywords(Project $project, array $candidates, array $volumeData, array $competitorContents = []): array
+    {
+        $volumeContext = '';
+        if (!empty($volumeData)) {
+            $volumeContext = "\n\nData volume pencarian ASLI dari Google Ads (gunakan ini sebagai dasar utama):\n";
+            foreach ($volumeData as $v) {
+                $volumeContext .= "- \"{$v['keyword']}\": ~{$v['avg_monthly_searches']} pencarian/bulan, persaingan: {$v['competition']}\n";
+            }
+        } else {
+            $volumeContext = "\n\n(Data volume Google Ads tidak tersedia saat ini — nilai berdasarkan relevansi dan penilaian umum saja, beri tahu di summary bahwa ini estimasi kualitatif, bukan angka pasti.)";
+        }
+
+        $competitorSummary = '';
+        if (!empty($competitorContents)) {
+            $competitorSummary = "\n\nJumlah kompetitor yang dianalisis: " . count($competitorContents);
+        }
+
+        $candidatesText = implode(', ', $candidates);
+
+        $prompt = "
+You are a Senior SEO Strategist.
+Dari daftar kandidat keyword berikut, TENTUKAN 10 keyword UTAMA yang
+paling worth ditarget untuk bisnis ini.
+ 
+Nama Bisnis: {$project->name}
+Tipe Bisnis: {$project->type}
+ 
+Kandidat keyword: {$candidatesText}
+{$volumeContext}
+{$competitorSummary}
+ 
+Pilih 10 keyword utama berdasarkan: relevansi dengan bisnis, volume
+pencarian (kalau data tersedia), tingkat persaingan, dan peluang ranking
+realistis untuk bisnis skala ini. Sertakan juga related keywords untuk
+memperluas coverage konten.
+ 
+Wajib kembalikan HANYA format JSON murni tanpa markdown:
+{
+  \"main_keywords\": [
+    {\"keyword\": \"...\", \"avg_monthly_searches\": angka_atau_null, \"competition\": \"LOW/MEDIUM/HIGH_atau_null\", \"reasoning\": \"alasan singkat\"},
+    ...10 item...
+  ],
+  \"related_keywords\": [\"keyword tambahan 1\", ...],
+  \"data_source\": \"google_ads_api atau ai_estimate\",
+  \"summary\": \"ringkasan strategi keyword, 2-3 kalimat\"
+}
+";
+
+        $response = Gemini::generativeModel('gemini-3.6-flash')
+            ->withGenerationConfig(
+                generationConfig: new GenerationConfig(
+                    responseMimeType: ResponseMimeType::APPLICATION_JSON,
+                )
+            )
+            ->generateContent($prompt);
+
+        $responseText = $response->text();
+        $result = json_decode($responseText, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            Log::warning('selectFinalKeywords: JSON tidak valid dari Gemini.', [
+                'project_id' => $project->id,
+                'raw' => $responseText,
+            ]);
+            throw new \RuntimeException('Format respons rekomendasi keyword final tidak valid.');
+        }
+
+        $result['generated_at'] = now()->toDateTimeString();
+
+        return $result;
+    }
+
+
 }

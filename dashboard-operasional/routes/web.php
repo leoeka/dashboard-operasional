@@ -63,6 +63,10 @@ Route::middleware(['auth'])->group(function () {
     // 5. AI Workspace
     Route::get('/seo-backlink', [ProjectController::class, 'aiWorkspace'])->name('pages.seo-backlink');
     Route::post('/seo-backlink/{project}/generate', [ProjectController::class, 'generateAiContent'])->name('pages.seo-backlink.generate');
+    Route::post('/projects/{project}/analyze-seo-backlink', [ProjectController::class, 'analyzeSeoBacklink'])
+        ->name('pages.projects.seo-backlink.analyze');
+    Route::get('/projects/{project}/analyze-seo-backlink/status', [ProjectController::class, 'seoBacklinkStatus'])
+        ->name('pages.projects.seo-backlink.status');
 
 
     // 6. Mockup

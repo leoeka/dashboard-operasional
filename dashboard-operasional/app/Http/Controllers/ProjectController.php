@@ -920,4 +920,28 @@ class ProjectController extends Controller
         );
     }
 
+    public function analyzeSeoBacklink(Project $project)
+    {
+        Cache::put(
+            \App\Jobs\GenerateKeywordRecommendationsJob::cacheKey($project->id),
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Menunggu diproses...'],
+            now()->addMinutes(10)
+        );
+
+        \App\Jobs\GenerateKeywordRecommendationsJob::dispatch($project);
+
+        return response()->json(['queued' => true]);
+    }
+
+    public function seoBacklinkStatus(Project $project)
+    {
+        return response()->json(
+            Cache::get(\App\Jobs\GenerateKeywordRecommendationsJob::cacheKey($project->id), [
+                'status' => 'idle',
+                'progress' => 0,
+                'message' => '',
+            ])
+        );
+    }
+
 }

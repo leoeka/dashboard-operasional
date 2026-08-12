@@ -48,4 +48,18 @@ return [
         'token' => env('FONNTE_TOKEN'),
     ],
 
+    'google_ads' => [
+        'client_id' => env('GOOGLE_ADS_CLIENT_ID'),
+        'client_secret' => env('GOOGLE_ADS_CLIENT_SECRET'),
+        'refresh_token' => env('GOOGLE_ADS_REFRESH_TOKEN'),
+        'developer_token' => env('GOOGLE_ADS_DEVELOPER_TOKEN'),
+        'customer_id' => env('GOOGLE_ADS_CUSTOMER_ID'),
+        'login_customer_id' => env('GOOGLE_ADS_LOGIN_CUSTOMER_ID'),
+    ],
+
+    'google_custom_search' => [
+        'api_key' => env('GOOGLE_CUSTOM_SEARCH_API_KEY'),
+        'engine_id' => env('GOOGLE_CUSTOM_SEARCH_ENGINE_ID'),
+    ],
+
 ];
