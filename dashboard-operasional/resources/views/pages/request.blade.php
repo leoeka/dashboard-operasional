@@ -184,6 +184,9 @@
                         sejajar — sekarang dipindah jadi sibling normal biar
                         tampil rapi 2 kolom sesuai grid section ini.
                     --}}
+                   <!-- GANTI blok <select name="seo_cms_platform">...</select> yang lama
+     (di dalam <div id="section-seo">) dengan ini: -->
+
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Platform Website Client <span
                                 class="text-red-500">*</span></label>
@@ -191,16 +194,13 @@
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">
                             <option value="">-- Pilih Platform --</option>
                             <option value="wordpress" {{ old('seo_cms_platform') == 'wordpress' ? 'selected' : '' }}>WordPress</option>
-                            <option value="shopify" {{ old('seo_cms_platform') == 'shopify' ? 'selected' : '' }}>Shopify</option>
-                            <option value="wix" {{ old('seo_cms_platform') == 'wix' ? 'selected' : '' }}>Wix</option>
-                            <option value="lainnya" {{ old('seo_cms_platform') == 'lainnya' ? 'selected' : '' }}>Lainnya / Tidak Tahu</option>
                             <option value="baru" {{ old('seo_cms_platform') == 'baru' ? 'selected' : '' }}>Website Baru (dibuat oleh kami)</option>
+                            <option value="lainnya" {{ old('seo_cms_platform') == 'lainnya' ? 'selected' : '' }}>Platform Lain (publish manual)</option>
                         </select>
                         <p class="text-xs text-gray-500 mt-1">
-                            Menentukan apakah artikel bisa dipublish otomatis, atau perlu diunduh/dikirim manual.
+                            WordPress & Website Baru: artikel bisa dipublish otomatis. Platform lain: artikel diunduh/dikirim manual.
                         </p>
                     </div>
-
                     <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-gray-700">Kompetitor (URL, opsional)</label>
                         <textarea name="seo_competitors" rows="2" placeholder="Satu URL per baris"
