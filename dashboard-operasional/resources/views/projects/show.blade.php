@@ -281,12 +281,72 @@
                     arahkan ke dashboard umum saja — tetap perlu cari situsnya
                     manual, tapi minimal nggak nyasar ke 404.
                     --}}
-                    <a href="https://app.zipwp.com/sites"
+                    <a href="https://app.zipwp.com"
                         target="_blank" rel="noopener"
                         class="inline-flex items-center gap-2 bg-slate-100 text-slate-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-slate-200 transition">
                         <i class='bx bx-key'></i> Buka Dashboard ZipWP (lupa password?)
                     </a>
                 </div>
+
+                {{--
+                TOMBOL DONE: muncul selama site masih hidup di ZipWP.
+                Diklik -> buka popup (dialog) peringatan wajib dibaca +
+                checkbox konfirmasi. Submit -> project ditandai status
+                'done' DAN site dihapus dari ZipWP, dua-duanya sekaligus.
+                --}}
+                @if ($project->mockupTemplate->isLiveOnZipWp())
+                    <div class="pt-3 border-t border-slate-200/60">
+                        <button type="button" x-data
+                            x-on:click="$dispatch('open-modal', 'done-zipwp-{{ $project->id }}')"
+                            class="inline-flex items-center gap-2 bg-emerald-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-emerald-700 transition">
+                            <i class='bx bx-check-circle'></i> Done
+                        </button>
+                    </div>
+
+                    <x-modal name="done-zipwp-{{ $project->id }}" maxWidth="md" focusable>
+                        <div class="p-6">
+                            <p class="text-sm font-bold text-red-700 mb-2 flex items-center gap-1.5">
+                                <i class='bx bx-error'></i> Peringatan — baca dulu sebelum lanjut
+                            </p>
+                            <ul class="text-xs text-slate-600 space-y-1.5 mb-4 list-disc list-inside">
+                                <li>Project akan ditandai <strong>selesai (done)</strong>.</li>
+                                <li>Site ini akan dihapus <strong>PERMANEN</strong> dari ZipWP — tidak bisa dikembalikan lagi.</li>
+                                <li>Pastikan situs SUDAH dimigrasi ke hosting client sebelum lanjut.</li>
+                                <li>Kalau client masih butuh revisi atau situsnya belum benar-benar dipindah, JANGAN klik done dulu.</li>
+                            </ul>
+
+                            <form method="POST" action="{{ route('pages.projects.mockup.zipwp-delete', $project) }}">
+                                @csrf
+                                @method('DELETE')
+
+                                <label class="flex items-start gap-2 text-xs text-slate-700 mb-4 cursor-pointer">
+                                    <input type="checkbox" name="confirm_migrated" value="1" required
+                                        onchange="document.getElementById('btn-confirm-done-{{ $project->id }}').disabled = !this.checked;"
+                                        class="mt-0.5">
+                                    <span>Saya sudah baca peringatan di atas dan memastikan situs ini sudah aman untuk ditandai selesai & dihapus dari ZipWP.</span>
+                                </label>
+
+                                <div class="flex items-center gap-2 justify-end">
+                                    <button type="button" x-on:click="$dispatch('close')"
+                                        class="text-xs text-slate-500 px-4 py-2 rounded-lg hover:bg-slate-100 transition">
+                                        Batal
+                                    </button>
+                                    <button type="submit" id="btn-confirm-done-{{ $project->id }}" disabled
+                                        class="text-xs bg-red-600 text-white rounded-lg px-4 py-2 hover:bg-red-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                                        Ya, Tandai Done & Hapus
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </x-modal>
+                @elseif ($project->mockupTemplate->zipwp_deleted_at)
+                    <div class="pt-3 border-t border-slate-200/60">
+                        <p class="text-xs text-slate-400 flex items-center gap-1.5">
+                            <i class='bx bx-check-circle'></i>
+                            Project sudah done, site dihapus dari ZipWP pada {{ $project->mockupTemplate->zipwp_deleted_at->format('d M Y, H:i') }}.
+                        </p>
+                    </div>
+                @endif
             </div>
         @endif
 
