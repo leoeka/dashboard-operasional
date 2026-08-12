@@ -711,7 +711,7 @@ class ProjectController extends Controller
             $project = Project::with('mockupTemplate')->find($request->project);
         }
 
-        return view('pages.ai-workspace', compact('projects', 'project'));
+        return view('pages.seo-backlink', compact('projects', 'project'));
     }
 
     private function progressCacheKey(int $projectId): string

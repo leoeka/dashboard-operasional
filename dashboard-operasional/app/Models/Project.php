@@ -32,11 +32,19 @@ class Project extends Model
         'progress',
         'deadline',
         'description', // sebelumnya: 'ai_generated_content'
+        'wants_seo',
+        'wants_backlink',
+        'seo_requirements',
+        'backlink_requirements',
     ];
 
     protected $casts = [
         'deadline' => 'date',
         'progress' => 'integer',
+        'wants_seo' => 'boolean',
+        'wants_backlink' => 'boolean',
+        'seo_requirements' => 'array',
+        'backlink_requirements' => 'array',
     ];
 
     public function client()

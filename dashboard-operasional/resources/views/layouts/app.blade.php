@@ -96,7 +96,7 @@
                             ['label' => 'CRM', 'route' => 'pages.crm', 'icon' => 'bx-group'],
                             ['label' => 'Project', 'route' => 'pages.projects', 'icon' => 'bx-briefcase'],
                             ['label' => 'Request Order', 'route' => 'pages.request', 'icon' => 'bx-list-plus'],
-                            ['label' => 'AI Workspace', 'route' => 'pages.ai-workspace', 'icon' => 'bx-cube'],
+                            ['label' => 'Seo & Backlink', 'route' => 'pages.seo-backlink', 'icon' => 'bx-cube'],
                             ['label' => 'Mockup', 'route' => 'pages.mockup', 'icon' => 'bx-shape-square'],
                             // ['label' => 'Website', 'route' => 'pages.website', 'icon' => 'bx-code-alt'],
                             ['label' => 'Finance', 'route' => 'pages.finance', 'icon' => 'bx-wallet'],
