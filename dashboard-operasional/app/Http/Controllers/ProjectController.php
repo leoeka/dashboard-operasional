@@ -770,6 +770,7 @@ class ProjectController extends Controller
         $mockup = [
             'title' => $project->name . ' — Website Preview',
             'site_url' => $zipWpSiteUrl,
+            'wp_admin_url' => $zipWpSiteUrl ? rtrim($zipWpSiteUrl, '/') . '/wp-admin' : null,
             'template_name' => $bestTemplate['name'] ?? null,
             'design_direction' => $this->safeText($designDirectionRaw),
             'fail_reason' => $mockupFailReason,
