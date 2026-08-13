@@ -238,85 +238,24 @@
         <p class="agency-signoff">PT. EXITO BALI DIGITAL</p>
     </div>
 
-    {{-- ===== HALAMAN: RINGKASAN STRATEGI (AI ANALYSIS, DIGABUNG) ===== --}}
+    {{-- ===== HALAMAN: DESIGN MOCK UP ===== --}}
     <div class="content-page">
         <div class="header-band">
             <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
             <span class="date">{{ now()->format('n/j/Y') }}</span>
         </div>
 
-        <h2 class="section-title">Business &amp; Website Strategy Summary</h2>
-
-        <div style="font-size: 11px;">
-            @if (!empty($analysisSummary['business_analysis']))
-                <p><strong>Business Overview:</strong> {{ $analysisSummary['business_analysis'] }}</p>
-            @endif
-
-            @if (!empty($analysisSummary['target_market']))
-                <p><strong>Target Market:</strong> {{ $analysisSummary['target_market'] }}</p>
-            @endif
-
-            @if (!empty($analysisSummary['website_objective']))
-                <p><strong>Website Objective:</strong> {{ $analysisSummary['website_objective'] }}</p>
-            @endif
-
-            @if (!empty($analysisSummary['sitemap']))
-                <p><strong>Sitemap:</strong> {{ $analysisSummary['sitemap'] }}</p>
-            @endif
-
-            @if (!empty($analysisSummary['content_strategy']))
-                <p><strong>Content &amp; CTA Strategy:</strong> {{ $analysisSummary['content_strategy'] }}</p>
-            @endif
-        </div>
-    </div>
-
-    {{-- ===== HALAMAN: DESIGN MOCK UP / WEBSITE PREVIEW ===== --}}
-    <div class="content-page">
-        <div class="header-band">
-            <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
-            <span class="date">{{ now()->format('n/j/Y') }}</span>
-        </div>
-
-        <h2 class="section-title">Website Preview</h2>
+        <h2 class="section-title">Design Mock Up</h2>
 
         @if (!empty($mockup['screenshot_path']) && file_exists($mockup['screenshot_path']))
-            {{-- Screenshot berhasil diambil: tampilkan sebagai gambar --}}
             <img src="{{ $mockup['screenshot_path'] }}" class="mockup-section-img">
-
-            <div style="text-align:center; margin-top: 10px;">
-                @if (!empty($mockup['site_url']))
-                    <p style="font-size: 11px; color:#64748b;">
-                        Live preview: <span style="color:#2563eb;">{{ $mockup['site_url'] }}</span>
-                    </p>
-                @endif
-                @if (!empty($mockup['template_name']))
-                    <p style="font-size: 11px; color: #64748b;">
-                        Template: {{ $mockup['template_name'] }}
-                    </p>
-                @endif
-            </div>
-        @elseif (!empty($mockup['site_url']))
-            {{-- Screenshot gagal/belum ada, tapi site_url ada: fallback ke link seperti sebelumnya --}}
-            <div style="text-align:center; margin-top: 30px;">
-                <p style="font-size: 13px; margin-bottom: 10px;">
-                    Website preview Anda sudah tersedia dan dapat diakses melalui link berikut:
-                </p>
-                <p style="font-size: 14px; font-weight: bold; color: #2563eb;">
-                    {{ $mockup['site_url'] }}
-                </p>
-                @if (!empty($mockup['template_name']))
-                    <p style="font-size: 11px; color: #64748b; margin-top: 15px;">
-                        Template: {{ $mockup['template_name'] }}
-                    </p>
-                @endif
-            </div>
         @else
             <p style="text-align:center; color:#94a3b8;">
-                Website preview belum
-                tersedia{{ !empty($mockup['fail_reason']) ? ' (' . $mockup['fail_reason'] . ')' : '' }}.
+                Design mock up belum tersedia.
             </p>
         @endif
     </div>
+
     {{-- ===== HALAMAN: COST TABLE + OTHER SERVICES + SYARAT + KLIEN + PENUTUP ===== --}}
     <div class="content-page">
         <div class="header-band">
