@@ -185,6 +185,41 @@ class ProjectController extends Controller
             ]);
         }
 
+        // FIX (fitur SEO & Backlink otomatis): pakai hasil preview (kalau
+        // tim sudah klik "Analisis Sekarang" sebelum submit) — skip
+        // analisis ulang. Fallback ke auto-analisis kalau token kosong.
+        $analysisToken = $request->input('analysis_token');
+        $previewApplied = false;
+
+        if (!empty($analysisToken)) {
+            $preview = Cache::get(\App\Jobs\RunKeywordPreviewAnalysisJob::cacheKey($analysisToken));
+
+            if (($preview['status'] ?? null) === 'done') {
+                $seo = $project->seo_requirements ?? [];
+                $seo['competitors'] = implode("\n", $preview['competitor_urls'] ?? []);
+                $seo['ai_recommendations'] = $preview['recommendations'] ?? null;
+                $seo['ai_identified_topics'] = $preview['topics'] ?? null;
+                $project->update(['seo_requirements' => $seo]);
+
+                $project->logActivity('Hasil analisis SEO & Backlink (preview sebelum submit) diterapkan ke project');
+                $previewApplied = true;
+            }
+        }
+
+        if (!$previewApplied && ($wantsSeo || $wantsBacklink)) {
+            $resolvableUrl = $request->input('seo_target_url') ?: $request->input('backlink_target_url');
+
+            if (!empty($resolvableUrl)) {
+                Cache::put(
+                    \App\Jobs\GenerateKeywordRecommendationsJob::cacheKey($project->id),
+                    ['status' => 'queued', 'progress' => 0, 'message' => 'Menunggu diproses...'],
+                    now()->addMinutes(10)
+                );
+
+                \App\Jobs\GenerateKeywordRecommendationsJob::dispatch($project);
+            }
+        }
+
         $project->logActivity('Project dibuat');
 
         return redirect()->route('pages.projects.show', $project)->with('success', 'Project berhasil dibuat.');
@@ -263,6 +298,12 @@ class ProjectController extends Controller
         $wantsSeo = in_array('seo', $serviceTypes);
         $wantsBacklink = in_array('backlink', $serviceTypes);
 
+        // FIX (fitur SEO & Backlink otomatis): tangkap URL LAMA sebelum
+        // di-update, dipakai untuk deteksi "URL baru pertama kali terisi".
+        $previousUrl = $project->seo_requirements['target_url']
+            ?? $project->backlink_requirements['target_url']
+            ?? null;
+
         $data = $request->validate([
             'client_id' => 'nullable|exists:clients,id',
             'name' => 'required|string|max:255',
@@ -319,6 +360,47 @@ class ProjectController extends Controller
                     'priority' => $request->input('backlink_priority'),
                 ],
             ]);
+        }
+
+        // FIX (fitur SEO & Backlink otomatis): pakai hasil preview dulu
+        // kalau ada (tim klik "Analisis Sekarang" sebelum submit).
+        $analysisToken = $request->input('analysis_token');
+        $previewApplied = false;
+
+        if (!empty($analysisToken)) {
+            $preview = Cache::get(\App\Jobs\RunKeywordPreviewAnalysisJob::cacheKey($analysisToken));
+
+            if (($preview['status'] ?? null) === 'done') {
+                $seo = $project->fresh()->seo_requirements ?? [];
+                $seo['competitors'] = implode("\n", $preview['competitor_urls'] ?? []);
+                $seo['ai_recommendations'] = $preview['recommendations'] ?? null;
+                $seo['ai_identified_topics'] = $preview['topics'] ?? null;
+                $project->update(['seo_requirements' => $seo]);
+
+                $project->logActivity('Hasil analisis SEO & Backlink (preview sebelum submit) diterapkan ke project');
+                $previewApplied = true;
+            }
+        }
+
+        // FIX (fitur SEO & Backlink otomatis): auto-jalankan analisis AI
+        // HANYA saat URL baru pertama kali terisi (sebelumnya kosong) DAN
+        // belum pernah dianalisis DAN hasil preview tidak dipakai di atas.
+        // Update lain (ganti status, deadline, dst) TIDAK memicu
+        // re-analisis otomatis — biar kuota AI tidak boros. Re-run manual
+        // tersedia di halaman SEO & Backlink Workspace.
+        if (!$previewApplied && ($wantsSeo || $wantsBacklink)) {
+            $newUrl = $request->input('seo_target_url') ?: $request->input('backlink_target_url');
+            $alreadyAnalyzed = !empty($project->fresh()->seo_requirements['ai_recommendations'] ?? null);
+
+            if (!empty($newUrl) && empty($previousUrl) && !$alreadyAnalyzed) {
+                Cache::put(
+                    \App\Jobs\GenerateKeywordRecommendationsJob::cacheKey($project->id),
+                    ['status' => 'queued', 'progress' => 0, 'message' => 'Menunggu diproses...'],
+                    now()->addMinutes(10)
+                );
+
+                \App\Jobs\GenerateKeywordRecommendationsJob::dispatch($project->fresh());
+            }
         }
 
         if ($statusChanged && $data['status'] === 'done') {
@@ -942,6 +1024,200 @@ class ProjectController extends Controller
                 'message' => '',
             ])
         );
+    }
+
+    /**
+     * Mode PREVIEW: jalankan analisis SEO/Backlink TANPA project di
+     * database — dipakai tombol "Analisis Sekarang" di form, sebelum
+     * client/project benar-benar dibuat.
+     */
+    public function analyzeSeoBacklinkPreview(Request $request)
+    {
+        $data = $request->validate([
+            'url' => ['required', 'string', 'max:255'],
+            'location' => ['nullable', 'string', 'max:255'],
+            'business_name' => ['nullable', 'string', 'max:255'],
+            'business_type' => ['nullable', 'string', 'max:255'],
+        ]);
+
+        $token = (string) Str::uuid();
+
+        Cache::put(
+            $this->previewCacheKey($token),
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Menunggu diproses...'],
+            now()->addMinutes(15)
+        );
+
+        \App\Jobs\RunKeywordPreviewAnalysisJob::dispatch(
+            $token,
+            $data['url'],
+            $data['location'] ?? null,
+            $data['business_name'] ?? null,
+            $data['business_type'] ?? null,
+        );
+
+        return response()->json(['token' => $token]);
+    }
+
+    public function seoBacklinkPreviewStatus(Request $request)
+    {
+        $token = $request->query('token');
+
+        if (!$token) {
+            return response()->json(['status' => 'idle', 'progress' => 0, 'message' => '']);
+        }
+
+        return response()->json(
+            Cache::get($this->previewCacheKey($token), [
+                'status' => 'idle',
+                'progress' => 0,
+                'message' => '',
+            ])
+        );
+    }
+
+    private function previewCacheKey(string $token): string
+    {
+        return "keyword_preview:{$token}";
+    }
+
+    public function analyzePageSpeed(Project $project)
+    {
+        Cache::put(
+            \App\Jobs\AnalyzePageSpeedJob::cacheKey($project->id),
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Menunggu diproses...'],
+            now()->addMinutes(10)
+        );
+
+        \App\Jobs\AnalyzePageSpeedJob::dispatch($project);
+
+        return response()->json(['queued' => true]);
+    }
+
+    public function pageSpeedStatus(Project $project)
+    {
+        return response()->json(
+            Cache::get(\App\Jobs\AnalyzePageSpeedJob::cacheKey($project->id), [
+                'status' => 'idle',
+                'progress' => 0,
+                'message' => '',
+            ])
+        );
+    }
+
+    public function analyzeSearchConsole(Project $project, \App\Services\SearchConsoleService $service)
+    {
+        $url = $project->seo_requirements['target_url']
+            ?? $project->backlink_requirements['target_url']
+            ?? $project->mockupTemplate?->source_url
+            ?? null;
+
+        if (!$url) {
+            return response()->json(['success' => false, 'message' => 'URL website belum tersedia.'], 422);
+        }
+
+        $result = $service->getPerformance($url);
+
+        if (!$result) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data — cek apakah website ini sudah terverifikasi di akun Search Console kantor, atau kredensial GOOGLE_SEARCH_CONSOLE_REFRESH_TOKEN belum diisi.',
+            ], 422);
+        }
+
+        $seo = $project->seo_requirements ?? [];
+        $seo['search_console'] = array_merge($result, ['analyzed_at' => now()->toDateTimeString()]);
+        $project->update(['seo_requirements' => $seo]);
+
+        $project->logActivity('Laporan Search Console diperbarui');
+
+        return response()->json(['success' => true]);
+    }
+
+    public function analyzeGoogleAnalytics(Request $request, Project $project, \App\Services\GoogleAnalyticsService $service)
+    {
+        $url = $project->seo_requirements['target_url']
+            ?? $project->backlink_requirements['target_url']
+            ?? $project->mockupTemplate?->source_url
+            ?? null;
+
+        if (!$url) {
+            return response()->json(['success' => false, 'message' => 'URL website belum tersedia.'], 422);
+        }
+
+        $accessToken = $service->getAccessToken();
+        if (!$accessToken) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kredensial GA4 belum lengkap — cek GOOGLE_ANALYTICS_REFRESH_TOKEN di .env.',
+            ], 422);
+        }
+
+        $seo = $project->seo_requirements ?? [];
+        $propertyId = $request->input('property_id') ?: ($seo['ga4_property_id'] ?? null);
+
+        if (!$propertyId) {
+            $resolved = $service->resolveProperty($accessToken, $url);
+
+            if ($resolved['status'] === 'ambiguous') {
+                return response()->json([
+                    'success' => false,
+                    'needs_selection' => true,
+                    'candidates' => $resolved['candidates'],
+                    'message' => 'Ketemu lebih dari 1 Property GA4 yang cocok.',
+                ], 422);
+            }
+
+            if ($resolved['status'] === 'not_found') {
+                return response()->json([
+                    'success' => false,
+                    'needs_manual_input' => true,
+                    'message' => 'Tidak ketemu Property GA4 otomatis.',
+                ], 422);
+            }
+
+            $propertyId = $resolved['property_id'];
+        }
+
+        $result = $service->getReport($accessToken, $propertyId);
+
+        if (!$result) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Gagal mengambil data dari GA4 — cek Property ID atau akses akun ke property ini.',
+            ], 422);
+        }
+
+        $seo['ga4_property_id'] = $propertyId;
+        $seo['google_analytics'] = array_merge($result, ['analyzed_at' => now()->toDateTimeString()]);
+        $project->update(['seo_requirements' => $seo]);
+
+        $project->logActivity('Laporan Google Analytics (GA4) diperbarui');
+
+        return response()->json(['success' => true]);
+    }
+
+    public function downloadSeoBacklinkReport(Project $project)
+    {
+        $seo = $project->seo_requirements ?? [];
+        $backlink = $project->backlink_requirements ?? [];
+
+        $pdf = Pdf::loadView('pdf.seo-backlink-report', [
+            'project' => $project,
+            'seo' => $seo,
+            'backlink' => $backlink,
+            'aiRecommendations' => $seo['ai_recommendations'] ?? null,
+            'aiTopics' => $seo['ai_identified_topics'] ?? null,
+            'pagespeed' => $seo['pagespeed'] ?? null,
+            'searchConsole' => $seo['search_console'] ?? null,
+            'ga4' => $seo['google_analytics'] ?? null,
+            'generatedAt' => now()->format('d F Y H:i'),
+        ]);
+
+        $clientSlug = Str::slug($project->client_name);
+        $fileName = "Laporan-SEO-Backlink-{$clientSlug}-{$project->code}.pdf";
+
+        return $pdf->download($fileName);
     }
 
 }

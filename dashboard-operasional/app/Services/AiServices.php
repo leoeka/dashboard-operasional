@@ -224,6 +224,84 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
     }
 
     /**
+     * Helper generik untuk memanggil Gemini dan mem-parsing respons JSON-nya,
+     * dengan retry untuk error sementara dan auto-repair kalau JSON kepotong
+     * — dipakai oleh alur rekomendasi keyword SEO & Backlink di bawah, yang
+     * sebelumnya memanggil Gemini langsung TANPA retry sama sekali.
+     * Melempar RuntimeException kalau semua percobaan gagal.
+     */
+    private function callGeminiJson(string $model, string $prompt, int $maxRetries = 3): array
+    {
+        $attempt = 1;
+
+        while ($attempt <= $maxRetries) {
+            try {
+                $response = Gemini::generativeModel($model)
+                    ->withGenerationConfig(
+                        generationConfig: new GenerationConfig(
+                            responseMimeType: ResponseMimeType::APPLICATION_JSON,
+                        )
+                    )
+                    ->generateContent($prompt);
+
+                $responseText = $response->text();
+
+                if (empty($responseText)) {
+                    throw new \RuntimeException('AI (Gemini) memberikan respons kosong.');
+                }
+
+                $cleanedText = trim($responseText);
+                $cleanedText = preg_replace('/^```(?:json)?\s*/i', '', $cleanedText);
+                $cleanedText = preg_replace('/\s*```$/', '', $cleanedText);
+
+                $result = json_decode($cleanedText, true);
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    $repaired = $this->repairTruncatedJson($cleanedText);
+                    $retryResult = json_decode($repaired, true);
+
+                    if (json_last_error() === JSON_ERROR_NONE) {
+                        $result = $retryResult;
+                    }
+                }
+
+                if (json_last_error() !== JSON_ERROR_NONE) {
+                    throw new \RuntimeException('Format JSON Gemini tidak valid: ' . json_last_error_msg());
+                }
+
+                return $result;
+
+            } catch (\Throwable $e) {
+                $errorMessage = strtolower($e->getMessage());
+
+                $isTransientError = str_contains($errorMessage, 'quota')
+                    || str_contains($errorMessage, 'rate-limit')
+                    || str_contains($errorMessage, 'high demand')
+                    || str_contains($errorMessage, 'overloaded')
+                    || str_contains($errorMessage, 'timed out')
+                    || str_contains($errorMessage, 'curl error 28')
+                    || str_contains($errorMessage, '503')
+                    || str_contains($errorMessage, '500')
+                    || str_contains($errorMessage, 'format json gemini tidak valid');
+
+                if ($isTransientError && $attempt < $maxRetries) {
+                    sleep($attempt * 3);
+                    $attempt++;
+                    continue;
+                }
+
+                throw new \RuntimeException(
+                    $isTransientError
+                    ? 'Layanan AI Gemini sedang sibuk atau kuota habis.'
+                    : 'Gagal menghubungi AI Gemini: ' . $e->getMessage()
+                );
+            }
+        }
+
+        throw new \RuntimeException('Gagal mendapatkan respons Gemini setelah beberapa kali percobaan.');
+    }
+
+    /**
      * TAHAP 2: GPT fokus ke sitemap, struktur halaman, content strategy,
      * CTA strategy, dan design direction. Menerima hasil analisis Gemini
      * sebagai konteks supaya keputusan desainnya nyambung dengan bisnisnya.
@@ -415,6 +493,9 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
     {
         $headingsText = implode("\n", array_map(fn($h) => "- {$h}", array_slice($siteContent['headings'], 0, 15)));
 
+        $location = trim((string) ($project->seo_requirements['location'] ?? ''));
+        $locationLine = $location !== '' ? "Lokasi/area target bisnis: {$location}\n" : '';
+
         $prompt = "
 You are an SEO Analyst.
 Berikut konten MENTAH dari website milik client kami sendiri (bukan
@@ -422,7 +503,7 @@ kompetitor). Identifikasi topik inti dan seed keyword dari isi HALAMAN
 INI, bukan dari asumsi umum.
  
 Judul Halaman: {$siteContent['title']}
-Heading yang ditemukan:
+{$locationLine}Heading yang ditemukan:
 {$headingsText}
  
 Isi Teks (potongan):
@@ -430,7 +511,9 @@ Isi Teks (potongan):
  
 Identifikasi:
 1. Topik/layanan inti yang dibahas situs ini
-2. Seed keyword awal berdasarkan topik itu (5-10 keyword)
+2. Seed keyword awal berdasarkan topik itu (5-10 keyword). Kalau ada
+   lokasi/area target, sertakan juga variasi keyword yang mengandung
+   nama lokasi tersebut.
  
 Wajib kembalikan HANYA format JSON murni tanpa markdown:
 {
@@ -439,21 +522,19 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
 }
 ";
 
-        $response = Gemini::generativeModel('gemini-3.6-flash')
-            ->withGenerationConfig(
-                generationConfig: new GenerationConfig(
-                    responseMimeType: ResponseMimeType::APPLICATION_JSON,
-                )
-            )
-            ->generateContent($prompt);
+        try {
+            $result = $this->callGeminiJson('gemini-3.6-flash', $prompt);
+        } catch (\Throwable $e) {
+            Log::warning('identifyTopicsFromWebsite: gagal setelah retry, pakai fallback.', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage(),
+            ]);
+            $result = null;
+        }
 
-        $responseText = $response->text();
-        $result = json_decode($responseText, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE || empty($result['seed_keywords'])) {
+        if (!$result || empty($result['seed_keywords'])) {
             Log::warning('identifyTopicsFromWebsite: hasil tidak valid.', [
                 'project_id' => $project->id,
-                'raw' => $responseText,
             ]);
             // Fallback: pakai business_description project sebagai pengganti
             // kalau AI gagal baca konten situs (situs kosong/gagal fetch, dst)
@@ -477,6 +558,9 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
             }
         }
 
+        $location = trim((string) ($project->seo_requirements['location'] ?? ''));
+        $locationContext = $location !== '' ? "\n\nLokasi/area target bisnis: {$location} — sertakan juga variasi keyword lokal (misal \"[layanan] {$location}\")." : '';
+
         $prompt = "
 You are an SEO Keyword Research Assistant.
 Perluas seed keyword berikut jadi daftar KANDIDAT keyword yang lebih
@@ -486,7 +570,7 @@ yang mungkin dicari orang terkait bisnis ini.
 Nama Bisnis: {$project->name}
 Tipe Bisnis: {$project->type}
 Seed keyword dari client: {$seedKeywords}
-{$competitorContext}
+{$competitorContext}{$locationContext}
  
 Hasilkan 25-40 kandidat keyword (kombinasi dari seed + variasi + long-tail).
 Ini BARU KANDIDAT, belum keputusan final — jangan filter dulu, sebanyak
@@ -496,21 +580,19 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
 {\"candidates\": [\"keyword 1\", \"keyword 2\", ...]}
 ";
 
-        $response = Gemini::generativeModel('gemini-3.6-flash')
-            ->withGenerationConfig(
-                generationConfig: new GenerationConfig(
-                    responseMimeType: ResponseMimeType::APPLICATION_JSON,
-                )
-            )
-            ->generateContent($prompt);
+        try {
+            $result = $this->callGeminiJson('gemini-3.6-flash', $prompt);
+        } catch (\Throwable $e) {
+            Log::warning('expandSeedKeywords: gagal setelah retry, pakai fallback seed asli.', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage(),
+            ]);
+            $result = null;
+        }
 
-        $responseText = $response->text();
-        $result = json_decode($responseText, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE || empty($result['candidates'])) {
+        if (!$result || empty($result['candidates'])) {
             Log::warning('expandSeedKeywords: hasil tidak valid, fallback ke seed asli saja.', [
                 'project_id' => $project->id,
-                'raw' => $responseText,
             ]);
             // Fallback: kalau AI gagal expand, tetap lanjut pakai seed keyword
             // asli saja (dipecah per koma) daripada gagal total.
@@ -542,6 +624,9 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
             $competitorSummary = "\n\nJumlah kompetitor yang dianalisis: " . count($competitorContents);
         }
 
+        $location = trim((string) ($project->seo_requirements['location'] ?? ''));
+        $locationSummary = $location !== '' ? "\n\nLokasi/area target bisnis: {$location} — prioritaskan keyword yang relevan untuk area ini." : '';
+
         $candidatesText = implode(', ', $candidates);
 
         $prompt = "
@@ -554,7 +639,7 @@ Tipe Bisnis: {$project->type}
  
 Kandidat keyword: {$candidatesText}
 {$volumeContext}
-{$competitorSummary}
+{$competitorSummary}{$locationSummary}
  
 Pilih 10 keyword utama berdasarkan: relevansi dengan bisnis, volume
 pencarian (kalau data tersedia), tingkat persaingan, dan peluang ranking
@@ -573,23 +658,14 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
 }
 ";
 
-        $response = Gemini::generativeModel('gemini-3.6-flash')
-            ->withGenerationConfig(
-                generationConfig: new GenerationConfig(
-                    responseMimeType: ResponseMimeType::APPLICATION_JSON,
-                )
-            )
-            ->generateContent($prompt);
-
-        $responseText = $response->text();
-        $result = json_decode($responseText, true);
-
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            Log::warning('selectFinalKeywords: JSON tidak valid dari Gemini.', [
+        try {
+            $result = $this->callGeminiJson('gemini-3.6-flash', $prompt);
+        } catch (\Throwable $e) {
+            Log::warning('selectFinalKeywords: gagal mendapatkan hasil dari Gemini setelah retry.', [
                 'project_id' => $project->id,
-                'raw' => $responseText,
+                'error' => $e->getMessage(),
             ]);
-            throw new \RuntimeException('Format respons rekomendasi keyword final tidak valid.');
+            throw $e;
         }
 
         $result['generated_at'] = now()->toDateTimeString();

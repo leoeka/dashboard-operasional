@@ -3,10 +3,8 @@
 namespace App\Jobs;
 
 use App\Models\Project;
-use App\Services\AiServices;
 use App\Services\CompetitorContentFetcher;
-use App\Services\CompetitorDiscoveryService;
-use App\Services\GoogleAdsKeywordService;
+use App\Services\KeywordResearchService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -43,24 +41,24 @@ class GenerateKeywordRecommendationsJob implements ShouldQueue
     }
 
     /**
-     * Resolusi URL website client — dari seo_target_url (client punya
-     * sendiri) ATAU dari mockupTemplate.source_url (kita yang bikinin).
-     * Kalau dua-duanya kosong, tidak bisa lanjut.
+     * Resolusi URL website client — urutan prioritas:
+     * 1. seo_requirements.target_url (URL asli client, diisi tim di form)
+     * 2. backlink_requirements.target_url (kalau tim cuma pilih layanan
+     *    Backlink tanpa SEO, seo_requirements bisa saja kosong)
+     * 3. mockupTemplate.source_url (situs yang KITA bikinkan)
+     * Kalau ketiganya kosong, tidak bisa lanjut.
      */
     private function resolveWebsiteUrl(): ?string
     {
         $project = $this->project;
         return $project->seo_requirements['target_url']
+            ?? $project->backlink_requirements['target_url']
             ?? $project->mockupTemplate?->source_url
             ?? null;
     }
 
-    public function handle(
-        AiServices $aiService,
-        CompetitorContentFetcher $fetcher,
-        CompetitorDiscoveryService $discovery,
-        GoogleAdsKeywordService $googleAds
-    ): void {
+    public function handle(KeywordResearchService $service): void
+    {
         $project = $this->project;
 
         $this->report('running', 5, 'Memulai proses...');
@@ -71,97 +69,39 @@ class GenerateKeywordRecommendationsJob implements ShouldQueue
             return;
         }
 
-        // TAHAP 1 — baca situs client SENDIRI
-        $this->report('running', 15, 'Membaca konten website client...');
-        $ownContent = $fetcher->fetch($websiteUrl);
-
-        if (!$ownContent) {
-            $this->report('failed', 0, 'Gagal mengakses website client. Cek apakah URL benar dan situs bisa diakses.');
+        if (!CompetitorContentFetcher::isSafeUrl($websiteUrl)) {
+            $this->report('failed', 0, 'URL website client tidak valid atau tidak boleh diakses.');
             return;
         }
-
-        // TAHAP 2 — Gemini simpulkan topik/seed keyword dari situ
-        $this->report('running', 25, 'AI menganalisis topik bisnis dari website...');
-        try {
-            $topics = $aiService->identifyTopicsFromWebsite($project, $ownContent);
-        } catch (\Throwable $e) {
-            Log::error('GenerateKeywordRecommendationsJob - identify topics gagal: ' . $e->getMessage(), ['project_id' => $project->id]);
-            $this->report('failed', 0, 'Gagal menganalisis topik website: ' . $e->getMessage());
-            return;
-        }
-
-        $seedKeywords = implode(', ', $topics['seed_keywords'] ?? []);
-
-        // TAHAP 3 — cari kompetitor otomatis (Custom Search API)
-        $this->report('running', 35, 'Mencari kompetitor otomatis...');
-        $competitorUrls = $discovery->findCompetitors(
-            $project->type ?? '',
-            $topics['core_topics'] ?? [],
-            $websiteUrl
-        );
 
         // Kalau tim SUDAH pernah isi kompetitor manual sebelumnya (dari
-        // form intake lama), gabungkan juga — auto-discovery MELENGKAPI,
+        // form intake lama), tetap dipakai — auto-discovery MELENGKAPI,
         // bukan menghapus input manual yang sudah ada.
         $manualCompetitors = collect(explode("\n", $project->seo_requirements['competitors'] ?? ''))
             ->map(fn($u) => trim($u))
             ->filter(fn($u) => $u !== '' && filter_var($u, FILTER_VALIDATE_URL))
             ->all();
 
-        $allCompetitorUrls = collect(array_merge($competitorUrls, $manualCompetitors))
-            ->unique()
-            ->take(5)
-            ->values()
-            ->all();
-
-        // TAHAP 4 — fetch konten tiap kompetitor
-        $competitorContents = [];
-        $total = count($allCompetitorUrls);
-        foreach ($allCompetitorUrls as $i => $url) {
-            $pct = 40 + intval(($i / max($total, 1)) * 15);
-            $this->report('running', $pct, "Mengambil konten kompetitor (" . ($i + 1) . "/{$total})...");
-
-            $content = $fetcher->fetch($url);
-            if ($content) {
-                $competitorContents[] = $content;
-            }
-        }
-
-        // TAHAP 5 — Gemini perluas kandidat
-        $this->report('running', 60, 'AI memperluas daftar kandidat keyword...');
         try {
-            $candidates = $aiService->expandSeedKeywords($project, $seedKeywords, $competitorContents);
+            $result = $service->analyze($project, $websiteUrl, $manualCompetitors, function ($status, $progress, $message) {
+                $this->report($status, $progress, $message);
+            });
         } catch (\Throwable $e) {
-            Log::error('GenerateKeywordRecommendationsJob - expand gagal: ' . $e->getMessage(), ['project_id' => $project->id]);
-            $this->report('failed', 0, 'Gagal memperluas kandidat keyword: ' . $e->getMessage());
-            return;
-        }
-
-        // TAHAP 6 — Google Ads API, cek volume asli
-        $this->report('running', 78, 'Mengecek volume pencarian asli via Google Ads...');
-        $volumeData = $googleAds->getKeywordIdeas($candidates);
-
-        // TAHAP 7 — Gemini tentukan 10 keyword final
-        $this->report('running', 90, 'AI menentukan 10 keyword utama...');
-        try {
-            $finalResult = $aiService->selectFinalKeywords($project, $candidates, $volumeData, $competitorContents);
-        } catch (\Throwable $e) {
-            Log::error('GenerateKeywordRecommendationsJob - final gagal: ' . $e->getMessage(), ['project_id' => $project->id]);
-            $this->report('failed', 0, 'Gagal menentukan keyword final: ' . $e->getMessage());
+            Log::error('GenerateKeywordRecommendationsJob gagal: ' . $e->getMessage(), ['project_id' => $project->id]);
+            $this->report('failed', 0, $e->getMessage());
             return;
         }
 
         // Simpan semua hasil — timpa/lengkapi seo_requirements yang ada
         $existing = $project->fresh()->seo_requirements ?? [];
         $existing['target_url'] = $existing['target_url'] ?? $websiteUrl;
-        $existing['competitors'] = implode("\n", $allCompetitorUrls);
-        $existing['ai_recommendations'] = $finalResult;
-        $existing['ai_identified_topics'] = $topics;
+        $existing['competitors'] = implode("\n", $result['competitor_urls']);
+        $existing['ai_recommendations'] = $result['recommendations'];
+        $existing['ai_identified_topics'] = $result['topics'];
         $project->update(['seo_requirements' => $existing]);
 
         $project->logActivity(
-            'Analisis SEO & Backlink otomatis selesai (' . count($competitorContents) . ' kompetitor dianalisis' .
-            (!empty($volumeData) ? ', dengan data volume Google Ads)' : ', estimasi AI)')
+            'Analisis SEO & Backlink otomatis selesai (' . $result['competitor_analyzed_count'] . ' kompetitor dianalisis)'
         );
 
         $this->report('done', 100, 'Analisis SEO & Backlink selesai.');

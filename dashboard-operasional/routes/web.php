@@ -72,6 +72,20 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.seo-backlink.analyze');
     Route::get('/projects/{project}/analyze-seo-backlink/status', [ProjectController::class, 'seoBacklinkStatus'])
         ->name('pages.projects.seo-backlink.status');
+    Route::post('/seo-backlink/preview/analyze', [ProjectController::class, 'analyzeSeoBacklinkPreview'])
+        ->name('pages.seo-backlink.preview.analyze');
+    Route::get('/seo-backlink/preview/status', [ProjectController::class, 'seoBacklinkPreviewStatus'])
+        ->name('pages.seo-backlink.preview.status');
+    Route::post('/projects/{project}/pagespeed/analyze', [ProjectController::class, 'analyzePageSpeed'])
+        ->name('pages.projects.pagespeed.analyze');
+    Route::get('/projects/{project}/pagespeed/status', [ProjectController::class, 'pageSpeedStatus'])
+        ->name('pages.projects.pagespeed.status');
+    Route::post('/projects/{project}/search-console/analyze', [ProjectController::class, 'analyzeSearchConsole'])
+        ->name('pages.projects.search-console.analyze');
+    Route::post('/projects/{project}/ga4/analyze', [ProjectController::class, 'analyzeGoogleAnalytics'])
+        ->name('pages.projects.ga4.analyze');
+    Route::get('/projects/{project}/seo-backlink/report/download', [ProjectController::class, 'downloadSeoBacklinkReport'])
+        ->name('pages.projects.seo-backlink.report.download');
 
 
     // 6. Mockup

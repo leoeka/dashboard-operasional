@@ -8,6 +8,55 @@ use Illuminate\Support\Facades\Log;
 class CompetitorContentFetcher
 {
     /**
+     * FIX (keamanan): cek URL sebelum di-fetch — pastikan skema http/https
+     * dan host-nya tidak resolve ke IP privat/reserved. Perlu karena URL
+     * yang difetch bisa berasal dari input MANUAL tim, bukan cuma hasil
+     * Google Search.
+     */
+
+    public static function isSafeUrl(string $url): bool
+    {
+        $parts = parse_url($url);
+        $scheme = strtolower($parts['scheme'] ?? '');
+        $host = $parts['host'] ?? '';
+
+        if (!in_array($scheme, ['http', 'https'], true) || $host === '') {
+            return false;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            $ips = [$host];
+        } else {
+            // FIX (reliabilitas, ditemukan saat testing): gethostbynamel()
+            // kadang gagal resolve DNS sesaat padahal domainnya valid —
+            // retry beberapa kali dulu sebelum benar-benar dianggap tidak
+            // bisa diakses, supaya tidak salah tolak URL yang sah.
+            $ips = [];
+            for ($attempt = 1; $attempt <= 3; $attempt++) {
+                $ips = @gethostbynamel($host) ?: [];
+                if (!empty($ips)) {
+                    break;
+                }
+                if ($attempt < 3) {
+                    usleep(300000); // jeda 0.3 detik sebelum coba lagi
+                }
+            }
+        }
+
+        if (empty($ips)) {
+            return false;
+        }
+
+        foreach ($ips as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * Ambil konten publik dari sebuah URL — judul, heading (h1-h3), dan teks
      * body-nya. Ini murni request HTTP biasa ke halaman yang PUBLIK diakses
      * siapapun (sama seperti buka situs itu di browser), bukan scraping data
@@ -19,8 +68,8 @@ class CompetitorContentFetcher
      */
     public function fetch(string $url): ?array
     {
-        if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            Log::warning('CompetitorContentFetcher: URL tidak valid.', ['url' => $url]);
+        if (!filter_var($url, FILTER_VALIDATE_URL) || !self::isSafeUrl($url)) {
+            Log::warning('CompetitorContentFetcher: URL tidak valid atau tidak diizinkan.', ['url' => $url]);
             return null;
         }
 
@@ -54,6 +103,15 @@ class CompetitorContentFetcher
             Log::error('CompetitorContentFetcher Exception: ' . $e->getMessage(), ['url' => $url]);
             return null;
         }
+    }
+
+    /**
+     * Wrapper publik untuk extractContent() — dipakai saat HTML sudah
+     * didapat lewat jalur lain (mis. Http::pool() untuk fetch paralel).
+     */
+    public function parseHtml(string $html, string $url): array
+    {
+        return $this->extractContent($html, $url);
     }
 
     /**

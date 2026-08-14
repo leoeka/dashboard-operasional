@@ -17,7 +17,8 @@ class CompetitorDiscoveryService
      * supaya proses lanjut pakai kompetitor manual (kalau ada) atau lanjut
      * tanpa data kompetitor sama sekali — bukan bikin seluruh alur gagal.
      */
-    public function findCompetitors(string $businessType, array $topics = [], string $excludeDomain = ''): array
+
+    public function findCompetitors(string $businessType, array $topics = [], string $excludeDomain = '', ?string $location = null): array
     {
         $apiKey = config('services.google_custom_search.api_key');
         $engineId = config('services.google_custom_search.engine_id');
@@ -27,7 +28,9 @@ class CompetitorDiscoveryService
             return [];
         }
 
-        $query = $this->buildQuery($businessType, $topics);
+        // FIX (dukungan lokasi luar negeri): sebelumnya lokasi target sama
+        // sekali tidak ikut dipakai untuk cari kompetitor.
+        $query = $this->buildQuery($businessType, $topics, $location);
 
         try {
             $response = Http::timeout(15)->get('https://www.googleapis.com/customsearch/v1', [
@@ -51,15 +54,12 @@ class CompetitorDiscoveryService
             return collect($items)
                 ->map(fn($item) => $item['link'] ?? null)
                 ->filter()
-                // Buang hasil yang kebetulan URL situs client sendiri
                 ->filter(function ($url) use ($excludeHost) {
                     if (!$excludeHost) {
                         return true;
                     }
                     return parse_url($url, PHP_URL_HOST) !== $excludeHost;
                 })
-                // Buang platform besar yang biasanya bukan "kompetitor asli"
-                // (marketplace, media sosial, direktori umum)
                 ->reject(function ($url) {
                     $genericHosts = ['facebook.com', 'instagram.com', 'tokopedia.com', 'shopee.co.id', 'wikipedia.org', 'youtube.com', 'tripadvisor.com'];
                     $host = parse_url($url, PHP_URL_HOST) ?? '';
@@ -71,7 +71,7 @@ class CompetitorDiscoveryService
                     return false;
                 })
                 ->unique()
-                ->take(5) // batasi maksimal 5 kompetitor per analisis
+                ->take(5)
                 ->values()
                 ->toArray();
 
@@ -81,9 +81,10 @@ class CompetitorDiscoveryService
         }
     }
 
-    private function buildQuery(string $businessType, array $topics): string
+    private function buildQuery(string $businessType, array $topics, ?string $location = null): string
     {
         $topicPart = !empty($topics) ? implode(' ', array_slice($topics, 0, 3)) : '';
-        return trim("{$businessType} {$topicPart}");
+        $locationPart = $location ? trim($location) : '';
+        return trim("{$businessType} {$topicPart} {$locationPart}");
     }
 }

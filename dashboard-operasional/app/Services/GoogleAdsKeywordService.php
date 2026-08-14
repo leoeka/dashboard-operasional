@@ -19,7 +19,7 @@ class GoogleAdsKeywordService
      * (AI-only) selama approval masih berjalan, dan otomatis dapat data
      * lebih akurat begitu approval selesai — tanpa perlu ubah kode apapun.
      */
-    public function getKeywordIdeas(array $seedKeywords, string $languageCode = 'id'): array
+    public function getKeywordIdeas(array $seedKeywords, ?string $location = null, string $languageCode = 'id'): array
     {
         if (empty($seedKeywords)) {
             return [];
@@ -51,11 +51,13 @@ class GoogleAdsKeywordService
             // kalau ternyata gagal terus, cek dokumentasi resmi terbaru di
             // developers.google.com/google-ads/api/rest/overview dulu
             // sebelum curiga ke kode ini.
+            $geoTargetId = $this->resolveGeoTargetConstant($location, $headers);
+
             $response = Http::withHeaders($headers)
                 ->timeout(30)
                 ->post("https://googleads.googleapis.com/v17/customers/{$customerId}:generateKeywordIdeas", [
                     'keywordSeed' => ['keywords' => array_values($seedKeywords)],
-                    'geoTargetConstants' => ['geoTargetConstants/2360'], // 2360 = Indonesia
+                    'geoTargetConstants' => ["geoTargetConstants/{$geoTargetId}"],
                     'keywordPlanNetwork' => 'GOOGLE_SEARCH',
                 ]);
 
@@ -86,6 +88,61 @@ class GoogleAdsKeywordService
             Log::error('GoogleAdsKeywordService Exception (fallback ke AI-only): ' . $e->getMessage());
             return [];
         }
+    }
+
+    private function resolveGeoTargetConstant(?string $location, array $headers): string
+    {
+        $default = '2360'; // Indonesia — fallback kalau lokasi kosong/gagal di-resolve
+
+        $location = trim((string) $location);
+        if ($location === '') {
+            return $default;
+        }
+
+        return Cache::remember(
+            'google_ads_geo_target:' . strtolower($location),
+            now()->addDays(7),
+            function () use ($location, $headers, $default) {
+                try {
+                    $response = Http::withHeaders($headers)
+                        ->timeout(15)
+                        ->post('https://googleads.googleapis.com/v17/geoTargetConstants:suggest', [
+                            'locale' => 'en',
+                            'locationNames' => ['names' => [$location]],
+                        ]);
+
+                    if (!$response->successful()) {
+                        Log::warning('GoogleAdsKeywordService: suggestGeoTargetConstants gagal, fallback ke Indonesia.', [
+                            'location' => $location,
+                            'status' => $response->status(),
+                            'body' => $response->body(),
+                        ]);
+                        return $default;
+                    }
+
+                    $suggestions = $response->json('geoTargetConstantSuggestions', []);
+                    $geoTarget = $suggestions[0]['geoTargetConstant'] ?? null;
+
+                    $id = $geoTarget['id']
+                        ?? (isset($geoTarget['resourceName']) ? basename($geoTarget['resourceName']) : null);
+
+                    if (!$id) {
+                        Log::info('GoogleAdsKeywordService: lokasi tidak ditemukan di Google Ads, fallback ke Indonesia.', [
+                            'location' => $location,
+                        ]);
+                        return $default;
+                    }
+
+                    return (string) $id;
+
+                } catch (\Throwable $e) {
+                    Log::error('GoogleAdsKeywordService: exception saat resolve geo target: ' . $e->getMessage(), [
+                        'location' => $location,
+                    ]);
+                    return $default;
+                }
+            }
+        );
     }
 
     /**

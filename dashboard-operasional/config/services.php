@@ -62,4 +62,16 @@ return [
         'engine_id' => env('GOOGLE_CUSTOM_SEARCH_ENGINE_ID'),
     ],
 
+    'pagespeed' => [
+        'api_key' => env('PAGESPEED_API_KEY'),
+    ],
+
+    'google_search_console' => [
+        'refresh_token' => env('GOOGLE_SEARCH_CONSOLE_REFRESH_TOKEN'),
+    ],
+
+    'google_analytics' => [
+        'refresh_token' => env('GOOGLE_ANALYTICS_REFRESH_TOKEN'),
+    ],
+
 ];

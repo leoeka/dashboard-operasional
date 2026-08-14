@@ -7,6 +7,7 @@ use Illuminate\Validation\Rule;
 use App\Models\Client;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 
 class requestOrderController extends Controller
 {
@@ -47,13 +48,12 @@ class requestOrderController extends Controller
             'business_goal' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
             'website_type' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string', 'max:255'],
 
-            // Field SEO — wajib cuma kalau service_type mengandung 'seo'.
-            // seo_target_url TIDAK wajib kalau website+seo dicentang bareng
-            // (situs belum jadi, URL belum final) — logic ini sudah ada di
-            // JS (toggleSections), di server kita longgarkan jadi nullable
-            // saja supaya tidak bentrok dengan kondisi kombinasi itu.
-            'seo_target_url' => ['nullable', 'string', 'max:255'],
-            'seo_keywords' => [Rule::requiredIf($wantsSeo), 'nullable', 'string'],
+            // FIX (fitur SEO & Backlink otomatis): URL wajib diisi kalau
+            // SEO dipilih TAPI website tidak sekaligus dibuat baru (kalau
+            // website juga dibuat baru, URL belum ada — boleh kosong dulu).
+            // Keyword sekarang opsional, digali otomatis oleh AI.
+            'seo_target_url' => [Rule::requiredIf($wantsSeo && !$wantsWebsite), 'nullable', 'string', 'max:255'],
+            'seo_keywords' => ['nullable', 'string'],
             'seo_location' => ['nullable', 'string', 'max:255'],
             'seo_competitors' => ['nullable', 'string'],
             'seo_cms_platform' => [Rule::requiredIf($wantsSeo), 'nullable', 'in:wordpress,shopify,wix,lainnya,baru'],
@@ -166,6 +166,45 @@ class requestOrderController extends Controller
             }
 
             DB::commit();
+
+            // FIX (fitur SEO & Backlink otomatis): kalau tim sudah klik
+            // "Analisis Sekarang" di form (mode PREVIEW, sebelum submit),
+            // hasilnya sudah ada di Cache lewat token ini — tinggal
+            // dipindahkan ke project, TIDAK perlu analisis ulang.
+            $analysisToken = $request->input('analysis_token');
+            $previewApplied = false;
+
+            if (!empty($analysisToken)) {
+                $preview = Cache::get(\App\Jobs\RunKeywordPreviewAnalysisJob::cacheKey($analysisToken));
+
+                if (($preview['status'] ?? null) === 'done') {
+                    $seo = $project->seo_requirements ?? [];
+                    $seo['competitors'] = implode("\n", $preview['competitor_urls'] ?? []);
+                    $seo['ai_recommendations'] = $preview['recommendations'] ?? null;
+                    $seo['ai_identified_topics'] = $preview['topics'] ?? null;
+                    $project->update(['seo_requirements' => $seo]);
+
+                    $project->logActivity('Hasil analisis SEO & Backlink (preview sebelum submit) diterapkan ke project');
+                    $previewApplied = true;
+                }
+            }
+
+            // Kalau preview TIDAK dipakai (tombol Analisis dilewati, token
+            // kosong/kedaluwarsa/gagal), tetap fallback ke auto-analisis
+            // otomatis seperti sebelumnya — supaya tidak ada jalur buntu.
+            if (!$previewApplied && ($wantsSeo || $wantsBacklink)) {
+                $resolvableUrl = $validated['seo_target_url'] ?? $validated['backlink_target_url'] ?? null;
+
+                if (!empty($resolvableUrl)) {
+                    Cache::put(
+                        \App\Jobs\GenerateKeywordRecommendationsJob::cacheKey($project->id),
+                        ['status' => 'queued', 'progress' => 0, 'message' => 'Menunggu diproses...'],
+                        now()->addMinutes(10)
+                    );
+
+                    \App\Jobs\GenerateKeywordRecommendationsJob::dispatch($project);
+                }
+            }
 
             return redirect()->route('pages.projects.show', $project)
                 ->with('success', 'Draft proyek berhasil disimpan!');

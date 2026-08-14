@@ -151,24 +151,35 @@
             <div class="border-b pb-4 service-section" id="section-seo" style="display:none;">
                 <h3 class="text-lg font-semibold text-gray-700 mb-4">4. Kebutuhan SEO</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div class="md:col-span-2" id="seo-existing-url-wrapper">
+                   <div class="md:col-span-2" id="seo-existing-url-wrapper">
                         <label class="block text-sm font-medium text-gray-700">URL Website yang Akan Dioptimasi <span
                                 class="text-red-500">*</span></label>
-                        <input type="text" name="seo_target_url" placeholder="https://contohwebsite.com"
-                            value="{{ old('seo_target_url') }}"
+                        <input type="text" name="seo_target_url" id="seo_target_url"
+                            placeholder="https://contohwebsite.com" value="{{ old('seo_target_url') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">
                         <p class="text-xs text-gray-500 mt-1" id="seo-note-baru" style="display:none;">
                             *Karena website juga dibuat baru, isi kolom ini setelah domain/URL final tersedia (boleh
-                            dikosongkan dulu jika belum ada).
+                            dikosongkan dulu jika belum ada — analisis SEO otomatis akan menunggu URL ini terisi).
                         </p>
-                    </div>
 
-                    <div>
-                        <label class="block text-sm font-medium text-gray-700">Target Keyword <span
-                                class="text-red-500">*</span></label>
-                        <input type="text" name="seo_keywords" placeholder="Pisahkan dengan koma"
-                            value="{{ old('seo_keywords') }}"
-                            class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">
+                        <button type="button" id="btnAnalyzePreview" disabled
+                            class="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                            Analisis Sekarang
+                        </button>
+                        <p class="text-xs text-gray-400 mt-1">Cek preview keyword & kompetitor sebelum disimpan (opsional).</p>
+
+                        <div id="previewProgress" class="hidden mt-2">
+                            <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                <div id="previewProgressBar" class="bg-blue-600 h-2 rounded-full transition-all" style="width:0%"></div>
+                            </div>
+                            <p id="previewProgressMessage" class="text-xs text-gray-500 mt-1"></p>
+                        </div>
+
+                        <div id="previewError" class="hidden mt-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3"></div>
+
+                        <div id="previewResult" class="hidden mt-3 border-t pt-3 space-y-3"></div>
+
+                        <input type="hidden" name="analysis_token" id="analysisToken" value="">
                     </div>
 
                     <div>
@@ -201,11 +212,6 @@
                             WordPress & Website Baru: artikel bisa dipublish otomatis. Platform lain: artikel diunduh/dikirim manual.
                         </p>
                     </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700">Kompetitor (URL, opsional)</label>
-                        <textarea name="seo_competitors" rows="2" placeholder="Satu URL per baris"
-                            class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">{{ old('seo_competitors') }}</textarea>
-                    </div>
                 </div>
             </div>
 
@@ -216,9 +222,11 @@
                     <div class="md:col-span-2" id="backlink-existing-url-wrapper">
                         <label class="block text-sm font-medium text-gray-700">URL Tujuan Backlink <span
                                 class="text-red-500">*</span></label>
-                        <input type="text" name="backlink_target_url" placeholder="https://contohwebsite.com"
-                            value="{{ old('backlink_target_url') }}"
+                        <input type="text" name="backlink_target_url" id="backlink_target_url"
+                            placeholder="https://contohwebsite.com" value="{{ old('backlink_target_url') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">
+                        <p class="text-xs text-gray-500 mt-1">Biasanya sama dengan URL website di atas — otomatis
+                            disalin kalau dikosongkan.</p>
                     </div>
 
                     <div>
@@ -238,7 +246,7 @@
                     <div class="md:col-span-2">
                         <label class="block text-sm font-medium text-gray-700">Niche / Kategori Backlink yang
                             Diinginkan</label>
-                        <input type="text" name="backlink_niche" placeholder="Contoh: Travel, Bisnis, Teknologi"
+                        <input type="text" name="backlink_niche" placeholder="Opsional — contoh: Travel, Bisnis, Teknologi"
                             value="{{ old('backlink_niche') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
                     </div>
@@ -258,6 +266,8 @@
                             <option value="branding">Branding (nama brand)</option>
                             <option value="generic">Generic (klik di sini, dst)</option>
                         </select>
+                        <p class="text-xs text-gray-500 mt-1">Opsional — bisa dikosongkan dulu, disesuaikan lagi
+                            setelah tim review hasil analisis SEO.</p>
                     </div>
 
                     <div>
@@ -312,6 +322,8 @@
 
             const seoNoteBaru = document.getElementById('seo-note-baru');
             const serviceError = document.getElementById('service-error');
+            const seoUrlInput = document.getElementById('seo_target_url');
+            const backlinkUrlInput = document.getElementById('backlink_target_url');
 
             // Field wajib di tiap section, hanya "required" saat section-nya aktif
             function setConditionalRequired(section, isActive) {
@@ -331,7 +343,6 @@
                 // -> URL SEO tidak wajib diisi manual (website belum jadi/URL belum final)
                 const websiteChecked = checkboxes.website.checked;
                 const seoChecked = checkboxes.seo.checked;
-                const seoUrlInput = document.querySelector('input[name="seo_target_url"]');
 
                 if (websiteChecked && seoChecked) {
                     seoUrlInput.required = false;
@@ -342,9 +353,148 @@
                 }
             }
 
+            // FIX (fitur SEO & Backlink otomatis): tim cukup isi 1 URL —
+            // kalau kolom URL backlink masih kosong saat checkbox Backlink
+            // dicentang / saat URL SEO diisi, salin otomatis dari URL SEO.
+            function autoFillBacklinkUrl() {
+                if (checkboxes.backlink.checked && backlinkUrlInput && !backlinkUrlInput.value && seoUrlInput && seoUrlInput.value) {
+                    backlinkUrlInput.value = seoUrlInput.value;
+                }
+            }
+
+            // FIX (fitur SEO & Backlink otomatis, mode PREVIEW): tombol
+            // "Analisis Sekarang" — jalankan AI SEBELUM form disubmit,
+            // hasilnya ditampilkan di sini untuk direview, token-nya
+            // dititip di hidden input supaya ikut kekirim saat Simpan.
+            const analyzeBtn = document.getElementById('btnAnalyzePreview');
+            const previewProgress = document.getElementById('previewProgress');
+            const previewProgressBar = document.getElementById('previewProgressBar');
+            const previewProgressMessage = document.getElementById('previewProgressMessage');
+            const previewError = document.getElementById('previewError');
+            const previewResult = document.getElementById('previewResult');
+            const analysisTokenInput = document.getElementById('analysisToken');
+            const PREVIEW_ANALYZE_URL = "{{ route('pages.seo-backlink.preview.analyze') }}";
+            const PREVIEW_STATUS_URL = "{{ route('pages.seo-backlink.preview.status') }}";
+            let previewPollTimer = null;
+
+            function escapeHtml(str) {
+                const div = document.createElement('div');
+                div.textContent = str ?? '';
+                return div.innerHTML;
+            }
+
+           function updateAnalyzeButtonState() {
+                if (analyzeBtn) analyzeBtn.disabled = !seoUrlInput || !seoUrlInput.value.trim();
+            }
+            seoUrlInput?.addEventListener('input', function () {
+                updateAnalyzeButtonState();
+                if (analysisTokenInput && analysisTokenInput.value) {
+                    analysisTokenInput.value = '';
+                    previewResult.classList.add('hidden');
+                    previewResult.innerHTML = '';
+                }
+            });
+            updateAnalyzeButtonState();
+
+            analyzeBtn?.addEventListener('click', function () {
+                previewError.classList.add('hidden');
+                previewResult.classList.add('hidden');
+                previewResult.innerHTML = '';
+                analysisTokenInput.value = '';
+
+                fetch(PREVIEW_ANALYZE_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                    },
+                    body: JSON.stringify({
+                        url: seoUrlInput.value.trim(),
+                        location: document.querySelector('[name="seo_location"]')?.value || '',
+                        business_name: document.querySelector('[name="company_name"]')?.value || '',
+                        business_type: document.querySelector('[name="business_type"]')?.value || '',
+                    }),
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!data.token) throw new Error('no token');
+                        analysisTokenInput.value = data.token;
+                        previewProgress.classList.remove('hidden');
+                        clearInterval(previewPollTimer);
+                        previewPollTimer = setInterval(() => checkPreviewStatus(data.token), 2500);
+                        checkPreviewStatus(data.token);
+                    })
+                    .catch(() => {
+                        previewError.textContent = 'Gagal memulai analisis. Coba lagi.';
+                        previewError.classList.remove('hidden');
+                    });
+            });
+
+            function checkPreviewStatus(token) {
+                fetch(`${PREVIEW_STATUS_URL}?token=${encodeURIComponent(token)}`, { headers: { Accept: 'application/json' } })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'queued' || data.status === 'running') {
+                            previewProgressBar.style.width = (data.progress || 0) + '%';
+                            previewProgressMessage.textContent = data.message || '';
+                        } else if (data.status === 'done') {
+                            clearInterval(previewPollTimer);
+                            previewProgress.classList.add('hidden');
+                            renderPreviewResult(data);
+                        } else if (data.status === 'failed') {
+                            clearInterval(previewPollTimer);
+                            previewProgress.classList.add('hidden');
+                            previewError.textContent = data.message || 'Analisis gagal.';
+                            previewError.classList.remove('hidden');
+                            analysisTokenInput.value = '';
+                        }
+                    })
+                    .catch(() => {});
+            }
+
+            function renderPreviewResult(data) {
+                const rec = data.recommendations || {};
+                const topics = data.topics || {};
+                const competitors = data.competitor_urls || [];
+                let html = '';
+
+                if (topics.core_topics && topics.core_topics.length) {
+                    html += '<div><p class="text-xs text-gray-500 mb-1">Topik terdeteksi</p><div>' +
+                        topics.core_topics.map(t => `<span class="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">${escapeHtml(t)}</span>`).join('') +
+                        '</div></div>';
+                }
+
+                if (rec.main_keywords && rec.main_keywords.length) {
+                    html += '<div><p class="text-xs text-gray-500 mb-2">10 Keyword Utama</p><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-gray-400 border-b"><th class="pb-1 pr-3">Keyword</th><th class="pb-1 pr-3">Volume/bln</th><th class="pb-1">Persaingan</th></tr></thead><tbody>';
+                    rec.main_keywords.forEach(kw => {
+                        html += `<tr class="border-b border-gray-50"><td class="py-1 pr-3 font-medium text-gray-700">${escapeHtml(kw.keyword)}</td><td class="py-1 pr-3 text-gray-500">${escapeHtml(kw.avg_monthly_searches ?? '-')}</td><td class="py-1 text-gray-500">${escapeHtml(kw.competition ?? '-')}</td></tr>`;
+                    });
+                    html += '</tbody></table></div></div>';
+                }
+
+                if (competitors.length) {
+                    html += '<div><p class="text-xs text-gray-500 mb-1">Kompetitor ditemukan</p><ul class="text-sm text-blue-600 space-y-0.5">' +
+                        competitors.map(u => `<li><a href="${encodeURI(u)}" target="_blank" rel="noopener" class="hover:underline break-all">${escapeHtml(u)}</a></li>`).join('') +
+                        '</ul></div>';
+                }
+
+                if (rec.summary) {
+                    html += `<div><p class="text-xs text-gray-500 mb-1">Ringkasan</p><p class="text-sm text-gray-600">${escapeHtml(rec.summary)}</p></div>`;
+                }
+
+                html += '<p class="text-xs text-emerald-600">&#10003; Hasil ini akan otomatis tersimpan begitu Anda klik Simpan Draft di bawah.</p>';
+
+                previewResult.innerHTML = html;
+                previewResult.classList.remove('hidden');
+            }
+
             Object.values(checkboxes).forEach(chk => {
                 chk.addEventListener('change', toggleSections);
             });
+
+            checkboxes.backlink.addEventListener('change', autoFillBacklinkUrl);
+            seoUrlInput?.addEventListener('blur', autoFillBacklinkUrl);
 
             document.getElementById('requestForm').addEventListener('submit', function(e) {
                 const anyChecked = Object.values(checkboxes).some(chk => chk.checked);
