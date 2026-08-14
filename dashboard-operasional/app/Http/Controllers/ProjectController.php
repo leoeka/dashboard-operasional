@@ -23,6 +23,7 @@ use Illuminate\Validation\Rule;
 
 
 
+
 class ProjectController extends Controller
 {
 
@@ -416,7 +417,7 @@ class ProjectController extends Controller
         try {
             $data = $zipWp->listTemplates(
                 search: $search,
-                page: (int) $request->get('page', 1),
+                page: (int) $request->input('page', 1),
                 perPage: 12
             );
         } catch (\Throwable $e) {
@@ -887,13 +888,12 @@ class ProjectController extends Controller
             return back()->with('error', 'File PDF tidak ditemukan.');
         }
 
-        return Storage::download(
-            $proposal->pdf_path,
+        return response()->download(
+            Storage::disk('public')->path($proposal->pdf_path),
             basename($proposal->pdf_path),
             ['Content-Type' => 'application/pdf']
         );
     }
-
     public function aiWorkspace(Request $request)
     {
         $projects = Project::orderBy('name')->get();
