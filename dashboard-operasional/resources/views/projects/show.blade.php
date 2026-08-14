@@ -3,8 +3,7 @@
 
 @section('content')
 
-    <a href="{{ route('pages.projects') }}"
-        class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
+    <a href="{{ route('pages.projects') }}" class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
         <i class='bx bx-arrow-back'></i> Kembali ke Projects
     </a>
 
@@ -24,10 +23,6 @@
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
                 <x-badge :color="$project->statusColor()">{{ $project->statusLabel() }}</x-badge>
-                <a href="{{ route('pages.projects.edit', $project) }}"
-                    class="text-sm px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition">
-                    <i class='bx bx-edit'></i> Edit
-                </a>
             </div>
         </div>
 
@@ -37,176 +32,125 @@
                 <p class="font-medium text-slate-700">{{ $project->type ?? '-' }}</p>
             </div>
             <div>
-                <p class="text-slate-400 mb-1">Progress</p>
-                <p class="font-medium text-slate-700">{{ $project->progress }}%</p>
-            </div>
-            <div>
-                <p class="text-slate-400 mb-1">Deadline</p>
-                <p class="font-medium text-slate-700">{{ $project->deadline?->translatedFormat('d M Y') ?? '-' }}</p>
-            </div>
-            <div>
                 <p class="text-slate-400 mb-1">Tanggal Dibuat</p>
                 <p class="font-medium text-slate-700">{{ $project->created_at->translatedFormat('d M Y') }}</p>
             </div>
         </div>
     </x-card>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
-        {{-- TASK CHECKLIST --}}
-        <x-card>
-            <div class="flex items-center justify-between mb-4">
-                <h2 class="font-bold text-slate-800 text-base">Task Checklist</h2>
-                @if ($project->tasks->count() > 0)
-                    <span class="text-xs text-slate-400 font-medium">
-                        {{ $project->tasks->where('is_done', true)->count() }}/{{ $project->tasks->count() }} Selesai
-                    </span>
-                @endif
-            </div>
-
-            {{-- Form Tambah Task --}}
-            <form method="POST" action="{{ route('pages.projects.tasks.store', $project) }}" class="flex gap-2 mb-4">
-                @csrf
-                <input type="text" name="title" placeholder="Tambah task baru..." required
-                    class="flex-1 min-w-0 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3.5 py-2 text-sm outline-none transition focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 placeholder:text-slate-400">
-                <button type="submit"
-                    class="grad-blue text-white text-sm px-4 rounded-lg hover:opacity-90 active:scale-95 transition flex-shrink-0 flex items-center justify-center shadow-sm">
-                    <i class='bx bx-plus text-lg'></i>
-                </button>
-            </form>
-
-            {{-- List Tasks --}}
-            <div class="space-y-1">
-                @forelse ($project->tasks as $task)
+    {{-- PROPOSAL --}}
+    <x-card>
+        <div class="space-y-4">
+            {{-- Header --}}
+            <div class="flex items-start justify-between gap-3">
+                <div class="flex items-center gap-3">
                     <div
-                        class="flex items-center justify-between gap-2 group px-2 py-1.5 rounded-lg hover:bg-slate-50 transition">
-                        <form method="POST" action="{{ route('pages.projects.tasks.toggle', [$project, $task]) }}"
-                            class="flex items-center gap-3 flex-1 min-w-0">
-                            @csrf @method('PATCH')
-                            <button type="submit" class="flex items-center gap-2.5 text-left flex-1 min-w-0 group/btn">
-                                <i
-                                    class='bx {{ $task->is_done ? 'bx-checkbox-checked text-blue-600' : 'bx-checkbox text-slate-300 group-hover/btn:text-slate-400' }} text-2xl flex-shrink-0 transition-colors'></i>
-                                <span
-                                    class="text-sm truncate transition-colors {{ $task->is_done ? 'text-slate-400 line-through' : 'text-slate-700 font-medium' }}">
-                                    {{ $task->title }}
-                                </span>
-                            </button>
-                        </form>
-
-                        <form method="POST" action="{{ route('pages.projects.tasks.destroy', [$project, $task]) }}"
-                            class="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                            @csrf @method('DELETE')
-                            <button type="submit"
-                                class="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition">
-                                <i class='bx bx-x text-lg block'></i>
-                            </button>
-                        </form>
+                        class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
+                        <i class='bx bx-file-blank text-xl'></i>
                     </div>
-                @empty
-                    <div class="text-center py-8 border border-dashed border-slate-200 rounded-lg">
-                        <p class="text-xs text-slate-400">Belum ada task tersimpan.</p>
-                    </div>
-                @endforelse
-            </div>
-        </x-card>
-
-        {{-- PROPOSAL --}}
-        <x-card class="flex flex-col justify-between h-full">
-            <div class="space-y-4">
-                {{-- Header --}}
-                <div class="flex items-start justify-between gap-3">
-                    <div class="flex items-center gap-3">
-                        <div
-                            class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
-                            <i class='bx bx-file-blank text-xl'></i>
-                        </div>
-                        <div>
-                            <h2 class="font-bold text-slate-800 text-base">
-                                Proposal Proyek
-                            </h2>
-                            <p class="text-xs text-slate-400">
-                                Analisis & dokumen penawaran
-                            </p>
-                        </div>
-                    </div>
-                    {{-- Status --}}
                     <div>
-                        @if ($project->latestProposal)
-                            <span class="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold
-                                bg-emerald-50 text-emerald-700 rounded-full border border-emerald-200/60">
-                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                Versi {{ $project->latestProposal->version }}
-                            </span>
-                        @else
-                            <span class="inline-flex items-center px-2.5 py-1 text-[11px] font-semibold
-                                bg-slate-100 text-slate-500 rounded-full">
-                                Belum Dibuat
+                        <h2 class="font-bold text-slate-800 text-base">
+                            Proposal Proyek
+                        </h2>
+                        <p class="text-xs text-slate-400">
+                            Analisis & dokumen penawaran
+                        </p>
+                    </div>
+                </div>
+            </div>
+            {{-- Description --}}
+            <p class="text-xs text-slate-500 leading-relaxed">
+                @if ($project->latestProposal)
+                    Proposal telah berhasil dibuat berdasarkan data request proyek. Berikut hasil
+                    analisis dan dokumennya.
+                @else
+                    Generate proposal berdasarkan data request proyek.
+                    Sistem akan menyiapkan analisis kebutuhan, strategi website,
+                    target market, dan struktur website.
+                @endif
+            </p>
+        </div>
+        {{-- PREVIEW INLINE: AI Analysis, ringkasan, dan PDF viewer — langsung
+        tampil di dalam kartu ini begitu proposal ada, tanpa tombol/halaman
+        preview terpisah lagi. --}}
+        @if ($project->latestProposal)
+            @php $proposal = $project->latestProposal; @endphp
+            <div class="pt-5 mt-5 border-t border-slate-100 space-y-4">
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-[650px] flex flex-col">
+                    <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                        <span class="text-xs font-semibold text-slate-700 flex items-center gap-2">
+                            <i class='bx bxs-file-pdf text-red-500 text-base'></i>
+                            Dokumen Viewer
+                        </span>
+                        @if ($proposal->pdf_path)
+                            <a href="{{ Storage::url($proposal->pdf_path) }}" target="_blank"
+                                class="text-[11px] text-blue-600 hover:underline flex items-center gap-1">
+                                Buka Tab Baru <i class='bx bx-link-external'></i>
+                            </a>
+                        @endif
+                    </div>
 
-                            </span>
+                    <div class="flex-1 bg-slate-100">
+                        @if ($proposal->pdf_path)
+                            {{--
+                            #toolbar=0&navpanes=0&scrollbar=0 mematikan toolbar
+                            gelap + sidebar thumbnail bawaan viewer PDF browser,
+                            biar yang kelihatan cuma dokumennya sendiri — bukan
+                            "aplikasi PDF reader" di dalam kartu.
+                            --}}
+                            <iframe src="{{ Storage::url($proposal->pdf_path) }}#toolbar=0&navpanes=0&scrollbar=0"
+                                class="w-full h-full border-none" title="Proposal PDF Viewer">
+                            </iframe>
+                        @else
+                            <div class="h-full flex flex-col items-center justify-center text-center p-6">
+                                <div
+                                    class="w-16 h-16 bg-slate-200 text-slate-400 rounded-full flex items-center justify-center mb-3">
+                                    <i class='bx bx-file-blank text-3xl'></i>
+                                </div>
+                                <h3 class="text-sm font-semibold text-slate-700">File PDF Belum Tersedia</h3>
+                                <p class="text-xs text-slate-400 mt-1 max-w-sm">
+                                    Proposal belum digenerate atau file PDF belum tersimpan di server.
+                                </p>
+                            </div>
                         @endif
                     </div>
                 </div>
-                {{-- Description --}}
-                <p class="text-xs text-slate-500 leading-relaxed">
-                    @if ($project->latestProposal)
-                        Proposal telah berhasil dibuat berdasarkan data request proyek.
-                        Anda dapat melihat hasil analisis dan preview proposal sebelum
-                        membuat dokumen PDF.
-                    @else
-                        Generate proposal berdasarkan data request proyek.
-                        Sistem akan menyiapkan analisis kebutuhan, strategi website,
-                        target market, dan struktur website.
-                    @endif
-                </p>
             </div>
-            {{-- Actions --}}
-            <div class="pt-5 mt-4 border-t border-slate-100">
-                @if ($project->latestProposal)
-                    <div class="flex flex-col sm:flex-row gap-2">
-                        {{-- Preview --}}
-                        <a href="{{ route('pages.projects.proposal.preview', $project) }}" class="flex-1 inline-flex items-center justify-center gap-2
-                            bg-slate-100 text-slate-700 text-xs font-semibold
-                            px-4 py-2.5 rounded-lg
-                            hover:bg-slate-200 active:scale-95 transition">
-                            <i class='bx bx-show text-sm'></i>
-                            <span>Preview</span>
-                        </a>
-                    </div>
-                    {{-- Download jika PDF sudah tersedia --}}
-                    @if ($project->latestProposal->pdf_path)
-                        <a href="{{ route('pages.projects.proposal.download', $project) }}" class="mt-2 w-full inline-flex items-center justify-center gap-2
-                                text-slate-500 hover:text-blue-600
-                                text-xs font-medium py-2 transition">
-                            <i class='bx bx-download'></i>
-                            Download PDF Proposal
-                        </a>
-                    @endif
-                @else
-                    {{-- Generate pertama kali — JS-driven, memicu job async + progress bar di kartu Mockup di bawah --}}
-                    <button type="button" id="generate-proposal-btn" onclick="startGenerateProposal({{ $project->id }})" class="w-full inline-flex items-center justify-center gap-2
+        @endif
+
+
+        {{-- Actions --}}
+        <div class="pt-5 mt-4 border-t border-slate-100">
+            @if ($project->latestProposal)
+                {{-- Download jika PDF sudah tersedia --}}
+                @if ($project->latestProposal->pdf_path)
+                    <a href="{{ route('pages.projects.proposal.download', $project) }}"
+                        class="w-full inline-flex items-center justify-center gap-2
+                            bg-slate-100 text-slate-700 hover:bg-slate-200
+                            text-xs font-semibold px-4 py-2.5 rounded-lg
+                            active:scale-95 transition">
+                        <i class='bx bx-download'></i>
+                        Download PDF Proposal
+                    </a>
+                @endif
+            @else
+                {{-- Generate pertama kali — JS-driven, memicu job async + progress bar di kartu Mockup di bawah --}}
+                <button type="button" id="generate-proposal-btn" onclick="startGenerateProposal({{ $project->id }})"
+                    class="w-full inline-flex items-center justify-center gap-2
                            grad-blue text-white text-xs font-semibold
                            px-4 py-2.5 rounded-lg
                            hover:opacity-90 active:scale-95
                            shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed">
-                        <i class='bx bx-magic-wand text-sm'></i>
-                        <span>Generate Proposal</span>
-                    </button>
-                @endif
-            </div>
-        </x-card>
-    </div>
+                    <i class='bx bx-magic-wand text-sm'></i>
+                    <span>Generate</span>
+                </button>
+            @endif
+        </div>
+    </x-card>
 
     {{-- ADD MOCKUP --}}
     <x-card class="mt-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="font-semibold text-slate-800">Mockup</h2>
-            @if ($project->mockupTemplate)
-                <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                    Mockup Aktif
-                </span>
-            @endif
-        </div>
-
         {{-- DISPLAY MOCKUP HASIL GENERATE / PILIHAN --}}
         @if ($project->mockupTemplate)
             <div class="mb-5 p-4 border border-slate-200 bg-slate-50 rounded-xl space-y-3">
@@ -220,15 +164,6 @@
                                     class="w-16 h-16 rounded-lg object-cover border border-slate-200 group-hover:opacity-80 transition shadow-sm">
                             </a>
                         @endif
-
-                        <div class="flex-1 min-w-0">
-                            <h3 class="text-sm font-bold text-slate-800 truncate">
-                                {{ $project->mockupTemplate->name }}
-                            </h3>
-                            <p class="text-xs text-slate-500 mt-1 line-clamp-2">
-                                {{ $project->mockupTemplate->description ?? 'Mockup hasil analisa AI untuk project ini.' }}
-                            </p>
-                        </div>
                     </div>
 
                     {{--
@@ -237,8 +172,33 @@
                     template ini nggak punya source_url (mis. template katalog
                     manual lama yang belum pernah diisi field itu), fallback
                     ke gambar screenshot statis biasa.
+
+                    Tapi kalau site-nya SUDAH dihapus dari ZipWP (project sudah
+                    "Done"), iframe jangan ditampilkan sama sekali — ZipWP bakal
+                    nunjukin halaman "This site is deleted" mereka sendiri di
+                    dalam iframe, yang bikin tim kira ada yang error/bug. Ganti
+                    dengan pesan "project selesai" + screenshot statis terakhir.
                     --}}
-                    @if ($project->mockupTemplate->source_url)
+                    @if (!$project->mockupTemplate->isLiveOnZipWp())
+                        <div class="rounded-xl border border-slate-200 bg-emerald-50/60 p-5 text-center">
+                            <div class="mx-auto mb-2 w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center">
+                                <i class='bx bx-check text-emerald-600 text-lg'></i>
+                            </div>
+                            <p class="text-sm font-semibold text-slate-700">Project sudah selesai</p>
+                            <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                                Live preview sudah tidak aktif karena site ZipWP otomatis dihapus
+                                setelah project ditandai "Done". Ini screenshot terakhir sebelum
+                                site dihapus:
+                            </p>
+
+                            @if ($project->mockupTemplate->previewUrl())
+                                <img src="{{ $project->mockupTemplate->previewUrl() }}"
+                                    class="mt-4 mx-auto rounded-xl border border-slate-200 object-cover shadow-sm max-w-lg w-full">
+                            @else
+                                <p class="text-xs text-slate-400 mt-3">Screenshot tidak tersedia.</p>
+                            @endif
+                        </div>
+                    @elseif ($project->mockupTemplate->source_url)
                         <div class="rounded-xl border border-slate-200 overflow-hidden bg-white">
                             <div class="flex items-center justify-between px-3 py-2 bg-slate-100 border-b border-slate-200">
                                 <span class="text-xs font-medium text-slate-500 flex items-center gap-1.5">
@@ -250,8 +210,9 @@
                                     Buka di tab baru <i class='bx bx-link-external'></i>
                                 </a>
                             </div>
-                            <iframe src="{{ $project->mockupTemplate->source_url }}" loading="lazy" referrerpolicy="no-referrer"
-                                sandbox="allow-scripts allow-same-origin" class="w-full aspect-video"
+                            <iframe src="{{ $project->mockupTemplate->source_url }}" loading="lazy"
+                                referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin"
+                                class="w-full aspect-video"
                                 title="Live preview mockup {{ $project->mockupTemplate->name }}">
                             </iframe>
                         </div>
@@ -263,9 +224,9 @@
 
                 {{-- Tombol Login ke WP-Admin + jalan pintas ke halaman situs di ZipWP --}}
                 <div class="pt-2 border-t border-slate-200/60 flex items-center gap-2">
-                    @if ($project->mockupTemplate->source_url)
-                        <a href="{{ rtrim($project->mockupTemplate->source_url, '/') }}/wp-admin"
-                            target="_blank" rel="noopener"
+                    @if ($project->mockupTemplate->source_url && $project->mockupTemplate->isLiveOnZipWp())
+                        <a href="{{ rtrim($project->mockupTemplate->source_url, '/') }}/wp-admin" target="_blank"
+                            rel="noopener"
                             class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition">
                             <i class='bx bx-log-in-circle'></i> Login ke WP-Admin
                         </a>
@@ -281,8 +242,7 @@
                     arahkan ke dashboard umum saja — tetap perlu cari situsnya
                     manual, tapi minimal nggak nyasar ke 404.
                     --}}
-                    <a href="https://app.zipwp.com"
-                        target="_blank" rel="noopener"
+                    <a href="https://app.zipwp.com" target="_blank" rel="noopener"
                         class="inline-flex items-center gap-2 bg-slate-100 text-slate-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-slate-200 transition">
                         <i class='bx bx-key'></i> Buka Dashboard ZipWP (lupa password?)
                     </a>
@@ -305,135 +265,105 @@
 
                     <x-modal name="done-zipwp-{{ $project->id }}" maxWidth="md" focusable>
                         <div class="p-6">
-                            <p class="text-sm font-bold text-red-700 mb-2 flex items-center gap-1.5">
-                                <i class='bx bx-error'></i> Peringatan — baca dulu sebelum lanjut
-                            </p>
-                            <ul class="text-xs text-slate-600 space-y-1.5 mb-4 list-disc list-inside">
-                                <li>Project akan ditandai <strong>selesai (done)</strong>.</li>
-                                <li>Site ini akan dihapus <strong>PERMANEN</strong> dari ZipWP — tidak bisa dikembalikan lagi.</li>
-                                <li>Pastikan situs SUDAH dimigrasi ke hosting client sebelum lanjut.</li>
-                                <li>Kalau client masih butuh revisi atau situsnya belum benar-benar dipindah, JANGAN klik done dulu.</li>
-                            </ul>
+
+                            <!-- ALERT BOX CONTAINER -->
+                            <div class="bg-red-50 border-l-4 border-red-600 p-4 rounded-r-lg mb-5 shadow-sm">
+                                <div class="flex items-center gap-2 text-red-700 font-bold text-sm mb-2">
+                                    <!-- Icon dengan animasi pulse -->
+                                    <i class='bx bx-error-circle text-lg animate-pulse'></i>
+                                    <span>CRITICAL WARNING — READ BEFORE PROCEEDING</span>
+                                </div>
+
+                                <ul class="text-xs text-red-950 space-y-2 list-disc list-inside leading-relaxed">
+                                    <li>
+                                        This project will be marked as <strong
+                                            class="uppercase underline decoration-red-400">Done</strong>.
+                                    </li>
+                                    <li>
+                                        <strong>Action Required:</strong> Ensure the website is <span
+                                            class="bg-red-200/80 px-1 py-0.5 rounded font-semibold text-red-900">FULLY
+                                            MIGRATED</span> to the client's web server.
+                                    </li>
+                                    <li>
+                                        <strong>Do NOT click done if:</strong> The client still asks for revisions OR the
+                                        migration process is not completely finished!
+                                    </li>
+                                </ul>
+                            </div>
 
                             <form method="POST" action="{{ route('pages.projects.mockup.zipwp-delete', $project) }}">
                                 @csrf
                                 @method('DELETE')
 
-                                <label class="flex items-start gap-2 text-xs text-slate-700 mb-4 cursor-pointer">
+                                <!-- CHECKBOX PERSETUJUAN -->
+                                <label
+                                    class="flex items-start gap-2.5 text-xs text-slate-800 mb-6 cursor-pointer bg-slate-50 p-3 rounded-lg border border-slate-200 hover:bg-slate-100 transition">
                                     <input type="checkbox" name="confirm_migrated" value="1" required
                                         onchange="document.getElementById('btn-confirm-done-{{ $project->id }}').disabled = !this.checked;"
-                                        class="mt-0.5">
-                                    <span>Saya sudah baca peringatan di atas dan memastikan situs ini sudah aman untuk ditandai selesai & dihapus dari ZipWP.</span>
+                                        class="mt-0.5 rounded border-slate-300 text-red-600 focus:ring-red-500">
+                                    <span class="font-medium select-none">
+                                        I have read the warning above and confirm that this site is <span
+                                            class="underline font-bold text-red-600">100% migrated & safe</span> to be
+                                        marked as completed.
+                                    </span>
                                 </label>
 
-                                <div class="flex items-center gap-2 justify-end">
-                                    <button type="button" x-on:click="$dispatch('close')"
-                                        class="text-xs text-slate-500 px-4 py-2 rounded-lg hover:bg-slate-100 transition">
-                                        Batal
-                                    </button>
+                                <!-- ACTION BUTTONS: CANCEL SEBAGAI PRIORITAS UTAMA -->
+                                <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                                    <!-- Secondary/Danger Action (Konfirmasi) dibuat subtle/kurang menonjol -->
                                     <button type="submit" id="btn-confirm-done-{{ $project->id }}" disabled
-                                        class="text-xs bg-red-600 text-white rounded-lg px-4 py-2 hover:bg-red-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
-                                        Ya, Tandai Done & Hapus
+                                        class="text-xs font-semibold text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-2 rounded-lg transition disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-red-600 disabled:cursor-not-allowed">
+                                        Yes, Mark as Done
+                                    </button>
+
+                                    <!-- Primary Action (Cancel) dibuat menonjol dengan background gelap & tebal -->
+                                    <button type="button" x-on:click="$dispatch('close')"
+                                        class="text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 px-5 py-2.5 rounded-lg shadow-md transition transform active:scale-95 flex items-center gap-1.5">
+                                        <i class='bx bx-x text-sm'></i> Cancel / Go Back
                                     </button>
                                 </div>
                             </form>
                         </div>
                     </x-modal>
-                @elseif ($project->mockupTemplate->zipwp_deleted_at)
-                    <div class="pt-3 border-t border-slate-200/60">
-                        <p class="text-xs text-slate-400 flex items-center gap-1.5">
-                            <i class='bx bx-check-circle'></i>
-                            Project sudah done, site dihapus dari ZipWP pada {{ $project->mockupTemplate->zipwp_deleted_at->format('d M Y, H:i') }}.
-                        </p>
-                    </div>
                 @endif
             </div>
-        @endif
-
-        {{-- OPSI MANUAL / JAGA-JAGA (PILIH ATAU GANTI MOCKUP LAIN) --}}
-        <details class="group mb-2">
-            <summary
-                class="text-xs text-slate-500 hover:text-slate-700 cursor-pointer font-medium flex items-center gap-1 select-none">
-                <i class='bx bx-chevron-right group-open:rotate-90 transition-transform'></i>
-                {{ $project->mockupTemplate ? 'Ganti atau pilih mockup cadangan manual' : 'Pilih mockup manual' }}
-            </summary>
-
-            <form method="POST" action="{{ route('pages.projects.mockup.add', $project) }}"
-                class="mt-3 flex flex-col sm:flex-row gap-2">
-                @csrf
-                @method('PUT')
-
-                <select name="mockup_template_id" required onchange="this.form.submit()"
-                    class="flex-1 min-w-0 bg-slate-50 border border-slate-200 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">-- Pilih mockup dari daftar --</option>
-                    {{--
-                    FIX: sebelumnya query ini nampilin SEMUA baris mockup_templates,
-                    termasuk hasil AI-generate milik client lain (yang sudah ada
-                    logo/nama client lain nempel di gambarnya) — bikin bingung
-                    karena kelihatannya seperti "template" padahal itu hasil jadi
-                    khusus client lain.
-
-                    Sekarang difilter: sembunyikan baris yang theme_slug-nya
-                    diawali "ai:{project_id_lain}:" (AI-generate punya project
-                    lain). Template katalog manual biasa (theme_slug TIDAK
-                    diawali "ai:") dan hasil AI milik project INI SENDIRI
-                    (kalau pernah di-generate ulang beberapa kali) tetap tampil.
-                    --}}
-                    @foreach (\App\Models\MockupTemplate::where(function ($q) use ($project) {
-                            $q->where('theme_slug', 'not like', 'ai:%')
-                                ->orWhere('theme_slug', 'like', 'ai:' . $project->id . ':%');
-                        })->orderBy('id', 'desc')->get() as $tpl)
-                        <option value="{{ $tpl->id }}" @selected($project->mockup_template_id == $tpl->id)>
-                            Mockup #{{ $tpl->id }} - {{ $tpl->name }} ({{ $tpl->categoryLabel() }})
-                        </option>
-                    @endforeach
-                </select>
-                {{-- Tombol "Simpan Mockup" dihapus — pilih dari dropdown langsung tersimpan (auto-submit). --}}
-            </form>
-        </details>
-
-        {{--
-        Area ini menggantikan warning text "Mockup belum dipilih..." lama.
-        Default: kalau belum ada mockup, tampilkan progress bar (hidden,
-        di-unhide oleh JS saat tombol "Generate Proposal" diklik). Kalau
-        mockup sudah ada, area ini tidak ditampilkan sama sekali.
-        --}}
-        @if (!$project->mockupTemplate)
-            <div id="mockup-progress-wrapper" class="hidden p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <div class="flex items-center justify-between text-xs mb-2">
-                    <span id="mockup-progress-message" class="text-blue-700 font-medium">Memulai proses...</span>
-                    <span id="mockup-progress-percent" class="text-blue-400">0%</span>
+        @else
+            {{-- BELUM ADA MOCKUP: project baru dibuat, atau proposal belum
+            di-generate. Progress ditampilkan lewat popup <x-progress-modal>
+            (dipanggil dari script di bawah), bukan bar inline lagi. --}}
+            <div id="mockup-idle-warning" class="text-center py-8 border border-dashed border-slate-200 rounded-xl">
+                <div
+                    class="mx-auto mb-3 w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                    <i class='bx bx-image-alt text-xl'></i>
                 </div>
-                <div class="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
-                    <div id="mockup-progress-bar"
-                        class="h-full bg-gradient-to-r from-blue-500 to-purple-600 transition-all duration-500 ease-out"
-                        style="width: 0%"></div>
-                </div>
-            </div>
-
-            <div id="mockup-idle-warning"
-                class="p-3 bg-amber-50 rounded-lg border border-amber-200 text-amber-700 text-xs flex items-center gap-2">
-                <i class='bx bx-info-circle text-base'></i>
-                <span>Mockup belum dipilih atau gagal di-generate. Silakan pilih manual dari opsi di atas.</span>
+                <p class="text-sm font-medium text-slate-600">Mockup belum dibuat</p>
+                <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    Mockup akan otomatis digenerate setelah proposal berhasil dibuat. Silakan generate
+                    proposal terlebih dahulu.
+                </p>
             </div>
         @endif
     </x-card>
 
+    <x-progress-bar name="mockup-progress-modal" title="Generate" />
+
     <script>
         function startGenerateProposal(projectId) {
             const btn = document.getElementById('generate-proposal-btn');
-            const progressWrapper = document.getElementById('mockup-progress-wrapper');
             const idleWarning = document.getElementById('mockup-idle-warning');
-            const progressBar = document.getElementById('mockup-progress-bar');
-            const progressMessage = document.getElementById('mockup-progress-message');
-            const progressPercent = document.getElementById('mockup-progress-percent');
 
             if (btn) {
                 btn.disabled = true;
                 btn.querySelector('span').innerText = 'Memproses...';
             }
             idleWarning?.classList.add('hidden');
-            progressWrapper?.classList.remove('hidden');
+
+            ProgressModal.open('mockup-progress-modal');
+            ProgressModal.update('mockup-progress-modal', {
+                percent: 0,
+                message: 'Memulai proses...',
+                status: 'processing',
+            });
 
             fetch(`/projects/${projectId}/proposal/generate`, {
                 method: 'POST',
@@ -445,24 +375,30 @@
 
             function pollProposalStatus(projectId) {
                 fetch(`/projects/${projectId}/proposal/status`, {
-                    headers: { 'Accept': 'application/json' },
-                })
+                        headers: {
+                            'Accept': 'application/json'
+                        },
+                    })
                     .then(res => res.json())
                     .then(data => {
                         const pct = data.progress ?? 0;
-                        if (progressBar) progressBar.style.width = pct + '%';
-                        if (progressPercent) progressPercent.innerText = pct + '%';
-                        if (progressMessage) progressMessage.innerText = data.message || '';
+                        const status = data.status === 'done' ? 'done' : data.status === 'failed' ? 'failed' :
+                            'processing';
+
+                        ProgressModal.update('mockup-progress-modal', {
+                            percent: pct,
+                            message: data.message || '',
+                            status,
+                        });
 
                         if (data.status === 'done') {
-                            window.location.reload();
+                            setTimeout(() => window.location.reload(), 800);
                         } else if (data.status === 'failed') {
                             if (btn) {
                                 btn.disabled = false;
                                 btn.querySelector('span').innerText = 'Generate Proposal';
                             }
-                            progressMessage.innerText = data.message || 'Gagal, silakan coba lagi.';
-                            progressBar.classList.add('bg-red-500');
+                            idleWarning?.classList.remove('hidden');
                         } else {
                             setTimeout(() => pollProposalStatus(projectId), 1500);
                         }
@@ -470,25 +406,5 @@
             }
         }
     </script>
-
-    {{-- ACTIVITY LOG --}}
-    <x-card class="mt-6">
-        <h2 class="font-semibold text-slate-800 mb-4">Activity Log</h2>
-
-        <div class="space-y-4">
-            @forelse ($project->activityLogs as $log)
-                <div class="flex gap-3">
-                    <span
-                        class="text-xs text-slate-400 font-mono w-12 flex-shrink-0 pt-0.5">{{ $log->created_at->format('H:i') }}</span>
-                    <div class="flex-1 min-w-0 pb-4 border-l border-slate-100 pl-4 -ml-px">
-                        <p class="text-sm text-slate-700 break-words">{{ $log->action }}</p>
-                        <p class="text-xs text-slate-400 mt-0.5">{{ $log->created_at->translatedFormat('d M Y') }}</p>
-                    </div>
-                </div>
-            @empty
-                <p class="text-sm text-slate-400 text-center py-4">Belum ada aktivitas.</p>
-            @endforelse
-        </div>
-    </x-card>
 
 @endsection
