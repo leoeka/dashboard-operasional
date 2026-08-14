@@ -151,10 +151,6 @@
 
     {{-- ADD MOCKUP --}}
     <x-card class="mt-6">
-        <div class="flex items-center justify-between mb-4">
-            <h2 class="font-semibold text-slate-800">Mockup</h2>
-        </div>
-
         {{-- DISPLAY MOCKUP HASIL GENERATE / PILIHAN --}}
         @if ($project->mockupTemplate)
             <div class="mb-5 p-4 border border-slate-200 bg-slate-50 rounded-xl space-y-3">
@@ -269,50 +265,66 @@
 
                     <x-modal name="done-zipwp-{{ $project->id }}" maxWidth="md" focusable>
                         <div class="p-6">
-                            <p class="text-sm font-bold text-red-700 mb-2 flex items-center gap-1.5">
-                                <i class='bx bx-error'></i> Peringatan — baca dulu sebelum lanjut
-                            </p>
-                            <ul class="text-xs text-slate-600 space-y-1.5 mb-4 list-disc list-inside">
-                                <li>Project akan ditandai <strong>selesai (done)</strong>.</li>
-                                <li>Mohon pastikan situs <strong>sudah dipindahkan ke web server milik client</strong>
-                                    sebelum melanjutkan.</li>
-                                <li>Kalau client masih butuh revisi atau situsnya belum benar-benar dipindah, JANGAN klik
-                                    done dulu.</li>
-                            </ul>
+
+                            <!-- ALERT BOX CONTAINER -->
+                            <div class="bg-red-50 border-l-4 border-red-600 p-4 rounded-r-lg mb-5 shadow-sm">
+                                <div class="flex items-center gap-2 text-red-700 font-bold text-sm mb-2">
+                                    <!-- Icon dengan animasi pulse -->
+                                    <i class='bx bx-error-circle text-lg animate-pulse'></i>
+                                    <span>CRITICAL WARNING — READ BEFORE PROCEEDING</span>
+                                </div>
+
+                                <ul class="text-xs text-red-950 space-y-2 list-disc list-inside leading-relaxed">
+                                    <li>
+                                        This project will be marked as <strong
+                                            class="uppercase underline decoration-red-400">Done</strong>.
+                                    </li>
+                                    <li>
+                                        <strong>Action Required:</strong> Ensure the website is <span
+                                            class="bg-red-200/80 px-1 py-0.5 rounded font-semibold text-red-900">FULLY
+                                            MIGRATED</span> to the client's web server.
+                                    </li>
+                                    <li>
+                                        <strong>Do NOT click done if:</strong> The client still asks for revisions OR the
+                                        migration process is not completely finished!
+                                    </li>
+                                </ul>
+                            </div>
 
                             <form method="POST" action="{{ route('pages.projects.mockup.zipwp-delete', $project) }}">
                                 @csrf
                                 @method('DELETE')
 
-                                <label class="flex items-start gap-2 text-xs text-slate-700 mb-4 cursor-pointer">
+                                <!-- CHECKBOX PERSETUJUAN -->
+                                <label
+                                    class="flex items-start gap-2.5 text-xs text-slate-800 mb-6 cursor-pointer bg-slate-50 p-3 rounded-lg border border-slate-200 hover:bg-slate-100 transition">
                                     <input type="checkbox" name="confirm_migrated" value="1" required
                                         onchange="document.getElementById('btn-confirm-done-{{ $project->id }}').disabled = !this.checked;"
-                                        class="mt-0.5">
-                                    <span>Saya sudah baca peringatan di atas dan memastikan situs ini sudah aman untuk
-                                        ditandai selesai.</span>
+                                        class="mt-0.5 rounded border-slate-300 text-red-600 focus:ring-red-500">
+                                    <span class="font-medium select-none">
+                                        I have read the warning above and confirm that this site is <span
+                                            class="underline font-bold text-red-600">100% migrated & safe</span> to be
+                                        marked as completed.
+                                    </span>
                                 </label>
 
-                                <div class="flex items-center gap-2 justify-end">
-                                    <button type="button" x-on:click="$dispatch('close')"
-                                        class="text-xs text-slate-500 px-4 py-2 rounded-lg hover:bg-slate-100 transition">
-                                        Batal
-                                    </button>
+                                <!-- ACTION BUTTONS: CANCEL SEBAGAI PRIORITAS UTAMA -->
+                                <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+                                    <!-- Secondary/Danger Action (Konfirmasi) dibuat subtle/kurang menonjol -->
                                     <button type="submit" id="btn-confirm-done-{{ $project->id }}" disabled
-                                        class="text-xs bg-red-600 text-white rounded-lg px-4 py-2 hover:bg-red-700 transition disabled:opacity-40 disabled:cursor-not-allowed">
-                                        Ya, Tandai Done & Hapus
+                                        class="text-xs font-semibold text-red-600 hover:text-red-800 hover:bg-red-50 px-3 py-2 rounded-lg transition disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-red-600 disabled:cursor-not-allowed">
+                                        Yes, Mark as Done
+                                    </button>
+
+                                    <!-- Primary Action (Cancel) dibuat menonjol dengan background gelap & tebal -->
+                                    <button type="button" x-on:click="$dispatch('close')"
+                                        class="text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 px-5 py-2.5 rounded-lg shadow-md transition transform active:scale-95 flex items-center gap-1.5">
+                                        <i class='bx bx-x text-sm'></i> Cancel / Go Back
                                     </button>
                                 </div>
                             </form>
                         </div>
                     </x-modal>
-                @elseif ($project->mockupTemplate->zipwp_deleted_at)
-                    <div class="pt-3 border-t border-slate-200/60">
-                        <p class="text-xs text-slate-400 flex items-center gap-1.5">
-                            <i class='bx bx-check-circle'></i>
-                            Project sudah done, site dihapus dari ZipWP pada
-                            {{ $project->mockupTemplate->zipwp_deleted_at->format('d M Y, H:i') }}.
-                        </p>
-                    </div>
                 @endif
             </div>
         @else
@@ -324,19 +336,11 @@
                     class="mx-auto mb-3 w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
                     <i class='bx bx-image-alt text-xl'></i>
                 </div>
-                @if ($project->latestProposal)
-                    <p class="text-sm font-medium text-slate-600">Mockup belum tersedia</p>
-                    <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                        Proposal sudah dibuat, tapi mockup belum berhasil digenerate. Coba generate ulang
-                        proposal, atau pilih mockup manual di bawah.
-                    </p>
-                @else
-                    <p class="text-sm font-medium text-slate-600">Mockup belum dibuat</p>
-                    <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                        Mockup akan otomatis digenerate begitu kamu klik "Generate Proposal" di kartu
-                        Proposal di atas.
-                    </p>
-                @endif
+                <p class="text-sm font-medium text-slate-600">Mockup belum dibuat</p>
+                <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                    Mockup akan otomatis digenerate setelah proposal berhasil dibuat. Silakan generate
+                    proposal terlebih dahulu.
+                </p>
             </div>
         @endif
     </x-card>
@@ -378,7 +382,8 @@
                     .then(res => res.json())
                     .then(data => {
                         const pct = data.progress ?? 0;
-                        const status = data.status === 'done' ? 'done' : data.status === 'failed' ? 'failed' : 'processing';
+                        const status = data.status === 'done' ? 'done' : data.status === 'failed' ? 'failed' :
+                            'processing';
 
                         ProgressModal.update('mockup-progress-modal', {
                             percent: pct,
