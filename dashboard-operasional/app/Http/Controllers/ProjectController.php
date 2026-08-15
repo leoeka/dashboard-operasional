@@ -1202,22 +1202,46 @@ class ProjectController extends Controller
         $seo = $project->seo_requirements ?? [];
         $backlink = $project->backlink_requirements ?? [];
 
+        $discoveredCompetitors = collect(explode("\n", $seo['competitors'] ?? ''))
+            ->map(fn($u) => trim($u))
+            ->filter()
+            ->values();
+
         $pdf = Pdf::loadView('pdf.seo-backlink-report', [
             'project' => $project,
             'seo' => $seo,
             'backlink' => $backlink,
             'aiRecommendations' => $seo['ai_recommendations'] ?? null,
             'aiTopics' => $seo['ai_identified_topics'] ?? null,
+            'discoveredCompetitors' => $discoveredCompetitors,
             'pagespeed' => $seo['pagespeed'] ?? null,
             'searchConsole' => $seo['search_console'] ?? null,
             'ga4' => $seo['google_analytics'] ?? null,
             'generatedAt' => now()->format('d F Y H:i'),
         ]);
 
+        // FIX (branding): tambah nomor halaman di footer tiap halaman —
+        // ini tidak bisa cukup diandalkan lewat CSS biasa di dompdf,
+        // jadi dipasang langsung lewat canvas dompdf setelah render.
+        $pdf->getDomPDF()->render();
+        $canvas = $pdf->getDomPDF()->getCanvas();
+
+        // FIX: page_text() biasa nempel di SEMUA halaman termasuk cover
+        // (tidak bisa dibedakan). page_script() bisa jalankan kode PHP
+        // per halaman dengan akses ke $PAGE_NUM — jadi nomor halaman
+        // cuma dicetak kalau BUKAN halaman pertama (cover).
+        $canvas->page_script('
+            if (isset($PAGE_NUM) && $PAGE_NUM > 1) {
+                $pdf->page_text(510, 815, "Halaman " . $PAGE_NUM . " / " . $PAGE_COUNT, null, 8, array(1, 1, 1));
+            }
+        ');
+
         $clientSlug = Str::slug($project->client_name);
         $fileName = "Laporan-SEO-Backlink-{$clientSlug}-{$project->code}.pdf";
 
-        return $pdf->download($fileName);
+        return response($pdf->getDomPDF()->output(), 200)
+            ->header('Content-Type', 'application/pdf')
+            ->header('Content-Disposition', 'attachment; filename="' . $fileName . '"');
     }
 
 }

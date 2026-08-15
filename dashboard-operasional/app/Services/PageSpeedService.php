@@ -35,7 +35,7 @@ class PageSpeedService
             ]);
 
             $query = http_build_query($queryParams)
-                . '&category=performance&category=accessibility&category=best-practices&category=seo';
+                . '&category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO';
 
             $response = Http::timeout(60)->get('https://www.googleapis.com/pagespeedonline/v5/runPagespeed?' . $query);
 
@@ -78,6 +78,11 @@ class PageSpeedService
                 'best_practices' => $this->scoreToPercent($categories['best-practices']['score'] ?? null),
                 'seo' => $this->scoreToPercent($categories['seo']['score'] ?? null),
             ],
+            // Screenshot asli halaman yang dites — sudah ikut dikirim
+            // Google di respons yang sama, tinggal diambil. Formatnya
+            // base64 data URI, langsung bisa dipakai di <img src="...">
+            // tanpa perlu simpan file terpisah.
+            'screenshot' => $audits['final-screenshot']['details']['data'] ?? null,
             'metrics' => [
                 'lcp' => $this->metricFromMs('LARGEST_CONTENTFUL_PAINT_MS', $field, 'largest-contentful-paint', $audits),
                 'cls' => $this->metricCls($field, $audits),
