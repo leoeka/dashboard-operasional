@@ -77,11 +77,13 @@ class SearchConsoleService
             $totals = $this->query($accessToken, $property, $startDate, $endDate, []);
             $topQueries = $this->query($accessToken, $property, $startDate, $endDate, ['query'], 10);
             $byDevice = $this->query($accessToken, $property, $startDate, $endDate, ['device'], 10);
+            $topPages = $this->query($accessToken, $property, $startDate, $endDate, ['page'], 10);
 
             return [
                 'property' => $property,
                 'totals' => $totals[0] ?? null,
                 'top_queries' => $topQueries,
+                'top_pages' => $topPages,
                 'by_device' => $byDevice,
                 'period' => ['start' => $startDate, 'end' => $endDate],
             ];

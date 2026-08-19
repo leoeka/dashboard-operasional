@@ -86,6 +86,10 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.ga4.analyze');
     Route::get('/projects/{project}/seo-backlink/report/download', [ProjectController::class, 'downloadSeoBacklinkReport'])
         ->name('pages.projects.seo-backlink.report.download');
+    Route::post('/projects/{project}/competitor-pagespeed/analyze', [ProjectController::class, 'analyzeCompetitorPageSpeed'])
+        ->name('pages.projects.competitor-pagespeed.analyze');
+    Route::get('/projects/{project}/competitor-pagespeed/status', [ProjectController::class, 'competitorPageSpeedStatus'])
+        ->name('pages.projects.competitor-pagespeed.status');
 
 
     // 6. Mockup

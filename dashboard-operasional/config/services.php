@@ -74,4 +74,8 @@ return [
         'refresh_token' => env('GOOGLE_ANALYTICS_REFRESH_TOKEN'),
     ],
 
+    'google_places' => [
+        'api_key' => env('GOOGLE_PLACES_API_KEY'),
+    ],
+
 ];

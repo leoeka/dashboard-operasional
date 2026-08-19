@@ -42,24 +42,24 @@
         </x-card>
     @else
         <!-- {{-- INFO PROJECT --}}
-        <x-card class="mb-6">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                    <p class="font-semibold text-slate-800">{{ $project->name }}</p>
-                    <p class="text-sm text-slate-400">{{ $project->client_name }} &middot; {{ $project->type ?? '-' }}</p>
-                </div>
-                @if ($project->mockupTemplate)
-                    <div
-                        class="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg w-fit">
-                        <i class='bx bx-check-circle'></i> Mockup: {{ $project->mockupTemplate->name }}
-                    </div>
-                @else
-                    <div class="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg w-fit">
-                        Belum ada mockup dipilih
-                    </div>
-                @endif
-            </div>
-        </x-card> -->
+                        <x-card class="mb-6">
+                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div>
+                                    <p class="font-semibold text-slate-800">{{ $project->name }}</p>
+                                    <p class="text-sm text-slate-400">{{ $project->client_name }} &middot; {{ $project->type ?? '-' }}</p>
+                                </div>
+                                @if ($project->mockupTemplate)
+                                    <div
+                                        class="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg w-fit">
+                                        <i class='bx bx-check-circle'></i> Mockup: {{ $project->mockupTemplate->name }}
+                                    </div>
+                                @else
+                                    <div class="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg w-fit">
+                                        Belum ada mockup dipilih
+                                    </div>
+                                @endif
+                            </div>
+                        </x-card> -->
 
         {{-- SEO & BACKLINK --}}
         @if (!$project->wants_seo && !$project->wants_backlink)
@@ -116,7 +116,8 @@
             diubah di sini — cuma dipindah posisinya ke dalam tab masing-
             masing.
             --}}
-            <div x-data="{ tab: ['ringkasan', 'performa', 'traffic'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'ringkasan' }">
+            <div
+                x-data="{ tab: ['ringkasan', 'performa', 'traffic'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'ringkasan' }">
 
                 {{-- NAVIGASI TAB --}}
                 <div class="flex gap-1 mb-6 border-b border-slate-200 overflow-x-auto">
@@ -143,7 +144,8 @@
                         <div class="flex items-center justify-between mb-1">
                             <h2 class="font-semibold text-slate-800">SEO & Backlink</h2>
                             @if ($isConnected)
-                                <span class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                                <span
+                                    class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
                                     <i class='bx bx-check'></i> Terhubung
                                 </span>
                             @else
@@ -174,7 +176,8 @@
                                         <span class="text-slate-400 w-28 flex-shrink-0">Keyword</span>
                                         <span class="text-slate-700">
                                             @forelse ($keywordList->take(4) as $kw)
-                                                <span class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">{{ $kw }}</span>
+                                                <span
+                                                    class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">{{ $kw }}</span>
                                             @empty
                                                 -
                                             @endforelse
@@ -187,7 +190,8 @@
                                         <span class="text-slate-400 w-28 flex-shrink-0">Platform</span>
                                         <span>
                                             @if ($cmsPlatform)
-                                                <span class="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">{{ ucfirst($cmsPlatform === 'baru' ? 'Website Baru (dari kami)' : $cmsPlatform) }}</span>
+                                                <span
+                                                    class="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">{{ ucfirst($cmsPlatform === 'baru' ? 'Website Baru (dari kami)' : $cmsPlatform) }}</span>
                                             @else
                                                 -
                                             @endif
@@ -211,7 +215,8 @@
                                     </div>
                                     <div class="flex gap-2">
                                         <span class="text-slate-400 w-28 flex-shrink-0">Prioritas</span>
-                                        <span class="text-slate-700">{{ $backlink['priority'] === 'quality' ? 'Kualitas' : ($backlink['priority'] === 'quantity' ? 'Kuantitas' : '-') }}</span>
+                                        <span
+                                            class="text-slate-700">{{ $backlink['priority'] === 'quality' ? 'Kualitas' : ($backlink['priority'] === 'quantity' ? 'Kuantitas' : '-') }}</span>
                                     </div>
                                     <div class="flex gap-2">
                                         <span class="text-slate-400 w-28 flex-shrink-0">Niche</span>
@@ -221,7 +226,8 @@
                                         <span class="text-slate-400 w-28 flex-shrink-0">Jenis anchor</span>
                                         <span class="text-slate-700">
                                             @forelse (($backlink['anchor_type'] ?? []) as $type)
-                                                <span class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1">{{ str_replace('_', ' ', ucfirst($type)) }}</span>
+                                                <span
+                                                    class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1">{{ str_replace('_', ' ', ucfirst($type)) }}</span>
                                             @empty
                                                 -
                                             @endforelse
@@ -254,7 +260,8 @@
                         <div class="flex items-center justify-between mb-1">
                             <h2 class="font-semibold text-slate-800">Analisis AI — Keyword & Kompetitor</h2>
                             @if ($aiRecommendations)
-                                <span class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                                <span
+                                    class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
                                     <i class='bx bx-check'></i> Sudah dianalisis
                                 </span>
                             @endif
@@ -266,7 +273,8 @@
                         @if (!$resolvedUrl)
                             <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
                                 URL website client belum diisi. Isi dulu di
-                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-medium">halaman Edit Project</a>
+                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-medium">halaman Edit
+                                    Project</a>
                                 — analisis akan otomatis jalan sekali setelah URL tersimpan, atau bisa dipicu manual di sini
                                 setelahnya.
                             </div>
@@ -281,14 +289,17 @@
 
                                 <div id="aiProgressState" class="hidden">
                                     <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
-                                        <div id="aiProgressBar" class="bg-blue-600 h-2 rounded-full transition-all" style="width:0%"></div>
+                                        <div id="aiProgressBar" class="bg-blue-600 h-2 rounded-full transition-all" style="width:0%">
+                                        </div>
                                     </div>
                                     <p id="aiProgressMessage" class="text-xs text-slate-500"></p>
                                 </div>
 
-                                <div id="aiErrorState" class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                                <div id="aiErrorState"
+                                    class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
                                     <p id="aiErrorMessage"></p>
-                                    <button type="button" id="btnRetryAnalysis" class="mt-2 text-xs font-semibold text-red-700 underline">Coba lagi</button>
+                                    <button type="button" id="btnRetryAnalysis"
+                                        class="mt-2 text-xs font-semibold text-red-700 underline">Coba lagi</button>
                                 </div>
 
                                 @if ($aiRecommendations)
@@ -306,7 +317,8 @@
                                             <p class="text-xs text-slate-400 mb-1">Topik inti terdeteksi</p>
                                             <div>
                                                 @foreach ($aiTopics['core_topics'] as $topic)
-                                                    <span class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">{{ $topic }}</span>
+                                                    <span
+                                                        class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">{{ $topic }}</span>
                                                 @endforeach
                                             </div>
                                         </div>
@@ -315,7 +327,8 @@
                                     <div>
                                         <p class="text-xs text-slate-400 mb-2">
                                             10 Keyword Utama
-                                            <span class="ml-1 inline-block text-[10px] px-1.5 py-0.5 rounded-full {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500' }}">
+                                            <span
+                                                class="ml-1 inline-block text-[10px] px-1.5 py-0.5 rounded-full {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500' }}">
                                                 {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'Data Google Ads' : 'Estimasi AI' }}
                                             </span>
                                         </p>
@@ -348,7 +361,8 @@
                                             <p class="text-xs text-slate-400 mb-1">Related keywords</p>
                                             <div>
                                                 @foreach ($aiRecommendations['related_keywords'] as $kw)
-                                                    <span class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">{{ $kw }}</span>
+                                                    <span
+                                                        class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">{{ $kw }}</span>
                                                 @endforeach
                                             </div>
                                         </div>
@@ -366,10 +380,111 @@
                                             <p class="text-xs text-slate-400 mb-1">Kompetitor ditemukan</p>
                                             <ul class="text-sm text-blue-600 space-y-0.5">
                                                 @foreach ($discoveredCompetitors as $url)
-                                                    <li><a href="{{ $url }}" target="_blank" rel="noopener" class="hover:underline break-all">{{ $url }}</a></li>
+                                                    <li><a href="{{ $url }}" target="_blank" rel="noopener"
+                                                            class="hover:underline break-all">{{ $url }}</a></li>
                                                 @endforeach
                                             </ul>
                                         </div>
+
+                                        @php
+                                            $competitorPagespeed = $seo['competitor_pagespeed'] ?? null;
+                                        @endphp
+                                        <div class="border-t border-slate-100 pt-4">
+                                            <p class="text-xs text-slate-400 mb-2">Perbandingan performa (PageSpeed, mobile) vs kompetitor</p>
+
+                                            <button type="button" id="btnAnalyzeCompetitorPagespeed"
+                                                class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
+                                                <i class='bx bx-refresh'></i>
+                                                {{ $competitorPagespeed ? 'Analisis Ulang' : 'Analisis Performa Kompetitor' }}
+                                            </button>
+                                            <span id="compPagespeedSpinner" class="hidden text-xs text-slate-400 ml-2">Memproses (bisa 1-2
+                                                menit)...</span>
+                                            <div id="compPagespeedError"
+                                                class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3"></div>
+
+                                            @if ($competitorPagespeed)
+                                                @php $ownScores = $pagespeed['mobile']['scores'] ?? null; @endphp
+                                                <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                                    <div class="text-center">
+                                                        <p class="text-xs font-medium text-slate-600 mb-2">Website Anda</p>
+                                                        <div class="flex justify-center gap-1">
+                                                            @include('pdf.partials.gauge', ['score' => $ownScores['performance'] ?? null, 'label' => 'Performance'])
+                                                            @include('pdf.partials.gauge', ['score' => $ownScores['accessibility'] ?? null, 'label' => 'Accessibility'])
+                                                            @include('pdf.partials.gauge', ['score' => $ownScores['best_practices'] ?? null, 'label' => 'Best Practices'])
+                                                            @include('pdf.partials.gauge', ['score' => $ownScores['seo'] ?? null, 'label' => 'SEO'])
+                                                        </div>
+                                                    </div>
+                                                    @foreach ($competitorPagespeed as $comp)
+                                                        <div class="text-center">
+                                                            <p class="text-xs font-medium text-slate-600 mb-2 truncate" title="{{ $comp['url'] }}">
+                                                                {{ parse_url($comp['url'], PHP_URL_HOST) }}
+                                                            </p>
+                                                            <div class="flex justify-center gap-1">
+                                                                @include('pdf.partials.gauge', ['score' => $comp['scores']['performance'] ?? null, 'label' => 'Performance'])
+                                                                @include('pdf.partials.gauge', ['score' => $comp['scores']['accessibility'] ?? null, 'label' => 'Accessibility'])
+                                                                @include('pdf.partials.gauge', ['score' => $comp['scores']['best_practices'] ?? null, 'label' => 'Best Practices'])
+                                                                @include('pdf.partials.gauge', ['score' => $comp['scores']['seo'] ?? null, 'label' => 'SEO'])
+                                                            </div>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                        </div>
+
+                                        <script>
+                                            (function () {
+                                                const btn = document.getElementById('btnAnalyzeCompetitorPagespeed');
+                                                const spinner = document.getElementById('compPagespeedSpinner');
+                                                const errorBox = document.getElementById('compPagespeedError');
+                                                if (!btn) return;
+
+                                                const analyzeUrl = "{{ route('pages.projects.competitor-pagespeed.analyze', $project) }}";
+                                                const statusUrl = "{{ route('pages.projects.competitor-pagespeed.status', $project) }}";
+                                                let pollTimer = null;
+
+                                                function poll() {
+                                                    fetch(statusUrl)
+                                                        .then(res => res.json())
+                                                        .then(data => {
+                                                            if (data.status === 'done') {
+                                                                clearInterval(pollTimer);
+                                                                window.location.reload();
+                                                            } else if (data.status === 'error') {
+                                                                clearInterval(pollTimer);
+                                                                btn.disabled = false;
+                                                                spinner.classList.add('hidden');
+                                                                errorBox.textContent = data.message || 'Gagal menganalisis.';
+                                                                errorBox.classList.remove('hidden');
+                                                            }
+                                                        });
+                                                }
+
+                                                btn.addEventListener('click', function () {
+                                                    errorBox.classList.add('hidden');
+                                                    btn.disabled = true;
+                                                    spinner.classList.remove('hidden');
+
+                                                    fetch(analyzeUrl, {
+                                                        method: 'POST',
+                                                        headers: {
+                                                            Accept: 'application/json',
+                                                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                                                        },
+                                                    })
+                                                        .then(res => res.json())
+                                                        .then(data => {
+                                                            if (data.success) {
+                                                                pollTimer = setInterval(poll, 4000);
+                                                            } else {
+                                                                btn.disabled = false;
+                                                                spinner.classList.add('hidden');
+                                                                errorBox.textContent = data.message || 'Gagal memulai analisis.';
+                                                                errorBox.classList.remove('hidden');
+                                                            }
+                                                        });
+                                                });
+                                            })();
+                                        </script>
                                     @endif
                                 </div>
                             @endif
@@ -432,12 +547,12 @@
 
                                     function triggerAnalysis() {
                                         fetch(SEO_BACKLINK_ANALYZE_URL, {
-                                                method: 'POST',
-                                                headers: {
-                                                    Accept: 'application/json',
-                                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-                                                },
-                                            })
+                                            method: 'POST',
+                                            headers: {
+                                                Accept: 'application/json',
+                                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                                            },
+                                        })
                                             .then(res => res.json())
                                             .then(() => startPolling())
                                             .catch(() => {
@@ -462,7 +577,8 @@
                         <div class="flex items-center justify-between mb-1">
                             <h2 class="font-semibold text-slate-800">Performa Website (PageSpeed)</h2>
                             @if ($pagespeed)
-                                <span class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                                <span
+                                    class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
                                     <i class='bx bx-check'></i> Sudah dianalisis
                                 </span>
                             @endif
@@ -475,7 +591,8 @@
                         @if (!$resolvedUrl)
                             <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
                                 URL website client belum diisi. Isi dulu di
-                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-medium">halaman Edit Project</a>.
+                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-medium">halaman Edit
+                                    Project</a>.
                             </div>
                         @else
                             <div id="pagespeedBox">
@@ -483,16 +600,19 @@
                                     class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
                                     <i class='bx bx-tachometer'></i> {{ $pagespeed ? 'Jalankan Ulang Analisis' : 'Analisis Performa' }}
                                 </button>
-                                <p class="text-xs text-slate-400 mt-1">Butuh waktu 30-60 detik — Google menjalankan audit langsung, bukan data instan.</p>
+                                <p class="text-xs text-slate-400 mt-1">Butuh waktu 30-60 detik — Google menjalankan audit langsung,
+                                    bukan data instan.</p>
 
                                 <div id="pagespeedProgress" class="hidden mt-3">
                                     <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
-                                        <div id="pagespeedProgressBar" class="bg-blue-600 h-2 rounded-full transition-all" style="width:0%"></div>
+                                        <div id="pagespeedProgressBar" class="bg-blue-600 h-2 rounded-full transition-all"
+                                            style="width:0%"></div>
                                     </div>
                                     <p id="pagespeedProgressMessage" class="text-xs text-slate-500"></p>
                                 </div>
 
-                                <div id="pagespeedError" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3"></div>
+                                <div id="pagespeedError"
+                                    class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3"></div>
                             </div>
 
                             @if ($pagespeed)
@@ -502,17 +622,11 @@
                                         @if ($d)
                                             <div class="mb-5">
                                                 <p class="text-xs font-semibold text-slate-600 mb-2">{{ $label }}</p>
-                                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
-                                                    @foreach (['performance' => 'Performance', 'accessibility' => 'Accessibility', 'best_practices' => 'Best Practices', 'seo' => 'SEO'] as $scoreKey => $scoreLabel)
-                                                        @php
-                                                            $val = $d['scores'][$scoreKey] ?? null;
-                                                            $color = $val === null ? 'bg-slate-100 text-slate-500' : ($val >= 90 ? 'bg-emerald-50 text-emerald-700' : ($val >= 50 ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'));
-                                                        @endphp
-                                                        <div class="rounded-lg p-3 text-center {{ $color }}">
-                                                            <div class="text-lg font-bold">{{ $val ?? '-' }}</div>
-                                                            <div class="text-[11px]">{{ $scoreLabel }}</div>
-                                                        </div>
-                                                    @endforeach
+                                                <div class="flex justify-center gap-2 mb-3">
+                                                    @include('pdf.partials.gauge', ['score' => $d['scores']['performance'] ?? null, 'label' => 'Performance'])
+                                                    @include('pdf.partials.gauge', ['score' => $d['scores']['accessibility'] ?? null, 'label' => 'Accessibility'])
+                                                    @include('pdf.partials.gauge', ['score' => $d['scores']['best_practices'] ?? null, 'label' => 'Best Practices'])
+                                                    @include('pdf.partials.gauge', ['score' => $d['scores']['seo'] ?? null, 'label' => 'SEO'])
                                                 </div>
                                                 <div class="overflow-x-auto">
                                                     <table class="w-full text-sm">
@@ -529,15 +643,20 @@
                                                                 @php $m = $d['metrics'][$metricKey] ?? null; @endphp
                                                                 <tr class="border-b border-slate-50">
                                                                     <td class="py-1.5 pr-4 text-slate-700">{{ $metricLabel }}</td>
-                                                                    <td class="py-1.5 pr-4 text-slate-600">{{ $m['value'] ?? '-' }} {{ $m['unit'] ?? '' }}</td>
+                                                                    <td class="py-1.5 pr-4 text-slate-600">{{ $m['value'] ?? '-' }}
+                                                                        {{ $m['unit'] ?? '' }}
+                                                                    </td>
                                                                     <td class="py-1.5 pr-4">
                                                                         @php
                                                                             $statusMap = ['good' => ['Good', 'bg-emerald-50 text-emerald-700'], 'needs_improvement' => ['Needs Improvement', 'bg-amber-50 text-amber-700'], 'poor' => ['Poor', 'bg-red-50 text-red-700']];
                                                                             [$statusLabel, $statusColor] = $statusMap[$m['status'] ?? ''] ?? ['-', 'bg-slate-100 text-slate-500'];
                                                                         @endphp
-                                                                        <span class="text-xs px-2 py-0.5 rounded-full {{ $statusColor }}">{{ $statusLabel }}</span>
+                                                                        <span
+                                                                            class="text-xs px-2 py-0.5 rounded-full {{ $statusColor }}">{{ $statusLabel }}</span>
                                                                     </td>
-                                                                    <td class="py-1.5 text-xs text-slate-400">{{ ($m['source'] ?? null) === 'field' ? 'Data pengguna nyata' : (($m['source'] ?? null) === 'lab' ? 'Simulasi' : '-') }}</td>
+                                                                    <td class="py-1.5 text-xs text-slate-400">
+                                                                        {{ ($m['source'] ?? null) === 'field' ? 'Data pengguna nyata' : (($m['source'] ?? null) === 'lab' ? 'Simulasi' : '-') }}
+                                                                    </td>
                                                                 </tr>
                                                             @endforeach
                                                         </tbody>
@@ -579,7 +698,7 @@
                                                     errorBox.classList.remove('hidden');
                                                 }
                                             })
-                                            .catch(() => {});
+                                            .catch(() => { });
                                     }
 
                                     btn?.addEventListener('click', function () {
@@ -616,7 +735,8 @@
                         <div class="flex items-center justify-between mb-1">
                             <h2 class="font-semibold text-slate-800">Laporan Search Console</h2>
                             @if ($searchConsole)
-                                <span class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                                <span
+                                    class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
                                     <i class='bx bx-check'></i> Ada data
                                 </span>
                             @endif
@@ -636,7 +756,8 @@
                             </button>
                             <span id="gscSpinner" class="hidden text-xs text-slate-400 ml-2">Memuat...</span>
 
-                            <div id="gscError" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3"></div>
+                            <div id="gscError" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                            </div>
 
                             @if ($searchConsole)
                                 @php
@@ -655,11 +776,15 @@
                                             <div class="text-[11px] text-slate-400">Impressions</div>
                                         </div>
                                         <div class="rounded-lg p-3 text-center bg-slate-50">
-                                            <div class="text-lg font-bold text-slate-700">{{ isset($gscTotals['ctr']) ? round($gscTotals['ctr'] * 100, 1) . '%' : '-' }}</div>
+                                            <div class="text-lg font-bold text-slate-700">
+                                                {{ isset($gscTotals['ctr']) ? round($gscTotals['ctr'] * 100, 1) . '%' : '-' }}
+                                            </div>
                                             <div class="text-[11px] text-slate-400">CTR</div>
                                         </div>
                                         <div class="rounded-lg p-3 text-center bg-slate-50">
-                                            <div class="text-lg font-bold text-slate-700">{{ isset($gscTotals['position']) ? round($gscTotals['position'], 1) : '-' }}</div>
+                                            <div class="text-lg font-bold text-slate-700">
+                                                {{ isset($gscTotals['position']) ? round($gscTotals['position'], 1) : '-' }}
+                                            </div>
                                             <div class="text-[11px] text-slate-400">Posisi Rata-rata</div>
                                         </div>
                                     </div>
@@ -683,8 +808,12 @@
                                                             <td class="py-1.5 pr-4 text-slate-700">{{ $q['keys'][0] ?? '-' }}</td>
                                                             <td class="py-1.5 pr-4 text-slate-600">{{ $q['clicks'] ?? 0 }}</td>
                                                             <td class="py-1.5 pr-4 text-slate-600">{{ $q['impressions'] ?? 0 }}</td>
-                                                            <td class="py-1.5 pr-4 text-slate-600">{{ isset($q['ctr']) ? round($q['ctr'] * 100, 1) . '%' : '-' }}</td>
-                                                            <td class="py-1.5 text-slate-600">{{ isset($q['position']) ? round($q['position'], 1) : '-' }}</td>
+                                                            <td class="py-1.5 pr-4 text-slate-600">
+                                                                {{ isset($q['ctr']) ? round($q['ctr'] * 100, 1) . '%' : '-' }}
+                                                            </td>
+                                                            <td class="py-1.5 text-slate-600">
+                                                                {{ isset($q['position']) ? round($q['position'], 1) : '-' }}
+                                                            </td>
                                                         </tr>
                                                     @endforeach
                                                 </tbody>
@@ -705,7 +834,8 @@
                                                 <tbody>
                                                     @foreach ($gscByDevice as $d)
                                                         <tr class="border-b border-slate-50">
-                                                            <td class="py-1.5 pr-4 text-slate-700 capitalize">{{ strtolower($d['keys'][0] ?? '-') }}</td>
+                                                            <td class="py-1.5 pr-4 text-slate-700 capitalize">{{ strtolower($d['keys'][0] ?? '-') }}
+                                                            </td>
                                                             <td class="py-1.5 text-slate-600">{{ $d['clicks'] ?? 0 }}</td>
                                                         </tr>
                                                     @endforeach
@@ -715,7 +845,8 @@
                                     @endif
 
                                     <p class="text-xs text-slate-400 mt-3">
-                                        Periode: {{ $searchConsole['period']['start'] ?? '-' }} s/d {{ $searchConsole['period']['end'] ?? '-' }}
+                                        Periode: {{ $searchConsole['period']['start'] ?? '-' }} s/d
+                                        {{ $searchConsole['period']['end'] ?? '-' }}
                                         &middot; Terakhir ditarik: {{ $searchConsole['analyzed_at'] ?? '-' }}
                                     </p>
                                 </div>
@@ -769,7 +900,8 @@
                         <div class="flex items-center justify-between mb-1">
                             <h2 class="font-semibold text-slate-800">Laporan Google Analytics (GA4)</h2>
                             @if ($ga4)
-                                <span class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                                <span
+                                    class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
                                     <i class='bx bx-check'></i> Ada data
                                 </span>
                             @endif
@@ -789,20 +921,28 @@
                             </button>
                             <span id="ga4Spinner" class="hidden text-xs text-slate-400 ml-2">Memuat...</span>
 
-                            <div id="ga4Error" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3"></div>
+                            <div id="ga4Error" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                            </div>
 
                             {{-- Muncul kalau sistem TIDAK bisa nebak Property ID otomatis (ketemu > 1) --}}
                             <div id="ga4SelectBox" class="hidden mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                                 <p class="text-sm text-blue-700 mb-2">Ketemu beberapa Property GA4 yang cocok, pilih salah satu:</p>
-                                <select id="ga4PropertySelect" class="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm mb-2"></select>
-                                <button type="button" id="btnConfirmGa4Property" class="text-xs font-semibold bg-blue-600 text-white px-3 py-1.5 rounded-lg">Pakai Property Ini</button>
+                                <select id="ga4PropertySelect"
+                                    class="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm mb-2"></select>
+                                <button type="button" id="btnConfirmGa4Property"
+                                    class="text-xs font-semibold bg-blue-600 text-white px-3 py-1.5 rounded-lg">Pakai Property
+                                    Ini</button>
                             </div>
 
                             {{-- Muncul kalau sistem TIDAK ketemu Property yang cocok sama sekali --}}
                             <div id="ga4ManualBox" class="hidden mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                                <p class="text-sm text-amber-700 mb-2">Tidak ketemu Property GA4 otomatis. Isi Property ID manual (GA4 → Admin → Property Settings, formatnya angka saja, mis. 123456789):</p>
-                                <input type="text" id="ga4ManualInput" placeholder="123456789" class="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm mb-2">
-                                <button type="button" id="btnConfirmGa4Manual" class="text-xs font-semibold bg-amber-600 text-white px-3 py-1.5 rounded-lg">Simpan & Tarik Data</button>
+                                <p class="text-sm text-amber-700 mb-2">Tidak ketemu Property GA4 otomatis. Isi Property ID manual (GA4 →
+                                    Admin → Property Settings, formatnya angka saja, mis. 123456789):</p>
+                                <input type="text" id="ga4ManualInput" placeholder="123456789"
+                                    class="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm mb-2">
+                                <button type="button" id="btnConfirmGa4Manual"
+                                    class="text-xs font-semibold bg-amber-600 text-white px-3 py-1.5 rounded-lg">Simpan & Tarik
+                                    Data</button>
                             </div>
 
                             @if ($ga4)
@@ -859,8 +999,12 @@
                                                         <tr class="border-b border-slate-50">
                                                             <td class="py-1.5 pr-4 text-slate-700 break-all">{{ $p['landing_page'] ?? '-' }}</td>
                                                             <td class="py-1.5 pr-4 text-slate-600">{{ $p['sessions'] ?? 0 }}</td>
-                                                            <td class="py-1.5 pr-4 text-slate-600">{{ isset($p['engagement_rate']) ? round($p['engagement_rate'] * 100, 1) . '%' : '-' }}</td>
-                                                            <td class="py-1.5 pr-4 text-slate-600">{{ isset($p['avg_engagement_time']) ? $p['avg_engagement_time'] . 's' : '-' }}</td>
+                                                            <td class="py-1.5 pr-4 text-slate-600">
+                                                                {{ isset($p['engagement_rate']) ? round($p['engagement_rate'] * 100, 1) . '%' : '-' }}
+                                                            </td>
+                                                            <td class="py-1.5 pr-4 text-slate-600">
+                                                                {{ isset($p['avg_engagement_time']) ? $p['avg_engagement_time'] . 's' : '-' }}
+                                                            </td>
                                                             <td class="py-1.5 text-slate-600">{{ $p['conversions'] ?? 0 }}</td>
                                                         </tr>
                                                     @endforeach
