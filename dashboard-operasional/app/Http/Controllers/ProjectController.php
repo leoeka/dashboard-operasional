@@ -1240,6 +1240,99 @@ class ProjectController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function uploadManualScreenshot(Request $request, Project $project)
+    {
+        $validated = $request->validate([
+            'target' => ['required', 'string', 'regex:/^(own_pagespeed|competitor_pagespeed:.+)$/'],
+            'screenshot' => ['required', 'image', 'max:5120'],
+        ]);
+
+        $seo = $project->seo_requirements ?? [];
+        $manualScreenshots = $seo['manual_screenshots'] ?? [];
+
+        [$slotKey, $competitorHost] = array_pad(explode(':', $validated['target'], 2), 2, null);
+
+        $existingPath = $slotKey === 'competitor_pagespeed'
+            ? ($manualScreenshots['competitor_pagespeed'][$competitorHost] ?? null)
+            : ($manualScreenshots[$slotKey] ?? null);
+
+        if ($existingPath && Storage::disk('public')->exists($existingPath)) {
+            Storage::disk('public')->delete($existingPath);
+        }
+
+        $newPath = $request->file('screenshot')->store('manual-screenshots/' . $project->id, 'public');
+
+        if ($slotKey === 'competitor_pagespeed') {
+            $manualScreenshots['competitor_pagespeed'][$competitorHost] = $newPath;
+        } else {
+            $manualScreenshots[$slotKey] = $newPath;
+        }
+
+        $seo['manual_screenshots'] = $manualScreenshots;
+        $project->update(['seo_requirements' => $seo]);
+
+        return back()->with('success', 'Screenshot berhasil diunggah.');
+    }
+
+    public function deleteManualScreenshot(Request $request, Project $project)
+    {
+        $validated = $request->validate([
+            'target' => ['required', 'string', 'regex:/^(own_pagespeed|competitor_pagespeed:.+)$/'],
+        ]);
+
+        $seo = $project->seo_requirements ?? [];
+        $manualScreenshots = $seo['manual_screenshots'] ?? [];
+
+        [$slotKey, $competitorHost] = array_pad(explode(':', $validated['target'], 2), 2, null);
+
+        $path = $slotKey === 'competitor_pagespeed'
+            ? ($manualScreenshots['competitor_pagespeed'][$competitorHost] ?? null)
+            : ($manualScreenshots[$slotKey] ?? null);
+
+        if ($path && Storage::disk('public')->exists($path)) {
+            Storage::disk('public')->delete($path);
+        }
+
+        if ($slotKey === 'competitor_pagespeed') {
+            unset($manualScreenshots['competitor_pagespeed'][$competitorHost]);
+        } else {
+            unset($manualScreenshots[$slotKey]);
+        }
+
+        $seo['manual_screenshots'] = $manualScreenshots;
+        $project->update(['seo_requirements' => $seo]);
+
+        return back()->with('success', 'Screenshot dihapus.');
+    }
+
+    public function downloadSeoProposal(Project $project)
+    {
+        $seo = $project->seo_requirements ?? [];
+        $backlink = $project->backlink_requirements ?? [];
+
+        $discoveredCompetitors = collect(explode("\n", $seo['competitors'] ?? ''))
+            ->map(fn($u) => trim($u))
+            ->filter()
+            ->values();
+
+        $pdf = Pdf::loadView('pdf.seo-proposal', [
+            'project' => $project,
+            'seo' => $seo,
+            'backlink' => $backlink,
+            'aiRecommendations' => $seo['ai_recommendations'] ?? null,
+            'aiTopics' => $seo['ai_identified_topics'] ?? null,
+            'discoveredCompetitors' => $discoveredCompetitors,
+            'competitorPagespeed' => $seo['competitor_pagespeed'] ?? null,
+            'pagespeed' => $seo['pagespeed'] ?? null,
+            'generatedAt' => now()->format('d F Y H:i'),
+        ]);
+
+        $clientSlug = Str::slug($project->client_name);
+        $fileName = "Proposal-SEO-{$clientSlug}-{$project->code}.pdf";
+
+        return $pdf->download($fileName);
+    }
+
     public function competitorPageSpeedStatus(Project $project)
     {
         return response()->json(

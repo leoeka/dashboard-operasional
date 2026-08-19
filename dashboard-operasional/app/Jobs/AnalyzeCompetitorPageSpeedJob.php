@@ -52,7 +52,7 @@ class AnalyzeCompetitorPageSpeedJob implements ShouldQueue
         $competitorUrls = collect(explode("\n", $seo['competitors'] ?? ''))
             ->map(fn($u) => trim($u))
             ->filter()
-            ->take(2)
+            ->take(3)
             ->values();
 
         if ($competitorUrls->isEmpty()) {

@@ -6,10 +6,16 @@
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-2">
         <x-page-header title="SEO & Backlink Workspace" />
         @if ($project)
-            <a href="{{ route('pages.projects.seo-backlink.report.download', $project) }}"
-                class="inline-flex items-center gap-2 text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 hover:bg-blue-50 px-3 py-2 rounded-lg transition w-fit">
-                <i class='bx bx-download'></i> Unduh Laporan (PDF)
-            </a>
+            <div class="flex flex-col sm:flex-row gap-2 w-fit">
+                <a href="{{ route('pages.projects.seo-proposal.download', $project) }}"
+                    class="inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 hover:text-emerald-800 border border-emerald-200 hover:bg-emerald-50 px-3 py-2 rounded-lg transition w-fit">
+                    <i class='bx bx-file'></i> Unduh Proposal (PDF)
+                </a>
+                <a href="{{ route('pages.projects.seo-backlink.report.download', $project) }}"
+                    class="inline-flex items-center gap-2 text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 hover:bg-blue-50 px-3 py-2 rounded-lg transition w-fit">
+                    <i class='bx bx-download'></i> Unduh Laporan (PDF)
+                </a>
+            </div>
         @endif
     </div>
 
@@ -42,24 +48,24 @@
         </x-card>
     @else
         <!-- {{-- INFO PROJECT --}}
-                        <x-card class="mb-6">
-                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                                <div>
-                                    <p class="font-semibold text-slate-800">{{ $project->name }}</p>
-                                    <p class="text-sm text-slate-400">{{ $project->client_name }} &middot; {{ $project->type ?? '-' }}</p>
-                                </div>
-                                @if ($project->mockupTemplate)
-                                    <div
-                                        class="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg w-fit">
-                                        <i class='bx bx-check-circle'></i> Mockup: {{ $project->mockupTemplate->name }}
-                                    </div>
-                                @else
-                                    <div class="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg w-fit">
-                                        Belum ada mockup dipilih
-                                    </div>
-                                @endif
-                            </div>
-                        </x-card> -->
+                                                        <x-card class="mb-6">
+                                                            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                                                <div>
+                                                                    <p class="font-semibold text-slate-800">{{ $project->name }}</p>
+                                                                    <p class="text-sm text-slate-400">{{ $project->client_name }} &middot; {{ $project->type ?? '-' }}</p>
+                                                                </div>
+                                                                @if ($project->mockupTemplate)
+                                                                    <div
+                                                                        class="flex items-center gap-2 text-xs text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg w-fit">
+                                                                        <i class='bx bx-check-circle'></i> Mockup: {{ $project->mockupTemplate->name }}
+                                                                    </div>
+                                                                @else
+                                                                    <div class="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg w-fit">
+                                                                        Belum ada mockup dipilih
+                                                                    </div>
+                                                                @endif
+                                                            </div>
+                                                        </x-card> -->
 
         {{-- SEO & BACKLINK --}}
         @if (!$project->wants_seo && !$project->wants_backlink)
@@ -403,21 +409,12 @@
                                                 class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3"></div>
 
                                             @if ($competitorPagespeed)
-                                                @php $ownScores = $pagespeed['mobile']['scores'] ?? null; @endphp
                                                 <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                                    <div class="text-center">
-                                                        <p class="text-xs font-medium text-slate-600 mb-2">Website Anda</p>
-                                                        <div class="flex justify-center gap-1">
-                                                            @include('pdf.partials.gauge', ['score' => $ownScores['performance'] ?? null, 'label' => 'Performance'])
-                                                            @include('pdf.partials.gauge', ['score' => $ownScores['accessibility'] ?? null, 'label' => 'Accessibility'])
-                                                            @include('pdf.partials.gauge', ['score' => $ownScores['best_practices'] ?? null, 'label' => 'Best Practices'])
-                                                            @include('pdf.partials.gauge', ['score' => $ownScores['seo'] ?? null, 'label' => 'SEO'])
-                                                        </div>
-                                                    </div>
                                                     @foreach ($competitorPagespeed as $comp)
+                                                        @php $compHost = parse_url($comp['url'], PHP_URL_HOST); @endphp
                                                         <div class="text-center">
                                                             <p class="text-xs font-medium text-slate-600 mb-2 truncate" title="{{ $comp['url'] }}">
-                                                                {{ parse_url($comp['url'], PHP_URL_HOST) }}
+                                                                {{ $compHost }}
                                                             </p>
                                                             <div class="flex justify-center gap-1">
                                                                 @include('pdf.partials.gauge', ['score' => $comp['scores']['performance'] ?? null, 'label' => 'Performance'])
@@ -425,6 +422,35 @@
                                                                 @include('pdf.partials.gauge', ['score' => $comp['scores']['best_practices'] ?? null, 'label' => 'Best Practices'])
                                                                 @include('pdf.partials.gauge', ['score' => $comp['scores']['seo'] ?? null, 'label' => 'SEO'])
                                                             </div>
+
+                                                            <a href="https://pagespeed.web.dev/report?url={{ urlencode($comp['url']) }}" target="_blank"
+                                                                rel="noopener" class="text-[11px] text-blue-600 hover:underline block mt-2">Buka
+                                                                PageSpeed &rarr;</a>
+
+                                                            @if (!empty($seo['manual_screenshots']['competitor_pagespeed'][$compHost]))
+                                                                <div class="mt-1">
+                                                                    <img src="{{ Storage::url($seo['manual_screenshots']['competitor_pagespeed'][$compHost]) }}"
+                                                                        class="max-w-[140px] mx-auto border rounded-lg">
+                                                                    <form action="{{ route('pages.projects.manual-screenshot.destroy', $project) }}"
+                                                                        method="POST" class="mt-1">
+                                                                        @csrf
+                                                                        @method('DELETE')
+                                                                        <input type="hidden" name="target" value="competitor_pagespeed:{{ $compHost }}">
+                                                                        <button type="submit"
+                                                                            class="text-[11px] text-red-600 hover:underline">Hapus</button>
+                                                                    </form>
+                                                                </div>
+                                                            @else
+                                                                <form action="{{ route('pages.projects.manual-screenshot.store', $project) }}" method="POST"
+                                                                    enctype="multipart/form-data" class="mt-1">
+                                                                    @csrf
+                                                                    <input type="hidden" name="target" value="competitor_pagespeed:{{ $compHost }}">
+                                                                    <input type="file" name="screenshot" accept="image/*" required
+                                                                        class="text-[11px] w-full">
+                                                                    <button type="submit"
+                                                                        class="text-[11px] bg-blue-600 text-white px-2 py-1 rounded mt-1">Unggah</button>
+                                                                </form>
+                                                            @endif
                                                         </div>
                                                     @endforeach
                                                 </div>
@@ -666,6 +692,37 @@
                                         @endif
                                     @endforeach
                                     <p class="text-xs text-slate-400">Terakhir dianalisis: {{ $pagespeed['analyzed_at'] ?? '-' }}</p>
+
+                                    <div class="border-t border-slate-100 mt-4 pt-4">
+                                        <p class="text-xs font-medium text-slate-600 mb-1">Screenshot Laporan PageSpeed (untuk Proposal)</p>
+                                        <a href="https://pagespeed.web.dev/report?url={{ urlencode($resolvedUrl) }}" target="_blank"
+                                            rel="noopener" class="text-xs text-blue-600 hover:underline">Buka PageSpeed untuk situs ini
+                                            &rarr;</a>
+
+                                        @if (!empty($seo['manual_screenshots']['own_pagespeed']))
+                                            <div class="mt-2">
+                                                <img src="{{ Storage::url($seo['manual_screenshots']['own_pagespeed']) }}"
+                                                    class="max-w-xs border rounded-lg">
+                                                <form action="{{ route('pages.projects.manual-screenshot.destroy', $project) }}" method="POST"
+                                                    class="mt-1">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <input type="hidden" name="target" value="own_pagespeed">
+                                                    <button type="submit" class="text-xs text-red-600 hover:underline">Hapus & unggah
+                                                        ulang</button>
+                                                </form>
+                                            </div>
+                                        @else
+                                            <form action="{{ route('pages.projects.manual-screenshot.store', $project) }}" method="POST"
+                                                enctype="multipart/form-data" class="mt-2 flex items-center gap-2">
+                                                @csrf
+                                                <input type="hidden" name="target" value="own_pagespeed">
+                                                <input type="file" name="screenshot" accept="image/*" required class="text-xs">
+                                                <button type="submit"
+                                                    class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg">Unggah</button>
+                                            </form>
+                                        @endif
+                                    </div>
                                 </div>
                             @endif
 

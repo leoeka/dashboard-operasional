@@ -328,6 +328,16 @@
 
         <h2 class="section-title"><span class="roman">III.</span> ANALIYS SEO PAGE</h2>
 
+        @if (!empty($seo['manual_screenshots']['own_pagespeed']))
+            <div style="text-align:center; margin-bottom:12px;">
+                <img src="{{ Storage::disk('public')->path($seo['manual_screenshots']['own_pagespeed']) }}"
+                    style="max-width: 100%; border: 1px solid #e2e8f0;">
+            </div>
+        @else
+            <p class="empty-note" style="margin-bottom:8px;">Screenshot laporan PageSpeed belum diunggah untuk proposal ini.
+            </p>
+        @endif
+
         @if ($pagespeed)
             <table class="data">
                 <thead>
@@ -369,8 +379,9 @@
             <span class="roman">IV.</span> ANALISYS COMPETITOR {{ strtoupper($project->client_name) }}
         </h2>
 
-        @if ($discoveredCompetitors->isNotEmpty())
-            @foreach ($discoveredCompetitors as $index => $url)
+        @php $competitorsToShow = $discoveredCompetitors->take(3); @endphp
+        @if ($competitorsToShow->isNotEmpty())
+            @foreach ($competitorsToShow as $index => $url)
                 @php
                     $host = parse_url($url, PHP_URL_HOST);
                     $compData = $competitorPagespeedByHost->get($host);
@@ -384,18 +395,15 @@
 
                     @if ($compData)
                         <div class="pagespeed-block">
-                            @if (!empty($compData['screenshot']))
-                                <div style="text-align:center; margin-bottom:8px;">
-                                    <img src="{{ $compData['screenshot'] }}"
-                                        style="max-width: 140px; height: auto; border: 1px solid #e2e8f0;">
+                            @php $compManualScreenshot = $seo['manual_screenshots']['competitor_pagespeed'][$host] ?? null; @endphp
+                            @if (!empty($compManualScreenshot))
+                                <div style="text-align:center;">
+                                    <img src="{{ Storage::disk('public')->path($compManualScreenshot) }}"
+                                        style="max-width: 100%; border: 1px solid #e2e8f0;">
                                 </div>
+                            @else
+                                <p class="empty-note">Screenshot laporan PageSpeed kompetitor ini belum diunggah.</p>
                             @endif
-                            <div style="text-align:center;">
-                                @include('pdf.partials.gauge-static', ['score' => $compData['scores']['performance'] ?? null, 'label' => 'Performance'])
-                                @include('pdf.partials.gauge-static', ['score' => $compData['scores']['accessibility'] ?? null, 'label' => 'Accessibility'])
-                                @include('pdf.partials.gauge-static', ['score' => $compData['scores']['best_practices'] ?? null, 'label' => 'Best Practices'])
-                                @include('pdf.partials.gauge-static', ['score' => $compData['scores']['seo'] ?? null, 'label' => 'SEO'])
-                            </div>
                         </div>
                     @else
                         <p class="empty-note">Data performa untuk kompetitor ini belum dianalisis (dibatasi 2
@@ -431,7 +439,7 @@
         @if (!empty($aiRecommendations['main_keywords']))
             <ul class="simple-list">
                 @foreach (array_slice($aiRecommendations['main_keywords'], 0, 11) as $keyword)
-                    <li><span class="bullet-arrow">&#10146;</span> {{ $keyword }}</li>
+                    <li><span class="bullet-arrow">&#10146;</span> {{ $keyword['keyword'] ?? '-' }}</li>
                 @endforeach
             </ul>
         @else
@@ -456,15 +464,17 @@
         </div>
 
         <ul class="price-list">
-             <li><span class="bullet-arrow">&#10146;</span> Minimum 3 words/long tail keywords</li>
-            <li><span class="bullet-arrow">&#10146;</span> 10 keywords (including Main Keywords and Derivative Keywords)</li>
+            <li><span class="bullet-arrow">&#10146;</span> Minimum 3 words/long tail keywords</li>
+            <li><span class="bullet-arrow">&#10146;</span> 10 keywords (including Main Keywords and Derivative Keywords)
+            </li>
             <li><span class="bullet-arrow">&#10146;</span> Keyword recommendations based on Keyword Research</li>
             <li><span class="bullet-arrow">&#10146;</span> Website Audit/Fixing SEO Technical</li>
             <li><span class="bullet-arrow">&#10146;</span> On Page SEO</li>
             <li><span class="bullet-arrow">&#10146;</span> Page Structure Optimization</li>
             <li><span class="bullet-arrow">&#10146;</span> UX Optimization</li>
             <li><span class="bullet-arrow">&#10146;</span> Internal Linking Building</li>
-            <li><span class="bullet-arrow">&#10146;</span> SEO Articles (10 updated articles/month, 1000 words maximum)</li>
+            <li><span class="bullet-arrow">&#10146;</span> SEO Articles (10 updated articles/month, 1000 words maximum)
+            </li>
             <li><span class="bullet-arrow">&#10146;</span> Link Building Booster (Backlink)</li>
             <li><span class="bullet-arrow">&#10146;</span> Monthly Report</li>
             <li><span class="bullet-arrow">&#10146;</span> 100% White Hat SEO Technique</li>

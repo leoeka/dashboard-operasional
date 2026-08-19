@@ -90,6 +90,12 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.competitor-pagespeed.analyze');
     Route::get('/projects/{project}/competitor-pagespeed/status', [ProjectController::class, 'competitorPageSpeedStatus'])
         ->name('pages.projects.competitor-pagespeed.status');
+    Route::post('/projects/{project}/manual-screenshot', [ProjectController::class, 'uploadManualScreenshot'])
+        ->name('pages.projects.manual-screenshot.store');
+    Route::delete('/projects/{project}/manual-screenshot', [ProjectController::class, 'deleteManualScreenshot'])
+        ->name('pages.projects.manual-screenshot.destroy');
+    Route::get('/projects/{project}/seo-proposal/download', [ProjectController::class, 'downloadSeoProposal'])
+        ->name('pages.projects.seo-proposal.download');
 
 
     // 6. Mockup
