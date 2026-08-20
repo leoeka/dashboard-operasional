@@ -803,16 +803,15 @@ class ProjectController extends Controller
             }
         }
 
-        // 4B. FAIL-FAST: kalau mockup ZipWP gagal di titik manapun (gagal ambil
-        // daftar template, gagal create-ai-site, timeout polling, atau exception
-        // lain), STOP TOTAL di sini. Job ditandai failed, PDF proposal TIDAK
-        // dibuat sama sekali — daripada lanjut dengan status "berhasil" yang
-        // menyesatkan padahal mockup situsnya gagal.
+        // 4B. Mockup boleh gagal tanpa membatalkan proposal. Misalnya quota
+        // ZipWP habis, PDF tetap berguna dan bagian mockup akan menampilkan
+        // keterangan bahwa preview belum tersedia.
         if (!$reuseExistingSite && $mockupFailReason) {
-            $failMessage = 'Gagal membuat mockup website (ZipWP): ' . $mockupFailReason;
-            Log::error($failMessage, ['project_id' => $project->id]);
-            $this->reportProgress($project, 'failed', 0, $failMessage);
-            throw new \RuntimeException($failMessage);
+            Log::warning('Mockup website tidak tersedia, proposal tetap dilanjutkan.', [
+                'project_id' => $project->id,
+                'reason' => $mockupFailReason,
+            ]);
+            $this->reportProgress($project, 'processing', 75, 'Mockup tidak tersedia, melanjutkan pembuatan PDF proposal...');
         }
 
         // 3B. Ambil screenshot dari situs ZipWP (kalau site_url tersedia) untuk ditempel di PDF
@@ -894,7 +893,10 @@ class ProjectController extends Controller
             );
 
             // 5. UPDATE PROGRESS: Selesai!
-            $this->reportProgress($project, 'completed', 100, 'Proposal dan Website berhasil dibuat!');
+            $completionMessage = $mockupFailReason
+                ? 'Proposal berhasil dibuat; mockup belum tersedia karena layanan ZipWP gagal.'
+                : 'Proposal dan Website berhasil dibuat!';
+            $this->reportProgress($project, 'completed', 100, $completionMessage);
 
         } catch (\Throwable $e) {
             Log::error('PDF Error: ' . $e->getMessage());
