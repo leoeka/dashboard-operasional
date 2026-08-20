@@ -16,20 +16,114 @@ class AiServices
 {
     public function analyzeProject(Project $project, Client $client, array $zipWpTemplates = []): array
     {
+        if (!config('services.proposal_ai_enabled', true)) {
+            Log::warning('AI proposal dinonaktifkan, memakai analisis fallback lokal.', [
+                'project_id' => $project->id,
+            ]);
+
+            return $this->fallbackProjectAnalysis($project, $zipWpTemplates);
+        }
+
         // =====================================================
         // TAHAP 1: GEMINI -> Analisis Bisnis & Target Pasar
         // =====================================================
-        $businessAnalysis = $this->analyzeBusinessWithGemini($project, $client);
+        try {
+            $businessAnalysis = $this->analyzeBusinessWithGemini($project, $client);
+        } catch (\Throwable $e) {
+            Log::warning('Gemini tidak tersedia, memakai analisis bisnis fallback.', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            $businessAnalysis = [
+                'business_analysis' => [
+                    'brand_identity' => $project->name,
+                    'value_proposition' => $project->description ?: 'Professional business website',
+                ],
+                'market_analysis' => [],
+                'target_market' => [],
+                'competitor_analysis' => [],
+                'website_objective' => [
+                    'primary_goal' => 'Generate qualified enquiries',
+                ],
+            ];
+        }
 
         // =====================================================
         // TAHAP 2: GPT -> Sitemap, Struktur, Desain Web, + PILIH TEMPLATE
         // =====================================================
-        $designAnalysis = $this->analyzeDesignWithGpt($project, $businessAnalysis, $zipWpTemplates);
+        try {
+            $designAnalysis = $this->analyzeDesignWithGpt($project, $businessAnalysis, $zipWpTemplates);
+        } catch (\Throwable $e) {
+            Log::warning('GPT tidak tersedia, memakai analisis desain fallback.', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            $fallbackTemplate = $this->pickBestTemplate(
+                $zipWpTemplates,
+                $project->type ?? 'Company Profile',
+                $project->description ?? ''
+            );
+
+            $designAnalysis = [
+                'sitemap' => [],
+                'page_structure' => [],
+                'content_strategy' => [
+                    'tone_of_voice' => 'Professional and welcoming',
+                ],
+                'cta_strategy' => [],
+                'design_direction' => [
+                    'layout_style' => 'Clean, responsive and conversion-focused',
+                ],
+                'template_selection' => $fallbackTemplate ? [
+                    'uuid' => $fallbackTemplate['uuid'] ?? null,
+                    'name' => $fallbackTemplate['name'] ?? null,
+                    'reason' => 'Selected by local fallback matching.',
+                ] : null,
+            ];
+        }
 
         // =====================================================
         // GABUNGKAN HASIL KEDUANYA
         // =====================================================
         return array_merge($businessAnalysis, $designAnalysis);
+    }
+
+    private function fallbackProjectAnalysis(Project $project, array $zipWpTemplates): array
+    {
+        $fallbackTemplate = $this->pickBestTemplate(
+            $zipWpTemplates,
+            $project->type ?? 'Company Profile',
+            $project->description ?? ''
+        );
+
+        return [
+            'business_analysis' => [
+                'brand_identity' => $project->name,
+                'value_proposition' => $project->description ?: 'Professional business website',
+            ],
+            'market_analysis' => [],
+            'target_market' => [],
+            'competitor_analysis' => [],
+            'website_objective' => [
+                'primary_goal' => 'Generate qualified enquiries',
+            ],
+            'sitemap' => [],
+            'page_structure' => [],
+            'content_strategy' => [
+                'tone_of_voice' => 'Professional and welcoming',
+            ],
+            'cta_strategy' => [],
+            'design_direction' => [
+                'layout_style' => 'Clean, responsive and conversion-focused',
+            ],
+            'template_selection' => $fallbackTemplate ? [
+                'uuid' => $fallbackTemplate['uuid'] ?? null,
+                'name' => $fallbackTemplate['name'] ?? null,
+                'reason' => 'Selected by local fallback matching.',
+            ] : null,
+        ];
     }
 
     /**
@@ -60,7 +154,7 @@ Return a JSON object with EXACTLY these keys:
 Respond with ONLY valid JSON, no markdown formatting, no explanation.
 ";
 
-        $maxRetries = 3;
+        $maxRetries = 1;
         $attempt = 1;
 
         while ($attempt <= $maxRetries) {

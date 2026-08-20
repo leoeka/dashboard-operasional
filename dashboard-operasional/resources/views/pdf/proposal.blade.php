@@ -11,8 +11,8 @@
         body {
             font-family: Helvetica, Arial, sans-serif;
             color: #1e293b;
-            font-size: 12px;
-            line-height: 1.6;
+            font-size: 16px;
+            line-height: 1.7;
             margin: 0;
         }
 
@@ -33,14 +33,14 @@
         }
 
         .cover .title-block .client-name {
-            font-size: 20px;
+            font-size: 28px;
             font-weight: bold;
             color: #2c4a6b;
             letter-spacing: 1px;
         }
 
         .cover .title-block .subtitle {
-            font-size: 16px;
+            font-size: 22px;
             font-weight: bold;
             color: #2c4a6b;
             letter-spacing: 1px;
@@ -65,27 +65,32 @@
         }
 
         .content-page {
+            background-image: url('{{ public_path('images/header-bg.jpg') }}');
+            background-size: 100% 100%;
+            background-position: center top;
+            background-repeat: no-repeat;
             padding: 20px 45px 40px;
             page-break-after: always;
             position: relative;
+            min-height: 1056px;
+            box-sizing: border-box;
         }
 
         .header-band {
-            background-image: url('{{ public_path('images/header-bg.jpg') }}');
-            background-size: cover;
+            background: transparent;
             height: 85px;
             margin: -20px -45px 25px -45px;
             padding: 18px 45px 0;
         }
 
         .header-band .logo {
-            width: 105px;
+            width: 155px;
         }
 
         .header-band .date {
             float: right;
             color: #fff;
-            font-size: 11px;
+            font-size: 15px;
             margin-top: 4px;
         }
 
@@ -95,19 +100,19 @@
         }
 
         .signature-logo {
-            width: 130px;
-            margin: 10px 0 4px;
+            width: 190px;
+            margin: 14px 0 6px;
         }
 
         .agency-signoff {
             font-weight: bold;
-            font-size: 12px;
+            font-size: 16px;
         }
 
         h2.section-title {
             background: #f1f5f9;
-            padding: 10px 16px;
-            font-size: 14px;
+            padding: 12px 16px;
+            font-size: 19px;
             text-align: center;
             margin: 0 0 20px;
         }
@@ -132,14 +137,16 @@
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
+            table-layout: fixed;
         }
 
         table.cost-table th,
         table.cost-table td {
             border: 1px solid #94a3b8;
-            padding: 8px 10px;
+            padding: 9px 11px;
             text-align: left;
-            font-size: 11px;
+            font-size: 15px;
+            line-height: 1.55;
             vertical-align: top;
         }
 
@@ -154,7 +161,7 @@
         }
 
         .feature-list li {
-            margin-bottom: 3px;
+            margin-bottom: 4px;
         }
 
         .terms {
@@ -162,8 +169,8 @@
         }
 
         .terms li {
-            margin-bottom: 8px;
-            font-size: 11px;
+            margin-bottom: 10px;
+            font-size: 15px;
         }
 
         .clients-block {
@@ -171,8 +178,14 @@
             margin-top: 20px;
         }
 
+        .clients-block img {
+            max-width: 100%;
+            width: 360px;
+            height: auto;
+        }
+
         .clients-block .label {
-            font-size: 11px;
+            font-size: 15px;
             color: #64748b;
             margin-bottom: 10px;
         }
@@ -183,22 +196,32 @@
         }
 
         .portfolio-block .label {
-            font-size: 11px;
+            font-size: 15px;
             color: #64748b;
             margin-bottom: 4px;
         }
 
         .portfolio-block a {
-            color: #2563eb;
-            font-size: 11px;
+            color: #111827;
+            font-size: 18px;
+            font-weight: bold;
+            text-decoration: none;
         }
 
         .thank-you {
             text-align: center;
-            font-size: 26px;
+            font-size: 30px;
             font-weight: bold;
             color: #1e293b;
             margin-top: 40px;
+        }
+
+        .page-number {
+            position: absolute;
+            right: 72px;
+            bottom: 28px;
+            color: #fff;
+            font-size: 15px;
         }
     </style>
 </head>
@@ -236,6 +259,7 @@
 
         <img src="{{ public_path('images/logo-transparent.png') }}" class="signature-logo">
         <p class="agency-signoff">PT. EXITO BALI DIGITAL</p>
+        <span class="page-number">1</span>
     </div>
 
     {{-- ===== HALAMAN: DESIGN MOCK UP ===== --}}
@@ -252,10 +276,17 @@
         @else
             <p style="text-align:center; color:#94a3b8;">
                 Design mock up belum tersedia.
+                @if (!empty($mockup['fail_reason']))
+                    <br>{{ $mockup['fail_reason'] }}
+                @endif
             </p>
         @endif
+        <span class="page-number">2</span>
     </div>
 
+    @include('pdf.proposal-pages')
+
+    @if (false)
     {{-- ===== HALAMAN: COST TABLE + OTHER SERVICES + SYARAT + KLIEN + PENUTUP ===== --}}
     <div class="content-page">
         <div class="header-band">
@@ -367,6 +398,7 @@
 
         <div class="thank-you">Thank you for your interest</div>
     </div>
+    @endif
 
 </body>
 

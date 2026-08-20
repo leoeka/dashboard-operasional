@@ -371,7 +371,24 @@
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
                     'Accept': 'application/json',
                 },
-            }).then(() => pollProposalStatus(projectId));
+            }).then(response => {
+                if (!response.ok) {
+                    throw new Error(`Generate gagal (${response.status})`);
+                }
+
+                pollProposalStatus(projectId);
+            }).catch(error => {
+                ProgressModal.update('mockup-progress-modal', {
+                    percent: 0,
+                    message: error.message || 'Gagal memulai generate proposal.',
+                    status: 'failed',
+                });
+                if (btn) {
+                    btn.disabled = false;
+                    btn.querySelector('span').innerText = 'Generate Proposal';
+                }
+                idleWarning?.classList.remove('hidden');
+            });
 
             function pollProposalStatus(projectId) {
                 fetch(`/projects/${projectId}/proposal/status`, {
@@ -379,10 +396,15 @@
                             'Accept': 'application/json'
                         },
                     })
-                    .then(res => res.json())
+                    .then(res => {
+                        if (!res.ok) {
+                            throw new Error(`Status proposal gagal (${res.status})`);
+                        }
+                        return res.json();
+                    })
                     .then(data => {
                         const pct = data.progress ?? 0;
-                        const status = data.status === 'done' ? 'done' : data.status === 'failed' ? 'failed' :
+                        const status = ['done', 'completed'].includes(data.status) ? 'done' : data.status === 'failed' ? 'failed' :
                             'processing';
 
                         ProgressModal.update('mockup-progress-modal', {
@@ -402,6 +424,18 @@
                         } else {
                             setTimeout(() => pollProposalStatus(projectId), 1500);
                         }
+                    })
+                    .catch(error => {
+                        ProgressModal.update('mockup-progress-modal', {
+                            percent: 0,
+                            message: error.message || 'Gagal membaca status proposal.',
+                            status: 'failed',
+                        });
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.querySelector('span').innerText = 'Generate Proposal';
+                        }
+                        idleWarning?.classList.remove('hidden');
                     });
             }
         }
