@@ -179,10 +179,10 @@
             font-style: italic;
         }
 
-        /* Blok screenshot+gauge per kompetitor DIBUNGKUS pakai kelas
-           ini supaya dompdf tidak memotongnya di tengah kalau sisa
-           halaman tidak cukup — kalau tidak muat, dompdf lempar
-           SELURUH blok ke halaman berikutnya sekaligus. */
+        /* Blok screenshot per kompetitor DIBUNGKUS pakai kelas ini
+           supaya dompdf tidak memotongnya di tengah kalau sisa halaman
+           tidak cukup — kalau tidak muat, dompdf lempar SELURUH blok ke
+           halaman berikutnya sekaligus. */
         .pagespeed-block {
             page-break-inside: avoid;
             margin-bottom: 16px;
@@ -272,9 +272,6 @@
         $pageCounter = 2;
         $totalPages = 5;
 
-        // Index kompetitor by host supaya gampang dicocokkan ke data
-        // screenshot+scores dari $competitorPagespeed (yang cuma berisi
-        // maks 2 kompetitor teratas, bukan semua $discoveredCompetitors).
         $competitorPagespeedByHost = collect($competitorPagespeed ?? [])
             ->keyBy(fn($c) => parse_url($c['url'], PHP_URL_HOST));
     @endphp
@@ -328,6 +325,15 @@
 
         <h2 class="section-title"><span class="roman">III.</span> ANALIYS SEO PAGE</h2>
 
+        @if (!empty($seo['manual_screenshots']['own_semrush']))
+            <div style="text-align:center; margin-bottom:12px;">
+                <img src="{{ Storage::disk('public')->path($seo['manual_screenshots']['own_semrush']) }}"
+                    style="max-width: 100%; border: 1px solid #e2e8f0;">
+            </div>
+        @else
+            <p class="empty-note" style="margin-bottom:8px;">Screenshot Semrush belum diunggah untuk proposal ini.</p>
+        @endif
+
         @if (!empty($seo['manual_screenshots']['own_pagespeed']))
             <div style="text-align:center; margin-bottom:12px;">
                 <img src="{{ Storage::disk('public')->path($seo['manual_screenshots']['own_pagespeed']) }}"
@@ -336,36 +342,6 @@
         @else
             <p class="empty-note" style="margin-bottom:8px;">Screenshot laporan PageSpeed belum diunggah untuk proposal ini.
             </p>
-        @endif
-
-        @if ($pagespeed)
-            <table class="data">
-                <thead>
-                    <tr>
-                        <th>DEVICE</th>
-                        <th>PERFORMANCE</th>
-                        <th>ACCESSIBILITY</th>
-                        <th>BEST PRACTICES</th>
-                        <th>SEO</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (['mobile' => 'MOBILE', 'desktop' => 'DESKTOP'] as $key => $label)
-                        @php $d = $pagespeed[$key] ?? null; @endphp
-                        @if ($d)
-                            <tr>
-                                <td>{{ $label }}</td>
-                                <td>{{ $d['scores']['performance'] ?? '-' }}</td>
-                                <td>{{ $d['scores']['accessibility'] ?? '-' }}</td>
-                                <td>{{ $d['scores']['best_practices'] ?? '-' }}</td>
-                                <td>{{ $d['scores']['seo'] ?? '-' }}</td>
-                            </tr>
-                        @endif
-                    @endforeach
-                </tbody>
-            </table>
-        @else
-            <p class="empty-note">Belum ada data analisis SEO page.</p>
         @endif
     </div>
 
@@ -379,7 +355,11 @@
             <span class="roman">IV.</span> ANALISYS COMPETITOR {{ strtoupper($project->client_name) }}
         </h2>
 
-        @php $competitorsToShow = $discoveredCompetitors->take(3); @endphp
+        @php
+            $competitorsToShow = !empty($seo['selected_competitors'])
+                ? collect($seo['selected_competitors'])
+                : $discoveredCompetitors->take(3);
+        @endphp
         @if ($competitorsToShow->isNotEmpty())
             @foreach ($competitorsToShow as $index => $url)
                 @php
@@ -395,18 +375,31 @@
 
                     @if ($compData)
                         <div class="pagespeed-block">
-                            @php $compManualScreenshot = $seo['manual_screenshots']['competitor_pagespeed'][$host] ?? null; @endphp
+                            @php
+                                $compSemrushScreenshot = $seo['manual_screenshots']['competitor_semrush'][$host] ?? null;
+                                $compManualScreenshot = $seo['manual_screenshots']['competitor_pagespeed'][$host] ?? null;
+                            @endphp
+
+                            @if (!empty($compSemrushScreenshot))
+                                <div style="text-align:center; margin-bottom:8px;">
+                                    <img src="{{ Storage::disk('public')->path($compSemrushScreenshot) }}"
+                                        style="max-width: 100%; border: 1px solid #e2e8f0;">
+                                </div>
+                            @endif
+
                             @if (!empty($compManualScreenshot))
                                 <div style="text-align:center;">
                                     <img src="{{ Storage::disk('public')->path($compManualScreenshot) }}"
                                         style="max-width: 100%; border: 1px solid #e2e8f0;">
                                 </div>
-                            @else
-                                <p class="empty-note">Screenshot laporan PageSpeed kompetitor ini belum diunggah.</p>
+                            @endif
+
+                            @if (empty($compSemrushScreenshot) && empty($compManualScreenshot))
+                                <p class="empty-note">Screenshot Semrush & PageSpeed untuk kompetitor ini belum diunggah.</p>
                             @endif
                         </div>
                     @else
-                        <p class="empty-note">Data performa untuk kompetitor ini belum dianalisis (dibatasi 2
+                        <p class="empty-note">Data performa untuk kompetitor ini belum dianalisis (dibatasi 2-3
                             kompetitor teratas per analisis).</p>
                     @endif
                 </div>

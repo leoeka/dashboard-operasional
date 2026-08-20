@@ -1240,10 +1240,57 @@ class ProjectController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function selectCompetitors(Request $request, Project $project)
+    {
+        $validated = $request->validate([
+            'selected_urls' => ['nullable', 'array'],
+            'selected_urls.*' => ['string'],
+            'manual_urls' => ['nullable', 'string'],
+        ]);
+
+        $manualUrls = collect(explode("\n", $validated['manual_urls'] ?? ''))
+            ->map(fn($u) => trim($u))
+            ->filter()
+            ->filter(fn($u) => filter_var($u, FILTER_VALIDATE_URL) !== false)
+            ->values();
+
+        $checkedUrls = collect($validated['selected_urls'] ?? []);
+
+        $combined = $checkedUrls->merge($manualUrls)->unique()->values();
+
+        if ($combined->count() > 3) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Total kompetitor (centang + manual) maksimal 3.',
+            ], 422);
+        }
+
+        if ($combined->isEmpty()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Pilih minimal 1 kompetitor.',
+            ], 422);
+        }
+
+        $seo = $project->seo_requirements ?? [];
+        $seo['selected_competitors'] = $combined->all();
+        $project->update(['seo_requirements' => $seo]);
+
+        \App\Jobs\AnalyzeCompetitorPageSpeedJob::dispatch($project->id);
+
+        Cache::put(
+            \App\Jobs\AnalyzeCompetitorPageSpeedJob::cacheKey($project->id),
+            ['status' => 'running', 'progress' => 0, 'message' => 'Memulai...'],
+            now()->addMinutes(10)
+        );
+
+        return response()->json(['success' => true]);
+    }
+
     public function uploadManualScreenshot(Request $request, Project $project)
     {
         $validated = $request->validate([
-            'target' => ['required', 'string', 'regex:/^(own_pagespeed|competitor_pagespeed:.+)$/'],
+            'target' => ['required', 'string', 'regex:/^(own_pagespeed|own_semrush|competitor_pagespeed:.+|competitor_semrush:.+)$/'],
             'screenshot' => ['required', 'image', 'max:5120'],
         ]);
 
@@ -1251,9 +1298,10 @@ class ProjectController extends Controller
         $manualScreenshots = $seo['manual_screenshots'] ?? [];
 
         [$slotKey, $competitorHost] = array_pad(explode(':', $validated['target'], 2), 2, null);
+        $isCompetitorSlot = in_array($slotKey, ['competitor_pagespeed', 'competitor_semrush']);
 
-        $existingPath = $slotKey === 'competitor_pagespeed'
-            ? ($manualScreenshots['competitor_pagespeed'][$competitorHost] ?? null)
+        $existingPath = $isCompetitorSlot
+            ? (is_array($manualScreenshots[$slotKey] ?? null) ? ($manualScreenshots[$slotKey][$competitorHost] ?? null) : null)
             : ($manualScreenshots[$slotKey] ?? null);
 
         if ($existingPath && Storage::disk('public')->exists($existingPath)) {
@@ -1262,8 +1310,11 @@ class ProjectController extends Controller
 
         $newPath = $request->file('screenshot')->store('manual-screenshots/' . $project->id, 'public');
 
-        if ($slotKey === 'competitor_pagespeed') {
-            $manualScreenshots['competitor_pagespeed'][$competitorHost] = $newPath;
+        if ($isCompetitorSlot) {
+            if (!isset($manualScreenshots[$slotKey]) || !is_array($manualScreenshots[$slotKey])) {
+                $manualScreenshots[$slotKey] = [];   // reset kalau data lama rusak (bukan array)
+            }
+            $manualScreenshots[$slotKey][$competitorHost] = $newPath;
         } else {
             $manualScreenshots[$slotKey] = $newPath;
         }
@@ -1277,24 +1328,25 @@ class ProjectController extends Controller
     public function deleteManualScreenshot(Request $request, Project $project)
     {
         $validated = $request->validate([
-            'target' => ['required', 'string', 'regex:/^(own_pagespeed|competitor_pagespeed:.+)$/'],
+            'target' => ['required', 'string', 'regex:/^(own_pagespeed|own_semrush|competitor_pagespeed:.+|competitor_semrush:.+)$/'],
         ]);
 
         $seo = $project->seo_requirements ?? [];
         $manualScreenshots = $seo['manual_screenshots'] ?? [];
 
         [$slotKey, $competitorHost] = array_pad(explode(':', $validated['target'], 2), 2, null);
+        $isCompetitorSlot = in_array($slotKey, ['competitor_pagespeed', 'competitor_semrush']);
 
-        $path = $slotKey === 'competitor_pagespeed'
-            ? ($manualScreenshots['competitor_pagespeed'][$competitorHost] ?? null)
+        $path = $isCompetitorSlot
+            ? (is_array($manualScreenshots[$slotKey] ?? null) ? ($manualScreenshots[$slotKey][$competitorHost] ?? null) : null)
             : ($manualScreenshots[$slotKey] ?? null);
 
         if ($path && Storage::disk('public')->exists($path)) {
             Storage::disk('public')->delete($path);
         }
 
-        if ($slotKey === 'competitor_pagespeed') {
-            unset($manualScreenshots['competitor_pagespeed'][$competitorHost]);
+        if ($isCompetitorSlot) {
+            unset($manualScreenshots[$slotKey][$competitorHost]);
         } else {
             unset($manualScreenshots[$slotKey]);
         }

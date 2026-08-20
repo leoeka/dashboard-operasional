@@ -49,7 +49,7 @@ class AnalyzeCompetitorPageSpeedJob implements ShouldQueue
 
         $seo = $project->seo_requirements ?? [];
 
-        $competitorUrls = collect(explode("\n", $seo['competitors'] ?? ''))
+        $competitorUrls = collect($seo['selected_competitors'] ?? explode("\n", $seo['competitors'] ?? ''))
             ->map(fn($u) => trim($u))
             ->filter()
             ->take(3)
