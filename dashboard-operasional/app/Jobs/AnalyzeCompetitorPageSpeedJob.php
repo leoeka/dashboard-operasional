@@ -66,6 +66,8 @@ class AnalyzeCompetitorPageSpeedJob implements ShouldQueue
 
         $total = $competitorUrls->count();
         $results = [];
+        $failedCount = 0;
+        $failureMessage = null;
 
         foreach ($competitorUrls as $index => $url) {
             Cache::put(self::cacheKey($this->projectId), [
@@ -84,11 +86,33 @@ class AnalyzeCompetitorPageSpeedJob implements ShouldQueue
                 $result = null;
             }
 
+            if (!$result) {
+                $failedCount++;
+                $failureMessage ??= $service->lastError;
+                $results[] = [
+                    'url' => $url,
+                    'scores' => null,
+                    'screenshot' => null,
+                    'error' => $service->lastError ?? 'Analisis PageSpeed gagal untuk kompetitor ini.',
+                ];
+                continue;
+            }
+
             $results[] = [
                 'url' => $url,
                 'scores' => $result['scores'] ?? null,
                 'screenshot' => $result['screenshot'] ?? null,
+                'error' => null,
             ];
+        }
+
+        if ($failedCount === $total) {
+            Cache::put(self::cacheKey($this->projectId), [
+                'status' => 'error',
+                'progress' => 0,
+                'message' => $failureMessage ?? 'Semua analisis kompetitor gagal. Silakan coba lagi.',
+            ], now()->addMinutes(10));
+            return;
         }
 
         $freshSeo = $project->fresh()->seo_requirements ?? [];
@@ -99,7 +123,9 @@ class AnalyzeCompetitorPageSpeedJob implements ShouldQueue
         Cache::put(self::cacheKey($this->projectId), [
             'status' => 'done',
             'progress' => 100,
-            'message' => 'Selesai.',
+            'message' => $failedCount > 0
+                ? "Selesai, tetapi {$failedCount} kompetitor gagal dianalisis."
+                : 'Selesai.',
         ], now()->addMinutes(10));
     }
 }

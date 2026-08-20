@@ -17,9 +17,13 @@ use Illuminate\Support\Facades\Log;
  */
 class PageSpeedService
 {
+    /** Pesan kegagalan terakhir, dipakai job untuk memberi status yang berguna ke UI. */
+    public ?string $lastError = null;
+
     public function analyze(string $url, string $strategy = 'mobile'): ?array
     {
         $apiKey = config('services.pagespeed.api_key');
+        $this->lastError = null;
 
         try {
             // FIX: PageSpeed API butuh parameter "category" DIULANG di
@@ -37,7 +41,10 @@ class PageSpeedService
             $query = http_build_query($queryParams)
                 . '&category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO';
 
-            $response = Http::timeout(60)->get('https://www.googleapis.com/pagespeedonline/v5/runPagespeed?' . $query);
+            $response = Http::retry(3, 1000)
+                ->connectTimeout(15)
+                ->timeout(60)
+                ->get('https://www.googleapis.com/pagespeedonline/v5/runPagespeed?' . $query);
 
             // TAMBAHKAN BARIS INI UNTUK DEBUGGING
             Log::info('Cek Kategori PageSpeed:', [
@@ -45,6 +52,10 @@ class PageSpeedService
             ]);
 
             if (!$response->successful()) {
+                $this->lastError = $response->status() === 429
+                    ? 'Kuota Google PageSpeed API habis. Coba lagi setelah kuota tersedia.'
+                    : 'Google PageSpeed API mengembalikan respons gagal (HTTP ' . $response->status() . ').';
+
                 Log::warning('PageSpeedService: request gagal.', [
                     'url' => $url,
                     'strategy' => $strategy,
@@ -57,9 +68,12 @@ class PageSpeedService
             return $this->parseResult($response->json());
 
         } catch (\Throwable $e) {
-            Log::error('PageSpeedService Exception: ' . $e->getMessage(), [
+            $this->lastError = 'Tidak dapat terhubung ke Google PageSpeed API. Periksa koneksi internet, proxy, atau firewall.';
+
+            Log::error('PageSpeedService Exception.', [
                 'url' => $url,
                 'strategy' => $strategy,
+                'exception' => get_class($e),
             ]);
             return null;
         }

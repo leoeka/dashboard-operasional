@@ -1294,6 +1294,7 @@ class ProjectController extends Controller
         $validated = $request->validate([
             'target' => ['required', 'string', 'regex:/^(own_pagespeed|own_semrush|competitor_pagespeed:.+|competitor_semrush:.+)$/'],
             'screenshot' => ['required', 'image', 'max:5120'],
+            'return_tab' => ['nullable', 'in:performa'],
         ]);
 
         $seo = $project->seo_requirements ?? [];
@@ -1324,13 +1325,15 @@ class ProjectController extends Controller
         $seo['manual_screenshots'] = $manualScreenshots;
         $project->update(['seo_requirements' => $seo]);
 
-        return back()->with('success', 'Screenshot berhasil diunggah.');
+        return $this->manualScreenshotRedirect($request, $project)
+            ->with('success', 'Screenshot berhasil diunggah.');
     }
 
     public function deleteManualScreenshot(Request $request, Project $project)
     {
         $validated = $request->validate([
             'target' => ['required', 'string', 'regex:/^(own_pagespeed|own_semrush|competitor_pagespeed:.+|competitor_semrush:.+)$/'],
+            'return_tab' => ['nullable', 'in:performa'],
         ]);
 
         $seo = $project->seo_requirements ?? [];
@@ -1356,7 +1359,18 @@ class ProjectController extends Controller
         $seo['manual_screenshots'] = $manualScreenshots;
         $project->update(['seo_requirements' => $seo]);
 
-        return back()->with('success', 'Screenshot dihapus.');
+        return $this->manualScreenshotRedirect($request, $project)
+            ->with('success', 'Screenshot dihapus.');
+    }
+
+    /** Keep manually uploaded performance screenshots on the Performa tab. */
+    private function manualScreenshotRedirect(Request $request, Project $project)
+    {
+        if ($request->input('return_tab') === 'performa') {
+            return redirect()->to(route('pages.seo-backlink', ['project' => $project->id]) . '#performa');
+        }
+
+        return back();
     }
 
     public function downloadSeoProposal(Project $project)

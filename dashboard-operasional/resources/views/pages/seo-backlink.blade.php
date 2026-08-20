@@ -406,6 +406,10 @@
                                                                     @include('pdf.partials.gauge', ['score' => $comp['scores']['seo'] ?? null, 'label' => 'SEO'])
                                                                 </div>
 
+                                                                @if (!empty($comp['error']))
+                                                                    <p class="mt-2 text-[11px] text-red-600">{{ $comp['error'] }}</p>
+                                                                @endif
+
                                                                 <div class="mt-2 pt-2 border-t border-slate-100">
                                                                     <a href="https://www.semrush.com/analytics/overview/?q={{ urlencode($compHost) }}&searchType=domain"
                                                                         target="_blank" rel="noopener"
@@ -743,6 +747,7 @@
                                                         @csrf
                                                         @method('DELETE')
                                                         <input type="hidden" name="target" value="own_semrush">
+                                                        <input type="hidden" name="return_tab" value="performa">
                                                         <button type="submit" class="text-xs text-red-600 hover:underline">Hapus & unggah
                                                             ulang</button>
                                                     </form>
@@ -752,6 +757,7 @@
                                                     enctype="multipart/form-data" class="mt-2 flex items-center gap-2">
                                                     @csrf
                                                     <input type="hidden" name="target" value="own_semrush">
+                                                    <input type="hidden" name="return_tab" value="performa">
                                                     <input type="file" name="screenshot" accept="image/*" required class="text-xs">
                                                     <button type="submit"
                                                         class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg">Unggah</button>
@@ -774,6 +780,7 @@
                                                         @csrf
                                                         @method('DELETE')
                                                         <input type="hidden" name="target" value="own_pagespeed">
+                                                        <input type="hidden" name="return_tab" value="performa">
                                                         <button type="submit" class="text-xs text-red-600 hover:underline">Hapus & unggah
                                                             ulang</button>
                                                     </form>
@@ -783,6 +790,7 @@
                                                     enctype="multipart/form-data" class="mt-2 flex items-center gap-2">
                                                     @csrf
                                                     <input type="hidden" name="target" value="own_pagespeed">
+                                                    <input type="hidden" name="return_tab" value="performa">
                                                     <input type="file" name="screenshot" accept="image/*" required class="text-xs">
                                                     <button type="submit"
                                                         class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg">Unggah</button>
