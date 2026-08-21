@@ -429,9 +429,22 @@
 
         <h2 class="section-title"><span class="roman">VI.</span> TOP KEYWORD</h2>
 
-        @if (!empty($aiRecommendations['main_keywords']))
+        @php
+            // Ambil keyword yang sudah DICENTANG tim di Workspace. Kalau belum
+            // ada satu pun yang dipilih (tim belum sempat review), fallback ke
+            // 10 teratas dari hasil AI supaya proposal tetap bisa di-generate
+            // tanpa harus menunggu.
+            $selectedKeywords = collect($aiRecommendations['main_keywords'] ?? [])
+                ->filter(fn($kw) => !empty($kw['selected']));
+
+            $keywordsForProposal = $selectedKeywords->isNotEmpty()
+                ? $selectedKeywords
+                : collect($aiRecommendations['main_keywords'] ?? [])->take(10);
+        @endphp
+
+        @if ($keywordsForProposal->isNotEmpty())
             <ul class="simple-list">
-                @foreach (array_slice($aiRecommendations['main_keywords'], 0, 11) as $keyword)
+                @foreach ($keywordsForProposal as $keyword)
                     <li><span class="bullet-arrow">&#10146;</span> {{ $keyword['keyword'] ?? '-' }}</li>
                 @endforeach
             </ul>

@@ -384,6 +384,12 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                     continue;
                 }
 
+                Log::error('callGeminiJson gagal final, pesan asli: ' . $e->getMessage(), [
+                    'model' => $model,
+                    'is_transient' => $isTransientError,
+                    'attempts' => $attempt,
+                ]);
+
                 throw new \RuntimeException(
                     $isTransientError
                     ? 'Layanan AI Gemini sedang sibuk atau kuota habis.'
@@ -701,16 +707,16 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
      * 10 keyword utama final + related keywords. AI di sini menganalisis DATA
      * (kalau ada), bukan menebak dari nol lagi.
      */
-    public function selectFinalKeywords(Project $project, array $candidates, array $volumeData, array $competitorContents = []): array
+    public function selectFinalKeywords(Project $project, array $candidates, array $volumeData, array $competitorContents = [], int $count = 25): array
     {
         $volumeContext = '';
         if (!empty($volumeData)) {
-            $volumeContext = "\n\nData volume pencarian ASLI dari Google Ads (gunakan ini sebagai dasar utama):\n";
+            $volumeContext = "\n\nQuery pencarian ASLI yang SUDAH pernah membuat website ini tampil di Google (dari Search Console — gunakan sebagai bukti performa nyata, bukan sekadar estimasi):\n";
             foreach ($volumeData as $v) {
-                $volumeContext .= "- \"{$v['keyword']}\": ~{$v['avg_monthly_searches']} pencarian/bulan, persaingan: {$v['competition']}\n";
+                $volumeContext .= "- \"{$v['keyword']}\": {$v['clicks']} klik, {$v['impressions']} tayang, posisi rata-rata {$v['position']}\n";
             }
         } else {
-            $volumeContext = "\n\n(Data volume Google Ads tidak tersedia saat ini — nilai berdasarkan relevansi dan penilaian umum saja, beri tahu di summary bahwa ini estimasi kualitatif, bukan angka pasti.)";
+            $volumeContext = "\n\n(Belum ada data performa pencarian dari Search Console untuk website ini — kemungkinan situs baru/belum terindex Google. Nilai berdasarkan relevansi dan penilaian umum saja, beri tahu di summary bahwa ini estimasi kualitatif, bukan data performa nyata.)";
         }
 
         $competitorSummary = '';
@@ -725,8 +731,11 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
 
         $prompt = "
 You are a Senior SEO Strategist.
-Dari daftar kandidat keyword berikut, TENTUKAN 10 keyword UTAMA yang
-paling worth ditarget untuk bisnis ini.
+Dari daftar kandidat keyword berikut, URUTKAN dan pilih {$count} keyword
+TERBAIK yang paling worth ditarget untuk bisnis ini. Hasil ini akan
+DIREVIEW oleh tim (mereka yang akan mencentang mana yang benar-benar
+dipakai), jadi sertakan variasi yang cukup luas — jangan cuma keyword
+paling jelas/generik saja.
  
 Nama Bisnis: {$project->name}
 Tipe Bisnis: {$project->type}
@@ -735,16 +744,16 @@ Kandidat keyword: {$candidatesText}
 {$volumeContext}
 {$competitorSummary}{$locationSummary}
  
-Pilih 10 keyword utama berdasarkan: relevansi dengan bisnis, volume
-pencarian (kalau data tersedia), tingkat persaingan, dan peluang ranking
-realistis untuk bisnis skala ini. Sertakan juga related keywords untuk
-memperluas coverage konten.
+Urutkan berdasarkan: relevansi dengan bisnis, volume pencarian (kalau
+data tersedia), tingkat persaingan, dan peluang ranking realistis untuk
+bisnis skala ini. Sertakan juga related keywords terpisah untuk
+memperluas coverage konten (di luar {$count} keyword utama).
  
 Wajib kembalikan HANYA format JSON murni tanpa markdown:
 {
   \"main_keywords\": [
     {\"keyword\": \"...\", \"avg_monthly_searches\": angka_atau_null, \"competition\": \"LOW/MEDIUM/HIGH_atau_null\", \"reasoning\": \"alasan singkat\"},
-    ...10 item...
+    ...hingga {$count} item, diurutkan dari yang paling direkomendasikan...
   ],
   \"related_keywords\": [\"keyword tambahan 1\", ...],
   \"data_source\": \"google_ads_api atau ai_estimate\",
@@ -766,6 +775,7 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
 
         return $result;
     }
+
 
 
 }

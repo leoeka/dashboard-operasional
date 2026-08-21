@@ -1289,6 +1289,42 @@ class ProjectController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function selectKeywords(Request $request, Project $project)
+    {
+        $validated = $request->validate([
+            'selected_keywords' => ['nullable', 'array'],
+            'selected_keywords.*' => ['string'],
+        ]);
+
+        $selected = collect($validated['selected_keywords'] ?? []);
+
+        $seo = $project->seo_requirements ?? [];
+        $mainKeywords = $seo['ai_recommendations']['main_keywords'] ?? [];
+
+        if (empty($mainKeywords)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Belum ada hasil analisis keyword untuk project ini.',
+            ], 422);
+        }
+
+        $mainKeywords = collect($mainKeywords)
+            ->map(function ($kw) use ($selected) {
+                $kw['selected'] = $selected->contains($kw['keyword'] ?? null);
+                return $kw;
+            })
+            ->values()
+            ->all();
+
+        $seo['ai_recommendations']['main_keywords'] = $mainKeywords;
+        $project->update(['seo_requirements' => $seo]);
+
+        $project->logActivity('Pilihan keyword untuk proposal diperbarui (' . $selected->count() . ' dipilih)');
+
+        return response()->json(['success' => true]);
+    }
+
+
     public function uploadManualScreenshot(Request $request, Project $project)
     {
         $validated = $request->validate([

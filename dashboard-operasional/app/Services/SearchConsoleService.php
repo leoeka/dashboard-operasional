@@ -93,6 +93,43 @@ class SearchConsoleService
         }
     }
 
+    public function getTopQueries(string $siteUrl, int $days = 90, int $limit = 100): array
+    {
+        $accessToken = $this->getAccessToken();
+        if (!$accessToken) {
+            Log::info('SearchConsoleService: kredensial belum lengkap, skip getTopQueries.');
+            return [];
+        }
+
+        $property = $this->resolveVerifiedProperty($accessToken, $siteUrl);
+        if (!$property) {
+            Log::info('SearchConsoleService: property tidak ditemukan untuk getTopQueries.', ['url' => $siteUrl]);
+            return [];
+        }
+
+        $startDate = now()->subDays($days)->format('Y-m-d');
+        $endDate = now()->subDays(3)->format('Y-m-d');
+
+        try {
+            $rows = $this->query($accessToken, $property, $startDate, $endDate, ['query'], $limit);
+
+            return collect($rows)
+                ->map(fn($row) => [
+                    'keyword' => $row['keys'][0] ?? null,
+                    'clicks' => $row['clicks'] ?? 0,
+                    'impressions' => $row['impressions'] ?? 0,
+                    'ctr' => $row['ctr'] ?? null,
+                    'position' => $row['position'] ?? null,
+                ])
+                ->filter(fn($q) => !empty($q['keyword']))
+                ->values()
+                ->all();
+        } catch (\Throwable $e) {
+            Log::error('SearchConsoleService Exception (getTopQueries): ' . $e->getMessage(), ['site' => $siteUrl]);
+            return [];
+        }
+    }
+
     /**
      * Cari property Search Console yang cocok dengan URL project —
      * dicek dari daftar site yang BENERAN terverifikasi & bisa diakses

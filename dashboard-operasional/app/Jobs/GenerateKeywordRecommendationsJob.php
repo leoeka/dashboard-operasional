@@ -82,6 +82,16 @@ class GenerateKeywordRecommendationsJob implements ShouldQueue
             ->filter(fn($u) => $u !== '' && filter_var($u, FILTER_VALIDATE_URL))
             ->all();
 
+        // Simpan keyword yang SUDAH DICENTANG dari hasil analisis SEBELUMNYA
+        // (kalau ini re-run, bukan analisis pertama kali) — dipakai untuk
+        // merge setelah hasil baru datang, supaya tim tidak perlu centang
+        // ulang keyword yang teksnya tetap sama.
+        $previouslySelected = collect($project->seo_requirements['ai_recommendations']['main_keywords'] ?? [])
+            ->filter(fn($kw) => !empty($kw['selected']))
+            ->map(fn($kw) => mb_strtolower(trim($kw['keyword'] ?? '')))
+            ->filter()
+            ->values();
+
         try {
             $result = $service->analyze($project, $websiteUrl, $manualCompetitors, function ($status, $progress, $message) {
                 $this->report($status, $progress, $message);
@@ -92,6 +102,21 @@ class GenerateKeywordRecommendationsJob implements ShouldQueue
             return;
         }
 
+        // Merge: keyword baru yang teksnya cocok (case-insensitive, trimmed)
+        // dengan salah satu yang dulu dicentang, otomatis ikut tercentang.
+        if ($previouslySelected->isNotEmpty() && !empty($result['recommendations']['main_keywords'])) {
+            $result['recommendations']['main_keywords'] = collect($result['recommendations']['main_keywords'])
+                ->map(function ($kw) use ($previouslySelected) {
+                    $normalized = mb_strtolower(trim($kw['keyword'] ?? ''));
+                    if ($previouslySelected->contains($normalized)) {
+                        $kw['selected'] = true;
+                    }
+                    return $kw;
+                })
+                ->values()
+                ->all();
+        }
+
         // Simpan semua hasil — timpa/lengkapi seo_requirements yang ada
         $existing = $project->fresh()->seo_requirements ?? [];
         $existing['target_url'] = $existing['target_url'] ?? $websiteUrl;
@@ -100,9 +125,15 @@ class GenerateKeywordRecommendationsJob implements ShouldQueue
         $existing['ai_identified_topics'] = $result['topics'];
         $project->update(['seo_requirements' => $existing]);
 
-        $project->logActivity(
-            'Analisis SEO & Backlink otomatis selesai (' . $result['competitor_analyzed_count'] . ' kompetitor dianalisis)'
-        );
+        $carriedOverCount = $previouslySelected->isNotEmpty()
+            ? collect($result['recommendations']['main_keywords'] ?? [])->filter(fn($kw) => !empty($kw['selected']))->count()
+            : 0;
+
+        $activityMessage = 'Analisis SEO & Backlink otomatis selesai (' . $result['competitor_analyzed_count'] . ' kompetitor dianalisis)';
+        if ($carriedOverCount > 0) {
+            $activityMessage .= ", {$carriedOverCount} pilihan keyword lama dipertahankan";
+        }
+        $project->logActivity($activityMessage);
 
         $this->report('done', 100, 'Analisis SEO & Backlink selesai.');
     }

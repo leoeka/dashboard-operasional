@@ -9,8 +9,16 @@ use Illuminate\Support\Facades\Http;
 /**
  * Logika inti pipeline analisis SEO & Backlink (baca website client → AI
  * simpulkan topik → cari kompetitor → fetch konten kompetitor paralel →
- * AI perluas kandidat keyword → cek volume Google Ads → AI tentukan 10
- * keyword final).
+ * AI perluas kandidat keyword → cek performa pencarian → AI ranking 25
+ * kandidat keyword untuk direview & dipilih manual oleh tim).
+ *
+ * PERUBAHAN: tahap akhir sebelumnya "AI tentukan 10 keyword final" (AI
+ * memutuskan sepihak). Sekarang jadi "AI ranking 25 kandidat" — AI cuma
+ * membantu urutkan berdasar relevansi+performa, keputusan pilih mana yang
+ * dipakai ada di tangan tim lewat halaman Workspace (field `selected`
+ * per keyword, diupdate lewat request biasa — TIDAK memanggil AI lagi).
+ * Proposal PDF membaca keyword yang `selected == true` langsung dari
+ * data tersimpan, jadi generate proposal tidak menambah biaya token.
  *
  * Diekstrak jadi service terpisah supaya bisa dipakai di DUA mode:
  * - Mode PROJECT (GenerateKeywordRecommendationsJob): Project sudah
@@ -24,11 +32,18 @@ use Illuminate\Support\Facades\Http;
  */
 class KeywordResearchService
 {
+    /**
+     * Jumlah kandidat keyword yang ditampilkan ke tim untuk direview &
+     * dipilih manual di halaman Workspace (bukan jumlah yang otomatis
+     * dipakai — itu ditentukan tim lewat field `selected`).
+     */
+    private const CANDIDATE_COUNT = 25;
+
     public function __construct(
         private AiServices $aiService,
         private CompetitorContentFetcher $fetcher,
         private CompetitorDiscoveryService $discovery,
-        private GoogleAdsKeywordService $googleAds,
+        private SearchConsoleService $searchConsole,
     ) {
     }
 
@@ -119,18 +134,48 @@ class KeywordResearchService
             $report('running', 55, 'Konten kompetitor selesai diambil (' . count($competitorContents) . "/{$total} berhasil).");
         }
 
-        // TAHAP 5 — Gemini perluas kandidat
+        // TAHAP 5 — Gemini perluas kandidat.
+        // Kandidat mentah dari AiServices sebaiknya > CANDIDATE_COUNT
+        // (mis. 40-an) supaya tahap 7 punya cukup bahan untuk ranking,
+        // bukan cuma pas-pasan 25. Kalau expandSeedKeywords() saat ini
+        // dibatasi hasilkan persis ~10-15, itu perlu diubah juga di
+        // AiServices (di luar file ini) supaya jumlah kandidat mentahnya
+        // lebih besar dari 25.
         $report('running', 60, 'AI memperluas daftar kandidat keyword...');
         $candidates = $this->aiService->expandSeedKeywords($context, $seedKeywords, $competitorContents);
 
-        // TAHAP 6 — Google Ads API, cek volume asli (geo-target ikut
-        // lokasi client, bukan hardcode Indonesia lagi)
-        $report('running', 78, 'Mengecek volume pencarian asli via Google Ads...');
-        $volumeData = $this->googleAds->getKeywordIdeas($candidates, $location);
+        // TAHAP 6 — cek performa pencarian (Search Console: query yang
+        // sudah membawa traffic organik ke situs client)
+        $report('running', 78, 'Mengecek performa pencarian asli via Search Console...');
+        $volumeData = $this->searchConsole->getTopQueries($websiteUrl);
 
-        // TAHAP 7 — Gemini tentukan 10 keyword final
-        $report('running', 90, 'AI menentukan 10 keyword utama...');
-        $finalResult = $this->aiService->selectFinalKeywords($context, $candidates, $volumeData, $competitorContents);
+        // TAHAP 7 — Gemini RANKING kandidat (bukan lagi "tentukan final").
+        // PENTING: struktur $finalResult TETAP sama seperti sebelumnya
+        // (main_keywords, related_keywords, summary, data_source) supaya
+        // kompatibel dengan Workspace blade & Proposal blade yang sudah
+        // ada. Yang berubah HANYA isi 'main_keywords': sekarang bisa
+        // sampai 25 item (bukan 10), masing-masing dapat tambahan flag
+        // 'selected' => false — tim yang menentukan pilihan lewat halaman
+        // Workspace (update flag ini langsung, TIDAK memanggil AI lagi).
+        $report('running', 90, 'AI mengurutkan ' . self::CANDIDATE_COUNT . ' kandidat keyword teratas...');
+        $finalResult = $this->aiService->selectFinalKeywords(
+            $context,
+            $candidates,
+            $volumeData,
+            $competitorContents,
+            self::CANDIDATE_COUNT
+        );
+
+        $finalResult['main_keywords'] = collect($finalResult['main_keywords'] ?? [])
+            ->take(self::CANDIDATE_COUNT)
+            ->map(function ($item) {
+                if (is_array($item)) {
+                    $item['selected'] = $item['selected'] ?? false;
+                }
+                return $item;
+            })
+            ->values()
+            ->all();
 
         return [
             'topics' => $topics,

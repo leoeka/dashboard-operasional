@@ -98,6 +98,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.seo-proposal.download');
     Route::post('/projects/{project}/competitors/select', [ProjectController::class, 'selectCompetitors'])
         ->name('pages.projects.competitors.select');
+    Route::post('/projects/{project}/keywords/select', [ProjectController::class, 'selectKeywords'])
+        ->name('pages.projects.keywords.select');
 
     // 6. Mockup
     Route::get('/mockup', [ProjectController::class, 'mockupTemplates'])->name('pages.mockup');
