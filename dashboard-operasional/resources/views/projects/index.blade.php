@@ -5,9 +5,9 @@
 
     <x-page-header title="Projects">
         <x-slot:actions>
-            <a href="{{ route('pages.projects.create') }}"
+            <a href="{{ route('pages.request') }}"
                 class="grad-blue text-white text-sm font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 hover:opacity-90 transition">
-                <i class='bx bx-plus'></i> Tambah Project
+                <i class='bx bx-plus'></i> Request Project
             </a>
         </x-slot:actions>
     </x-page-header>
@@ -28,18 +28,8 @@
                 class="bg-slate-50 text-slate-600 text-sm rounded-lg px-3 py-2 outline-none">
                 <option value="">Semua Status</option>
                 <option value="request" @selected(request('status') === 'request')>Request</option>
-                <option value="proposal" @selected(request('status') === 'proposal')>Proposal</option>
-                <option value="mockup" @selected(request('status') === 'mockup')>Mockup</option>
-                <option value="development" @selected(request('status') === 'development')>Development</option>
-                <option value="qa" @selected(request('status') === 'qa')>QA</option>
-                <option value="done" @selected(request('status') === 'done')>Selesai</option>
-            </select>
-            <select name="deadline" onchange="this.form.submit()"
-                class="bg-slate-50 text-slate-600 text-sm rounded-lg px-3 py-2 outline-none">
-                <option value="">Semua Deadline</option>
-                <option value="week" @selected(request('deadline') === 'week')>Minggu Ini</option>
-                <option value="month" @selected(request('deadline') === 'month')>Bulan Ini</option>
-                <option value="overdue" @selected(request('deadline') === 'overdue')>Sudah Lewat</option>
+                <option value="in_progress" @selected(request('status') === 'in_progress')>In Progress</option>
+                <option value="completed" @selected(request('status') === 'completed')>Completed</option>
             </select>
         </form>
     </x-card>
@@ -52,8 +42,7 @@
                         <th class="px-6 py-4 font-medium">Nama Project</th>
                         <th class="px-6 py-4 font-medium">Client</th>
                         <th class="px-6 py-4 font-medium">Status</th>
-                        <th class="px-6 py-4 font-medium">Progress</th>
-                        <th class="px-6 py-4 font-medium">Deadline</th>
+                        <th class="px-6 py-4 font-medium">Jenis Project</th>
                         <th class="px-6 py-4 font-medium">Dibuat</th>
                         <th class="px-6 py-4 font-medium text-right">Aksi</th>
                     </tr>
@@ -65,16 +54,7 @@
                             <td class="px-6 py-4 text-slate-600">{{ $project->client_name }}</td>
                             <td class="px-6 py-4"><x-badge
                                     :color="$project->statusColor()">{{ $project->statusLabel() }}</x-badge></td>
-                            <td class="px-6 py-4">
-                                <div class="flex items-center gap-2">
-                                    <div class="w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                        <div class="h-full grad-blue" style="width: {{ $project->progress }}%"></div>
-                                    </div>
-                                    <span class="text-xs text-slate-400">{{ $project->progress }}%</span>
-                                </div>
-                            </td>
-                            <td class="px-6 py-4 text-slate-500">{{ $project->deadline?->translatedFormat('d M Y') ?? '-' }}
-                            </td>
+                            <td class="px-6 py-4 text-slate-500">{{ $project->serviceTypeLabel() }}</td>
                             <td class="px-6 py-4 text-slate-500">{{ $project->created_at->translatedFormat('d M Y') }}</td>
                             <td class="px-6 py-4">
                                 <div class="flex items-center justify-end gap-3 text-slate-400">
@@ -93,7 +73,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-10 text-center text-slate-400">Belum ada project.</td>
+                            <td colspan="6" class="px-6 py-10 text-center text-slate-400">Belum ada project.</td>
                         </tr>
                     @endforelse
                 </tbody>

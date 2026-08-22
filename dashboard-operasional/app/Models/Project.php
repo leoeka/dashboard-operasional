@@ -35,8 +35,6 @@ class Project extends Model
         'zipwp_site_uuid',
         'zipwp_site_url',
         'status',
-        'progress',
-        'deadline',
         'description', // sebelumnya: 'ai_generated_content'
         'wants_seo',
         'wants_backlink',
@@ -45,8 +43,6 @@ class Project extends Model
     ];
 
     protected $casts = [
-        'deadline' => 'date',
-        'progress' => 'integer',
         'wants_seo' => 'boolean',
         'wants_backlink' => 'boolean',
         'seo_requirements' => 'array',
@@ -82,11 +78,8 @@ class Project extends Model
     {
         return match ($this->status) {
             'request' => 'slate',
-            'proposal' => 'purple',
-            'mockup' => 'blue',
-            'development' => 'amber',
-            'qa' => 'pink',
-            'active', 'done' => 'emerald',
+            'in_progress' => 'blue',
+            'completed' => 'emerald',
             default => 'slate',
         };
     }
@@ -95,24 +88,27 @@ class Project extends Model
     {
         return match ($this->status) {
             'request' => 'Request',
-            'proposal' => 'Proposal',
-            'mockup' => 'Mockup',
-            'development' => 'Development',
-            'qa' => 'QA',
-            'active' => 'Aktif',
-            'done' => 'Selesai',
+            'in_progress' => 'In Progress',
+            'completed' => 'Completed',
             default => ucfirst($this->status),
         };
     }
 
-    public function recalculateProgress(): int
+    public function serviceTypeLabel(): string
     {
-        $total = $this->tasks()->count();
-        $progress = $total === 0 ? 0 : (int) round(($this->tasks()->where('is_done', true)->count() / $total) * 100);
+        $types = [];
 
-        $this->update(['progress' => $progress]);
+        if ($this->type || (!$this->wants_seo && !$this->wants_backlink)) {
+            $types[] = 'Web';
+        }
+        if ($this->wants_seo) {
+            $types[] = 'SEO';
+        }
+        if ($this->wants_backlink) {
+            $types[] = 'Backlink';
+        }
 
-        return $progress;
+        return implode(' + ', $types) ?: 'Project';
     }
 
     // Ditulis ke tabel activity_logs yang sudah ada (kolom: action, status), bukan tabel baru

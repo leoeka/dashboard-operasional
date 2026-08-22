@@ -1,21 +1,20 @@
 @extends('layouts.app')
-@section('title', $project->exists ? 'Edit Project' : 'Tambah Project')
+@section('title', 'Edit Project')
 
 @section('content')
 
-    <a href="{{ $project->exists ? route('pages.projects.show', $project) : route('pages.projects') }}"
+    <a href="{{ route('pages.projects.show', $project) }}"
         class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
         <i class='bx bx-arrow-back'></i> Kembali
     </a>
 
-    <x-page-header :title="$project->exists ? 'Edit Project' : 'Tambah Project'" />
+    <x-page-header title="Edit Project" />
 
     <x-card class="max-w-2xl">
-        <form method="POST" id="projectForm"
-            action="{{ $project->exists ? route('pages.projects.update', $project) : route('pages.projects.store') }}"
+        <form method="POST" id="projectForm" action="{{ route('pages.projects.update', $project) }}"
             class="space-y-5">
             @csrf
-            @if ($project->exists) @method('PUT') @endif
+            @method('PUT')
 
             <div>
                 <label class="text-sm font-medium text-slate-600 mb-1 block">Client (dari CRM)</label>
@@ -198,27 +197,22 @@
                 </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
                 <div>
                     <label class="text-sm font-medium text-slate-600 mb-1 block">Status</label>
                     <select name="status"
                         class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-                        @foreach (['request' => 'Request', 'proposal' => 'Proposal', 'mockup' => 'Mockup', 'development' => 'Development', 'qa' => 'QA', 'done' => 'Selesai'] as $value => $label)
+                        @foreach (['request' => 'Request', 'in_progress' => 'In Progress', 'completed' => 'Completed'] as $value => $label)
                             <option value="{{ $value }}" @selected(old('status', $project->status) === $value)>{{ $label }}
                             </option>
                         @endforeach
                     </select>
                 </div>
-                <div>
-                    <label class="text-sm font-medium text-slate-600 mb-1 block">Deadline</label>
-                    <input type="date" name="deadline" value="{{ old('deadline', $project->deadline?->format('Y-m-d')) }}"
-                        class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-                </div>
             </div>
 
             <button type="submit"
                 class="grad-blue text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:opacity-90 transition">
-                {{ $project->exists ? 'Simpan Perubahan' : 'Buat Project' }}
+                Simpan Perubahan
             </button>
         </form>
     </x-card>

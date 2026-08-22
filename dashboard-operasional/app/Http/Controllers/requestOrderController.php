@@ -13,7 +13,9 @@ class requestOrderController extends Controller
 {
     public function create()
     {
-        return view('pages.request');
+        return view('pages.request', [
+            'clients' => Client::orderBy('company_name')->get(),
+        ]);
     }
 
     public function store(Request $request)
@@ -25,12 +27,14 @@ class requestOrderController extends Controller
         $wantsWebsite = in_array('website', $serviceTypes);
         $wantsSeo = in_array('seo', $serviceTypes);
         $wantsBacklink = in_array('backlink', $serviceTypes);
+        $existingClient = $request->filled('client_id');
 
         // 1. Validasi Input Data
         $validated = $request->validate([
             // Data Klien
-            'client_name' => ['required', 'string', 'max:255'],
-            'company_name' => ['required', 'string', 'max:255'],
+            'client_id' => ['nullable', 'exists:clients,id'],
+            'client_name' => [Rule::requiredIf(!$existingClient), 'nullable', 'string', 'max:255'],
+            'company_name' => [Rule::requiredIf(!$existingClient), 'nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string'],
@@ -76,31 +80,32 @@ class requestOrderController extends Controller
         DB::beginTransaction();
 
         try {
-            // A. Simpan Data Client
-            $client = Client::create([
-                'company_name' => $validated['company_name'],
-                'contact_name' => $validated['client_name'],
-                'email' => $validated['email'] ?? null,
-                'phone' => $validated['phone'] ?? null,
-                'whatsapp' => $validated['phone'] ?? null,
-                'address' => $request->input('address'),
-                'created_by' => Auth::id(),
-            ]);
+            // A. Pakai client lama atau buat client baru
+            $client = !empty($validated['client_id'])
+                ? Client::findOrFail($validated['client_id'])
+                : Client::create([
+                    'company_name' => $validated['company_name'],
+                    'contact_name' => $validated['client_name'],
+                    'email' => $validated['email'] ?? null,
+                    'phone' => $validated['phone'] ?? null,
+                    'whatsapp' => $validated['phone'] ?? null,
+                    'address' => $request->input('address'),
+                    'created_by' => Auth::id(),
+                ]);
 
             // B. Simpan Project
             // FIX: nama project sebelumnya selalu "Website {company_name}",
             // tidak masuk akal untuk client yang cuma minta SEO/Backlink
             // tanpa website baru.
             $projectName = $wantsWebsite
-                ? "Website {$validated['company_name']}"
-                : $validated['company_name'] . ' - ' . implode(' & ', array_map('ucfirst', $serviceTypes));
+                ? "Website {$client->company_name}"
+                : $client->company_name . ' - ' . implode(' & ', array_map('ucfirst', $serviceTypes));
 
             $project = $client->projects()->create([
                 'name' => $projectName,
-                'client_name' => $validated['client_name'],
+                'client_name' => $client->contact_name,
                 'type' => $validated['website_type'] ?? null,
                 'status' => 'request',
-                'progress' => 0,
                 'wants_seo' => $wantsSeo,
                 'wants_backlink' => $wantsBacklink,
             ]);
@@ -143,7 +148,7 @@ class requestOrderController extends Controller
             }
 
             // F. Simpan Assets (Jika ada lampiran file)
-            if ($request->hasFile('assets')) {
+            if ($wantsWebsite && $request->hasFile('assets')) {
                 $logoPath = null;
 
                 foreach ($request->file('assets') as $file) {

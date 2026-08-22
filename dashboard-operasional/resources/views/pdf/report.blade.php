@@ -43,14 +43,11 @@
             <tr><th>Status</th><th>Jumlah</th></tr>
         </thead>
         <tbody>
-            @foreach (['request' => 'Request', 'proposal' => 'Proposal', 'mockup' => 'Mockup', 'development' => 'Development', 'qa' => 'QA', 'done' => 'Selesai'] as $key => $label)
+            @foreach (['request' => 'Request', 'in_progress' => 'In Progress', 'completed' => 'Completed'] as $key => $label)
                 <tr><td>{{ $label }}</td><td>{{ $projectByStatus[$key] ?? 0 }}</td></tr>
             @endforeach
         </tbody>
     </table>
-    @if ($overdueCount > 0)
-        <p style="color:#b91c1c; margin-top:8px;">{{ $overdueCount }} project sudah lewat deadline.</p>
-    @endif
 
     <h2>Ringkasan Keuangan</h2>
     <div class="stat-box">

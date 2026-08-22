@@ -24,18 +24,13 @@
         <x-card>
             <h2 class="font-semibold text-slate-800 mb-4">Ringkasan Project</h2>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-                @foreach (['request' => 'Request', 'proposal' => 'Proposal', 'mockup' => 'Mockup', 'development' => 'Development', 'qa' => 'QA', 'done' => 'Selesai'] as $key => $label)
+                @foreach (['request' => 'Request', 'in_progress' => 'In Progress', 'completed' => 'Completed'] as $key => $label)
                     <div class="bg-slate-50 rounded-lg p-3">
                         <p class="text-xs text-slate-400">{{ $label }}</p>
                         <p class="text-xl font-bold text-slate-800">{{ $projectByStatus[$key] ?? 0 }}</p>
                     </div>
                 @endforeach
             </div>
-            @if ($overdueCount > 0)
-                <div class="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-                    <i class='bx bx-error-circle'></i> {{ $overdueCount }} project sudah lewat deadline
-                </div>
-            @endif
         </x-card>
 
         {{-- RINGKASAN KEUANGAN --}}

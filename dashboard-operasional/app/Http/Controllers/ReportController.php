@@ -35,11 +35,8 @@ class ReportController extends Controller
 
             $statusLabels = [
                 'request' => 'Request',
-                'proposal' => 'Proposal',
-                'mockup' => 'Mockup',
-                'development' => 'Development',
-                'qa' => 'QA',
-                'done' => 'Selesai',
+                'in_progress' => 'In Progress',
+                'completed' => 'Completed',
             ];
 
             fputcsv($handle, ['RINGKASAN PROJECT']);
@@ -84,10 +81,6 @@ class ReportController extends Controller
             ->groupBy('status')
             ->pluck('total', 'status');
 
-        $overdueCount = Project::whereDate('deadline', '<', now())
-            ->whereNotIn('status', ['done'])
-            ->count();
-
         // ===== RINGKASAN KEUANGAN =====
         $paidThisMonth = Invoice::where('status', 'paid')
             ->whereMonth('paid_at', now()->month)
@@ -127,7 +120,6 @@ class ReportController extends Controller
 
         return compact(
             'projectByStatus',
-            'overdueCount',
             'paidThisMonth',
             'unpaidTotal',
             'overdueInvoiceCount',

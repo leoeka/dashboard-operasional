@@ -30,18 +30,38 @@
             <!-- SECTION 1: DATA CLIENT -->
             <div class="border-b pb-4">
                 <h3 class="text-lg font-semibold text-gray-700 mb-4">1. Informasi Client</h3>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-gray-700">Pilih Client</label>
+                    <select name="client_id" id="clientSelect"
+                        class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
+                        <option value="">-- Client baru --</option>
+                        @foreach ($clients as $client)
+                            <option value="{{ $client->id }}"
+                                data-contact="{{ $client->contact_name }}"
+                                data-company="{{ $client->company_name }}"
+                                data-email="{{ $client->email }}"
+                                data-phone="{{ $client->phone }}"
+                                data-address="{{ $client->address }}"
+                                @selected(old('client_id') == $client->id)>
+                                {{ $client->company_name }} - {{ $client->contact_name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Pilih client lama untuk membuat request baru tanpa menduplikasi data client.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="newClientFields">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Nama Contact/Client <span
                                 class="text-red-500">*</span></label>
-                        <input type="text" name="client_name" value="{{ old('client_name') }}" required
+                        <input type="text" name="client_name" value="{{ old('client_name') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
                     </div>
 
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Nama Perusahaan <span
                                 class="text-red-500">*</span></label>
-                        <input type="text" name="company_name" value="{{ old('company_name') }}" required
+                        <input type="text" name="company_name" value="{{ old('company_name') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
                     </div>
 
@@ -143,6 +163,14 @@
                                 class="text-red-500">*</span></label>
                         <textarea name="business_goal" rows="3"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">{{ old('business_goal') }}</textarea>
+                    </div>
+
+                    <div class="md:col-span-2 border-t border-gray-200 pt-4">
+                        <h4 class="text-base font-semibold text-gray-700 mb-2">Contoh Mockup / Referensi Desain</h4>
+                        <label class="block text-sm font-medium text-gray-700">Lampiran dari Client</label>
+                        <input type="file" name="assets[]" multiple
+                            class="website-asset-input mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        <p class="text-xs text-gray-500 mt-1">Bawa contoh desain, logo, brief, atau referensi lain (JPG, PNG, PDF, DOCX, ZIP; maks. 10MB/file).</p>
                     </div>
                 </div>
             </div>
@@ -281,19 +309,6 @@
                 </div>
             </div>
 
-            <!-- SECTION 6: ASSETS -->
-            <div>
-                <h3 class="text-lg font-semibold text-gray-700 mb-4">6. Upload Assets / Lampiran</h3>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">File Pendukung (Logo, Brief, Doc,
-                        Gambar)</label>
-                    <input type="file" name="assets[]" multiple
-                        class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                    <p class="text-xs text-gray-500 mt-1">Bisa upload lebih dari 1 file (Format: JPG, PNG, PDF, DOCX, ZIP.
-                        Maks: 10MB/file)</p>
-                </div>
-            </div>
-
             <!-- BUTTON SUBMIT -->
             <div class="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4">
                 <a href="{{ route('pages.projects') }}"
@@ -324,6 +339,36 @@
             const serviceError = document.getElementById('service-error');
             const seoUrlInput = document.getElementById('seo_target_url');
             const backlinkUrlInput = document.getElementById('backlink_target_url');
+            const clientSelect = document.getElementById('clientSelect');
+            const newClientFields = document.getElementById('newClientFields');
+
+            function toggleClientMode() {
+                const selected = clientSelect?.selectedOptions[0];
+                const isExistingClient = Boolean(clientSelect?.value);
+
+                newClientFields?.querySelectorAll('input, textarea').forEach(field => {
+                    field.disabled = isExistingClient;
+                    field.required = !isExistingClient;
+                });
+
+                if (isExistingClient && selected) {
+                    const values = {
+                        client_name: selected.dataset.contact || '',
+                        company_name: selected.dataset.company || '',
+                        email: selected.dataset.email || '',
+                        phone: selected.dataset.phone || '',
+                        address: selected.dataset.address || '',
+                    };
+
+                    Object.entries(values).forEach(([name, value]) => {
+                        const field = document.querySelector(`[name="${name}"]`);
+                        if (field) field.value = value;
+                    });
+                }
+            }
+
+            clientSelect?.addEventListener('change', toggleClientMode);
+            toggleClientMode();
 
             // Field wajib di tiap section, hanya "required" saat section-nya aktif
             function setConditionalRequired(section, isActive) {
@@ -337,6 +382,10 @@
                     const isChecked = checkboxes[key].checked;
                     sections[key].style.display = isChecked ? 'block' : 'none';
                     setConditionalRequired(sections[key], isChecked);
+                });
+
+                document.querySelectorAll('.website-asset-input').forEach(input => {
+                    input.disabled = !checkboxes.website.checked;
                 });
 
                 // Kondisi khusus kombinasi: Website + SEO dipilih bersamaan

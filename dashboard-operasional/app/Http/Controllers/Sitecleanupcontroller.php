@@ -39,7 +39,7 @@ class SiteCleanupController extends Controller
             $zipWp->deleteSite($project->mockupTemplate->site_uuid);
 
             $project->mockupTemplate->update(['zipwp_deleted_at' => now()]);
-            $project->update(['status' => 'done']);
+            $project->update(['status' => 'completed']);
 
             Log::info('Project ditandai done & site ZipWP dihapus', [
                 'project_id' => $project->id,

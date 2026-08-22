@@ -15,8 +15,7 @@ return new class extends Migration {
             $table->string('code')->unique();          // no. proyek, mis. RK-0142
             $table->string('client_name');              // PT ABC
             $table->string('type')->nullable();          // Company Profile, E-commerce, dll
-            $table->enum('status', ['request', 'proposal', 'mockup', 'development', 'qa', 'active', 'done'])->default('request');
-            $table->unsignedTinyInteger('progress')->default(0); // 0-100
+            $table->enum('status', ['request', 'in_progress', 'completed'])->default('request');
             $table->decimal('value', 15, 2)->nullable();
             $table->date('deadline')->nullable();
             $table->timestamps();
