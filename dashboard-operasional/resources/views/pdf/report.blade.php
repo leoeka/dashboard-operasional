@@ -34,13 +34,13 @@
         </div>
     </div>
 
-    <h1>Laporan Operasional</h1>
-    <p class="sub">Digenerate pada {{ now()->translatedFormat('d M Y, H:i') }}</p>
+    <h1>Operational Report</h1>
+    <p class="sub">Generated on {{ now()->translatedFormat('d M Y, H:i') }}</p>
 
-    <h2>Ringkasan Project</h2>
+    <h2>Project Summary</h2>
     <table>
         <thead>
-            <tr><th>Status</th><th>Jumlah</th></tr>
+            <tr><th>Status</th><th>Count</th></tr>
         </thead>
         <tbody>
             @foreach (['request' => 'Request', 'in_progress' => 'In Progress', 'completed' => 'Completed'] as $key => $label)
@@ -49,23 +49,23 @@
         </tbody>
     </table>
 
-    <h2>Ringkasan Keuangan</h2>
+    <h2>Financial Summary</h2>
     <div class="stat-box">
-        <div class="stat-label">Masuk Bulan Ini</div>
+        <div class="stat-label">Received This Month</div>
         <div class="stat-value">Rp{{ number_format($paidThisMonth, 0, ',', '.') }}</div>
     </div>
     <div class="stat-box">
-        <div class="stat-label">Belum Dibayar</div>
+        <div class="stat-label">Unpaid</div>
         <div class="stat-value">Rp{{ number_format($unpaidTotal, 0, ',', '.') }}</div>
     </div>
     @if ($overdueInvoiceCount > 0)
-        <p style="color:#b91c1c; margin-top:8px;">{{ $overdueInvoiceCount }} invoice sudah lewat jatuh tempo.</p>
+        <p style="color:#b91c1c; margin-top:8px;">{{ $overdueInvoiceCount }} invoice(s) overdue.</p>
     @endif
 
-    <h2>Pemasukan 6 Bulan Terakhir</h2>
+    <h2>Income - Last 6 Months</h2>
     <table>
         <thead>
-            <tr><th>Bulan</th><th>Total</th></tr>
+            <tr><th>Month</th><th>Total</th></tr>
         </thead>
         <tbody>
             @foreach ($incomeChart as $item)
@@ -74,23 +74,23 @@
         </tbody>
     </table>
 
-    <h2>Client Paling Aktif</h2>
-    <p>{{ $newClientsThisMonth }} client baru bulan ini.</p>
+    <h2>Most Active Clients</h2>
+    <p>{{ $newClientsThisMonth }} new client(s) this month.</p>
     <table>
         <thead>
-            <tr><th>Perusahaan</th><th>Jumlah Project</th></tr>
+            <tr><th>Company</th><th>Project Count</th></tr>
         </thead>
         <tbody>
             @forelse ($topClients as $client)
                 <tr><td>{{ $client->company_name }}</td><td>{{ $client->projects_count }}</td></tr>
             @empty
-                <tr><td colspan="2">Belum ada data client.</td></tr>
+                <tr><td colspan="2">No client data yet.</td></tr>
             @endforelse
         </tbody>
     </table>
 
-    <h2>Performa</h2>
-    <p>Rata-rata durasi project selesai: <strong>{{ $avgDuration }} hari</strong></p>
+    <h2>Performance</h2>
+    <p>Average completed project duration: <strong>{{ $avgDuration }} days</strong></p>
 
 </body>
 </html>

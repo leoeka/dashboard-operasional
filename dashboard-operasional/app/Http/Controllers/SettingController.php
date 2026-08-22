@@ -11,7 +11,7 @@ class SettingController extends Controller
         return view('pages.settings', [
             'appName' => 'SiteFlow',
             'appVersion' => 'v1.0.0',
-            'appDescription' => 'Dashboard operasional untuk pengelolaan jasa pembuatan website — mulai dari request project, proposal, mockup, development, hingga laporan keuangan.',
+            'appDescription' => 'An operational dashboard for managing website development services — from project requests and proposals to mockups, development, and financial reports.',
             'appEnvironment' => config('app.env'),
         ]);
     }

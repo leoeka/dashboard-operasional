@@ -1,11 +1,11 @@
 {{--
-    Partial: 1 lingkaran skor gaya PageSpeed Insights (merah/oranye/hijau),
-    dibuat pakai SVG murni — BUKAN gambar/screenshot, jadi angkanya
-    dijamin presisi 100% (diambil langsung dari variabel yang sama
-    dengan yang dipakai di tabel, tidak mungkin meleset).
+    Partial: a single PageSpeed Insights-style score circle (red/orange/green),
+    built with pure SVG — NOT an image/screenshot, so the number is
+    guaranteed to be 100% accurate (pulled directly from the same
+    variable used in the table, so it can never be out of sync).
 
-    Pakai dengan: @include('pdf.partials.gauge', ['score' => 71, 'label' => 'Performance'])
-    $score null/tidak ada -> ditampilkan sebagai "-" abu-abu.
+    Usage: @include('pdf.partials.gauge', ['score' => 71, 'label' => 'Performance'])
+    $score null/missing -> shown as a gray "-".
 --}}
 @php
     $score = $score ?? null;
@@ -14,11 +14,11 @@
     if ($score === null) {
         $color = '#cbd5e1';
     } elseif ($score >= 90) {
-        $color = '#0cce6b'; // hijau — sama seperti skema warna resmi PageSpeed
+        $color = '#0cce6b'; // green — matches PageSpeed's official color scheme
     } elseif ($score >= 50) {
-        $color = '#ffa400'; // oranye
+        $color = '#ffa400'; // orange
     } else {
-        $color = '#ff4e42'; // merah
+        $color = '#ff4e42'; // red
     }
 
     $radius = 26;

@@ -8,11 +8,11 @@
             <div class="flex flex-col sm:flex-row gap-2">
                 <a href="{{ route('pages.reports.download') }}"
                     class="grad-blue text-white text-sm font-semibold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition">
-                    <i class='bx bx-file-blank'></i> Unduh PDF
+                    <i class='bx bx-file-blank'></i> Download PDF
                 </a>
                 <a href="{{ route('pages.reports.download-excel') }}"
                     class="bg-emerald-600 text-white text-sm font-semibold px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition">
-                    <i class='bx bx-spreadsheet'></i> Unduh Excel
+                    <i class='bx bx-spreadsheet'></i> Download Excel
                 </a>
             </div>
         </x-slot:actions>
@@ -22,7 +22,7 @@
 
         {{-- RINGKASAN PROJECT --}}
         <x-card>
-            <h2 class="font-semibold text-slate-800 mb-4">Ringkasan Project</h2>
+            <h2 class="font-semibold text-slate-800 mb-4">Project Summary</h2>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
                 @foreach (['request' => 'Request', 'in_progress' => 'In Progress', 'completed' => 'Completed'] as $key => $label)
                     <div class="bg-slate-50 rounded-lg p-3">
@@ -35,22 +35,22 @@
 
         {{-- RINGKASAN KEUANGAN --}}
         <x-card>
-            <h2 class="font-semibold text-slate-800 mb-4">Ringkasan Keuangan</h2>
+            <h2 class="font-semibold text-slate-800 mb-4">Financial Summary</h2>
             <div class="grid grid-cols-2 gap-3 mb-4">
                 <div class="bg-emerald-50 rounded-lg p-3">
-                    <p class="text-xs text-emerald-600">Masuk Bulan Ini</p>
+                    <p class="text-xs text-emerald-600">Received This Month</p>
                     <p class="text-lg font-bold text-emerald-700 break-words">
                         Rp{{ number_format($paidThisMonth, 0, ',', '.') }}</p>
                 </div>
                 <div class="bg-amber-50 rounded-lg p-3">
-                    <p class="text-xs text-amber-600">Belum Dibayar</p>
+                    <p class="text-xs text-amber-600">Unpaid</p>
                     <p class="text-lg font-bold text-amber-700 break-words">Rp{{ number_format($unpaidTotal, 0, ',', '.') }}
                     </p>
                 </div>
             </div>
             @if ($overdueInvoiceCount > 0)
                 <div class="text-xs text-red-600 bg-red-50 px-3 py-2 rounded-lg">
-                    <i class='bx bx-error-circle'></i> {{ $overdueInvoiceCount }} invoice sudah lewat jatuh tempo
+                    <i class='bx bx-error-circle'></i> {{ $overdueInvoiceCount }} invoice(s) past due
                 </div>
             @endif
         </x-card>
@@ -58,7 +58,7 @@
 
     {{-- GRAFIK PEMASUKAN --}}
     <x-card class="mb-6">
-        <h2 class="font-semibold text-slate-800 mb-4">Pemasukan 6 Bulan Terakhir</h2>
+        <h2 class="font-semibold text-slate-800 mb-4">Income - Last 6 Months</h2>
         <div class="flex items-end gap-1.5 sm:gap-4 h-40">
             @foreach ($incomeChart as $item)
                 <div class="flex-1 flex flex-col items-center justify-end h-full min-w-0">
@@ -75,8 +75,8 @@
         {{-- RINGKASAN CLIENT --}}
         <x-card>
             <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-4">
-                <h2 class="font-semibold text-slate-800">Client Paling Aktif</h2>
-                <span class="text-xs text-slate-400">{{ $newClientsThisMonth }} client baru bulan ini</span>
+                <h2 class="font-semibold text-slate-800">Most Active Clients</h2>
+                <span class="text-xs text-slate-400">{{ $newClientsThisMonth }} new clients this month</span>
             </div>
             <div class="divide-y divide-slate-100">
                 @forelse ($topClients as $client)
@@ -85,17 +85,17 @@
                         <span class="text-xs text-slate-400 flex-shrink-0">{{ $client->projects_count }} project</span>
                     </div>
                 @empty
-                    <p class="text-sm text-slate-400 py-4 text-center">Belum ada data client.</p>
+                    <p class="text-sm text-slate-400 py-4 text-center">No client data yet.</p>
                 @endforelse
             </div>
         </x-card>
 
         {{-- PERFORMA --}}
         <x-card>
-            <h2 class="font-semibold text-slate-800 mb-4">Performa</h2>
+            <h2 class="font-semibold text-slate-800 mb-4">Performance</h2>
             <div class="bg-slate-50 rounded-lg p-4">
-                <p class="text-xs text-slate-400 mb-1">Rata-rata Durasi Project Selesai</p>
-                <p class="text-2xl font-bold text-slate-800">{{ $avgDuration }} hari</p>
+                <p class="text-xs text-slate-400 mb-1">Average Completed Project Duration</p>
+                <p class="text-2xl font-bold text-slate-800">{{ $avgDuration }} days</p>
             </div>
         </x-card>
     </div>

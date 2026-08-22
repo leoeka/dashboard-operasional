@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Preview Proposal')
+@section('title', 'Proposal Preview')
 
 @section('content')
     <div class="max-w-6xl mx-auto space-y-5">
@@ -13,7 +13,7 @@
             <a href="{{ route('pages.projects.show', $project) }}"
                 class="inline-flex items-center gap-2 rounded-lg bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-200">
                 <i class='bx bx-arrow-back'></i>
-                Kembali
+                Back
             </a>
         </div>
 
@@ -21,12 +21,12 @@
             <div class="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3">
                 <span class="inline-flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <i class='bx bxs-file-pdf text-lg text-red-500'></i>
-                    Dokumen Proposal
+                    Proposal Document
                 </span>
                 <div class="flex items-center gap-3 text-xs font-semibold">
                     <a href="{{ Storage::url($proposal->pdf_path) }}" target="_blank" rel="noopener"
                         class="inline-flex items-center gap-1 text-blue-600 hover:underline">
-                        Buka Tab Baru <i class='bx bx-link-external'></i>
+                        Open in New Tab <i class='bx bx-link-external'></i>
                     </a>
                     <a href="{{ route('pages.projects.proposal.download', $project) }}"
                         class="inline-flex items-center gap-1 text-slate-600 hover:underline">

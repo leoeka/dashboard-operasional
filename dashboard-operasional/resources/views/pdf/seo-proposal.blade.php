@@ -179,10 +179,10 @@
             font-style: italic;
         }
 
-        /* Blok screenshot per kompetitor DIBUNGKUS pakai kelas ini
-           supaya dompdf tidak memotongnya di tengah kalau sisa halaman
-           tidak cukup — kalau tidak muat, dompdf lempar SELURUH blok ke
-           halaman berikutnya sekaligus. */
+        /* Per-competitor screenshot blocks are WRAPPED with this class
+           so dompdf doesn't cut them in the middle when the remaining
+           page space isn't enough — if it doesn't fit, dompdf pushes
+           the ENTIRE block to the next page at once. */
         .pagespeed-block {
             page-break-inside: avoid;
             margin-bottom: 16px;
@@ -276,7 +276,7 @@
             ->keyBy(fn($c) => parse_url($c['url'], PHP_URL_HOST));
     @endphp
 
-    <!-- HALAMAN 1 -->
+    <!-- PAGE 1 -->
     <div class="cover">
         <div class="title-block">
             <div class="report-title">
@@ -292,10 +292,10 @@
         </div>
     </div>
 
-    <!-- HALAMAN 2 -->
+    <!-- PAGE 2 -->
     <div class="content-page">
         <div class="header-band">
-            <span class="date">Halaman {{ $pageCounter++ }} / {{ $totalPages }} &middot; {{ $generatedAt }}</span>
+            <span class="date">Page {{ $pageCounter++ }} / {{ $totalPages }} &middot; {{ $generatedAt }}</span>
         </div>
 
         <h2 class="section-title"><span class="roman">I.</span> THE ROLE OF SEO FOR WEBSITES</h2>
@@ -323,7 +323,7 @@
             KEYWORDS ENTERED BY THE USER IN THE SEARCH ENGINE.
         </p>
 
-        <h2 class="section-title"><span class="roman">III.</span> ANALIYS SEO PAGE</h2>
+        <h2 class="section-title"><span class="roman">III.</span> SEO PAGE ANALYSIS</h2>
 
         @if (!empty($seo['manual_screenshots']['own_semrush']))
             <div style="text-align:center; margin-bottom:12px;">
@@ -331,7 +331,7 @@
                     style="max-width: 100%; border: 1px solid #e2e8f0;">
             </div>
         @else
-            <p class="empty-note" style="margin-bottom:8px;">Screenshot Semrush belum diunggah untuk proposal ini.</p>
+            <p class="empty-note" style="margin-bottom:8px;">Semrush screenshot has not been uploaded for this proposal.</p>
         @endif
 
         @if (!empty($seo['manual_screenshots']['own_pagespeed']))
@@ -340,19 +340,19 @@
                     style="max-width: 100%; border: 1px solid #e2e8f0;">
             </div>
         @else
-            <p class="empty-note" style="margin-bottom:8px;">Screenshot laporan PageSpeed belum diunggah untuk proposal ini.
+            <p class="empty-note" style="margin-bottom:8px;">PageSpeed report screenshot has not been uploaded for this proposal.
             </p>
         @endif
     </div>
 
-    <!-- HALAMAN 3 -->
+    <!-- PAGE 3 -->
     <div class="content-page">
         <div class="header-band">
-            <span class="date">Halaman {{ $pageCounter++ }} / {{ $totalPages }} &middot; {{ $generatedAt }}</span>
+            <span class="date">Page {{ $pageCounter++ }} / {{ $totalPages }} &middot; {{ $generatedAt }}</span>
         </div>
 
         <h2 class="section-title">
-            <span class="roman">IV.</span> ANALISYS COMPETITOR {{ strtoupper($project->client_name) }}
+            <span class="roman">IV.</span> COMPETITOR ANALYSIS {{ strtoupper($project->client_name) }}
         </h2>
 
         @php
@@ -395,24 +395,24 @@
                             @endif
 
                             @if (empty($compSemrushScreenshot) && empty($compManualScreenshot))
-                                <p class="empty-note">Screenshot Semrush & PageSpeed untuk kompetitor ini belum diunggah.</p>
+                                <p class="empty-note">Semrush & PageSpeed screenshots for this competitor have not been uploaded.</p>
                             @endif
                         </div>
                     @else
-                        <p class="empty-note">Data performa untuk kompetitor ini belum dianalisis (dibatasi 2-3
-                            kompetitor teratas per analisis).</p>
+                        <p class="empty-note">Performance data for this competitor has not been analyzed (limited to the
+                            top 2-3 competitors per analysis).</p>
                     @endif
                 </div>
             @endforeach
         @else
-            <p class="empty-note">Belum ada kompetitor yang ditemukan untuk project ini.</p>
+            <p class="empty-note">No competitors found for this project yet.</p>
         @endif
     </div>
 
-    <!-- HALAMAN 4 -->
+    <!-- PAGE 4 -->
     <div class="content-page">
         <div class="header-band">
-            <span class="date">Halaman {{ $pageCounter++ }} / {{ $totalPages }} &middot; {{ $generatedAt }}</span>
+            <span class="date">Page {{ $pageCounter++ }} / {{ $totalPages }} &middot; {{ $generatedAt }}</span>
         </div>
 
         <h2 class="section-title"><span class="roman">V.</span> RELATED SEARCHES</h2>
@@ -424,16 +424,16 @@
                 @endforeach
             </ul>
         @else
-            <p class="empty-note">Belum ada related searches.</p>
+            <p class="empty-note">No related searches yet.</p>
         @endif
 
         <h2 class="section-title"><span class="roman">VI.</span> TOP KEYWORD</h2>
 
         @php
-            // Ambil keyword yang sudah DICENTANG tim di Workspace. Kalau belum
-            // ada satu pun yang dipilih (tim belum sempat review), fallback ke
-            // 10 teratas dari hasil AI supaya proposal tetap bisa di-generate
-            // tanpa harus menunggu.
+            // Take the keywords already CHECKED by the team in the Workspace. If
+            // none have been selected yet (the team hasn't had a chance to
+            // review), fall back to the top 10 from the AI results so the
+            // proposal can still be generated without waiting.
             $selectedKeywords = collect($aiRecommendations['main_keywords'] ?? [])
                 ->filter(fn($kw) => !empty($kw['selected']));
 
@@ -449,14 +449,14 @@
                 @endforeach
             </ul>
         @else
-            <p class="empty-note">Belum ada top keyword.</p>
+            <p class="empty-note">No top keywords yet.</p>
         @endif
     </div>
 
-    <!-- HALAMAN 5 -->
+    <!-- PAGE 5 -->
     <div class="content-page">
         <div class="header-band">
-            <span class="date">Halaman {{ $pageCounter++ }} / {{ $totalPages }} &middot; {{ $generatedAt }}</span>
+            <span class="date">Page {{ $pageCounter++ }} / {{ $totalPages }} &middot; {{ $generatedAt }}</span>
         </div>
 
         <div class="price-offer-title">PRICE OFFER</div>
@@ -498,9 +498,9 @@
         </ul>
 
         <p class="footer-note">
-            Proposal ini dibuat otomatis oleh sistem — data bersumber dari Google PageSpeed Insights, Google
-            Places API (analisis kompetitor), dan analisis AI (Gemini). Angka volume pencarian keyword adalah
-            estimasi AI kecuali ditandai sumber data Google Ads.
+            This proposal was generated automatically by the system — data sourced from Google PageSpeed Insights,
+            Google Places API (competitor analysis), and AI analysis (Gemini). Keyword search volume figures are
+            AI estimates unless marked as sourced from Google Ads data.
         </p>
     </div>
 

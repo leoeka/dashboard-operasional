@@ -14,7 +14,7 @@
 
     {{-- TAMBAH INVOICE --}}
     <x-card class="mb-6">
-        <h2 class="font-semibold text-slate-800 mb-4">Buat Invoice Baru</h2>
+        <h2 class="font-semibold text-slate-800 mb-4">Create New Invoice</h2>
         <form method="POST" action="{{ route('pages.finance.store') }}" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
             @csrf
             <select name="project_id" required class="bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
@@ -25,10 +25,10 @@
             </select>
             <select name="type" required class="bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
                 <option value="dp">DP</option>
-                <option value="pelunasan">Pelunasan</option>
+                <option value="pelunasan">Final Payment</option>
                 <option value="full">Full Payment</option>
             </select>
-            <input type="number" name="amount" placeholder="Jumlah (Rp)" required
+            <input type="number" name="amount" placeholder="Amount (Rp)" required
                 class="bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
             <div class="flex gap-2">
                 <input type="date" name="due_date" required
@@ -45,14 +45,13 @@
     <x-card padding="p-4" class="mb-5">
         <form method="GET" class="flex flex-wrap gap-2">
             <a href="{{ route('pages.finance') }}"
-                class="text-xs px-3 py-1.5 rounded-lg {{ !request('status') ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">Semua</a>
+                class="text-xs px-3 py-1.5 rounded-lg {{ !request('status') ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">All</a>
             <a href="{{ route('pages.finance', ['status' => 'unpaid']) }}"
-                class="text-xs px-3 py-1.5 rounded-lg {{ request('status') === 'unpaid' ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">Belum
-                Dibayar</a>
+                class="text-xs px-3 py-1.5 rounded-lg {{ request('status') === 'unpaid' ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">Unpaid</a>
             <a href="{{ route('pages.finance', ['status' => 'overdue']) }}"
-                class="text-xs px-3 py-1.5 rounded-lg {{ request('status') === 'overdue' ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">Terlambat</a>
+                class="text-xs px-3 py-1.5 rounded-lg {{ request('status') === 'overdue' ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">Overdue</a>
             <a href="{{ route('pages.finance', ['status' => 'paid']) }}"
-                class="text-xs px-3 py-1.5 rounded-lg {{ request('status') === 'paid' ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">Lunas</a>
+                class="text-xs px-3 py-1.5 rounded-lg {{ request('status') === 'paid' ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">Paid</a>
         </form>
     </x-card>
 
@@ -62,13 +61,13 @@
             <table class="w-full text-sm">
                 <thead>
                     <tr class="text-left text-slate-400 border-b border-slate-100">
-                        <th class="px-6 py-4 font-medium">No. Invoice</th>
+                        <th class="px-6 py-4 font-medium">Invoice No.</th>
                         <th class="px-6 py-4 font-medium">Project</th>
-                        <th class="px-6 py-4 font-medium">Jenis</th>
-                        <th class="px-6 py-4 font-medium">Jumlah</th>
-                        <th class="px-6 py-4 font-medium">Jatuh Tempo</th>
+                        <th class="px-6 py-4 font-medium">Type</th>
+                        <th class="px-6 py-4 font-medium">Amount</th>
+                        <th class="px-6 py-4 font-medium">Due Date</th>
                         <th class="px-6 py-4 font-medium">Status</th>
-                        <th class="px-6 py-4 font-medium text-right">Aksi</th>
+                        <th class="px-6 py-4 font-medium text-right">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -87,19 +86,19 @@
                                     @if ($invoice->status !== 'paid')
                                         <form method="POST" action="{{ route('pages.finance.remind', $invoice) }}">
                                             @csrf
-                                            <button type="submit" class="hover:text-brand-500" title="Kirim Reminder"><i
+                                            <button type="submit" class="hover:text-brand-500" title="Send Reminder"><i
                                                     class='bx bx-send text-lg'></i></button>
                                         </form>
                                         <form method="POST" action="{{ route('pages.finance.paid', $invoice) }}">
                                             @csrf @method('PATCH')
-                                            <button type="submit" class="hover:text-emerald-500" title="Tandai Lunas"><i
+                                            <button type="submit" class="hover:text-emerald-500" title="Mark as Paid"><i
                                                     class='bx bx-check-circle text-lg'></i></button>
                                         </form>
                                     @endif
                                     <form method="POST" action="{{ route('pages.finance.destroy', $invoice) }}"
-                                        onsubmit="return confirm('Hapus invoice ini?')">
+                                        onsubmit="return confirm('Delete this invoice?')">
                                         @csrf @method('DELETE')
-                                        <button type="submit" class="hover:text-red-500" title="Hapus"><i
+                                        <button type="submit" class="hover:text-red-500" title="Delete"><i
                                                 class='bx bx-trash text-lg'></i></button>
                                     </form>
                                 </div>
@@ -107,7 +106,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="7" class="px-6 py-10 text-center text-slate-400">Belum ada invoice.</td>
+                            <td colspan="7" class="px-6 py-10 text-center text-slate-400">No invoices yet.</td>
                         </tr>
                     @endforelse
                 </tbody>

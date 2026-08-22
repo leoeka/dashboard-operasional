@@ -40,17 +40,17 @@ class InvoiceController extends Controller
         $data['invoice_number'] = 'INV-' . strtoupper(Str::random(3)) . '-' . random_int(1000, 9999);
 
         $invoice = Invoice::create($data);
-        $invoice->project->logActivity("Invoice dibuat: {$invoice->invoice_number}");
+        $invoice->project->logActivity("Invoice created: {$invoice->invoice_number}");
 
-        return back()->with('success', 'Invoice berhasil dibuat.');
+        return back()->with('success', 'Invoice created successfully.');
     }
 
     public function markPaid(Invoice $invoice)
     {
         $invoice->update(['status' => 'paid', 'paid_at' => now()]);
-        $invoice->project->logActivity("Invoice {$invoice->invoice_number} ditandai lunas");
+        $invoice->project->logActivity("Invoice {$invoice->invoice_number} marked as paid");
 
-        return back()->with('success', 'Invoice ditandai lunas.');
+        return back()->with('success', 'Invoice marked as paid.');
     }
 
     public function sendReminderNow(Invoice $invoice, WhatsAppService $whatsapp)
@@ -58,7 +58,7 @@ class InvoiceController extends Controller
         $client = $invoice->project->client;
 
         if (!$client) {
-            return back()->with('error', 'Project ini belum terhubung ke data client.');
+            return back()->with('error', 'This project is not linked to a client yet.');
         }
 
         if ($client->email) {
@@ -74,15 +74,15 @@ class InvoiceController extends Controller
         }
 
         $invoice->update(['last_reminder_sent_at' => now()]);
-        $invoice->project->logActivity("Reminder invoice {$invoice->invoice_number} dikirim manual");
+        $invoice->project->logActivity("Reminder for invoice {$invoice->invoice_number} sent manually");
 
-        return back()->with('success', 'Reminder berhasil dikirim.');
+        return back()->with('success', 'Reminder sent successfully.');
     }
 
     public function destroy(Invoice $invoice)
     {
         $invoice->delete();
 
-        return back()->with('success', 'Invoice dihapus.');
+        return back()->with('success', 'Invoice deleted.');
     }
 }

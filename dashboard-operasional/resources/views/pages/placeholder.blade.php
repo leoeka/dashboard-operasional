@@ -8,7 +8,7 @@
     <x-card padding="p-16">
         <x-empty-state
             icon="bx-wrench"
-            title="Halaman ini sedang dikembangkan"
+            title="This page is under development"
             :description="$description" />
     </x-card>
 

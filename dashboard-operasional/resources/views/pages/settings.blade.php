@@ -1,10 +1,10 @@
 @extends('layouts.app')
-@section('title', 'Pengaturan')
+@section('title', 'Settings')
 
 @section('content')
 
     <div class="flex items-center gap-2 mb-6">
-        <h1 class="text-xl font-bold text-slate-800 dark:text-slate-100">Pengaturan</h1>
+        <h1 class="text-xl font-bold text-slate-800 dark:text-slate-100">Settings</h1>
     </div>
 
     <div class="space-y-6 max-w-2xl">
@@ -24,11 +24,11 @@
 
         {{-- INFO VERSI --}}
         <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-6">
-            <h2 class="font-semibold text-slate-800 dark:text-slate-100 mb-4">Informasi Sistem</h2>
+            <h2 class="font-semibold text-slate-800 dark:text-slate-100 mb-4">System Information</h2>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6 text-sm">
                 <div>
-                    <p class="text-slate-400 mb-1">Versi Aplikasi</p>
+                    <p class="text-slate-400 mb-1">Application Version</p>
                     <p class="font-medium text-slate-700 dark:text-slate-200">{{ $appVersion }}</p>
                 </div>
                 <div>

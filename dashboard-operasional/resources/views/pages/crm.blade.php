@@ -7,13 +7,13 @@
     <!-- HEADER -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-gray-800">Daftar Client</h1>
-            <p class="text-sm text-gray-600">Kelola data klien dan project terkait.</p>
+            <h1 class="text-2xl font-bold text-gray-800">Client List</h1>
+            <p class="text-sm text-gray-600">Manage client data and related projects.</p>
         </div>
         <div>
             <a href="{{ route('pages.request') }}"
                 class="grad-blue text-white text-sm font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 hover:opacity-90 transition w-fit">
-                <i class='bx bx-plus'></i> Tambah Client Baru
+                <i class='bx bx-plus'></i> Add New Client
             </a>
         </div>
     </div>
@@ -29,12 +29,12 @@
     <div class="bg-white p-4 rounded-lg shadow mb-6">
         <form action="{{ route('pages.crm') }}" method="GET" class="flex flex-col sm:flex-row gap-2">
             <input type="text" name="search" value="{{ request('search') }}"
-                placeholder="Cari berdasarkan perusahaan, nama, email, atau HP..."
+                placeholder="Search by company, name, email, or phone..."
                 class="w-full sm:w-1/3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
             <div class="flex gap-2">
                 <button type="submit"
                     class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900">
-                    Cari
+                    Search
                 </button>
                 @if (request('search'))
                     <a href="{{ route('pages.crm') }}"
@@ -52,12 +52,12 @@
             <table class="w-full text-left border-collapse">
                 <thead>
                     <tr class="text-left text-slate-400 border-b border-slate-100">
-                        <th class="px-6 py-4 font-medium">Perusahaan</th>
-                        <th class="px-6 py-4 font-medium">Nama Kontak</th>
-                        <th class="px-6 py-4 font-medium">Kontak Info</th>
-                        <th class="px-6 py-4 font-medium">Jumlah Project</th>
-                        <th class="px-6 py-4 font-medium">Tanggal Dibuat</th>
-                        <th class="px-6 py-4 font-medium text-center">Aksi</th>
+                        <th class="px-6 py-4 font-medium">Company</th>
+                        <th class="px-6 py-4 font-medium">Contact Name</th>
+                        <th class="px-6 py-4 font-medium">Contact Info</th>
+                        <th class="px-6 py-4 font-medium">Project Count</th>
+                        <th class="px-6 py-4 font-medium">Created Date</th>
+                        <th class="px-6 py-4 font-medium text-center">Action</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-200 text-sm text-gray-700">
@@ -100,7 +100,7 @@
                     @empty
                         <tr>
                             <td colspan="6" class="px-6 py-8 text-center text-gray-500">
-                                Belum ada data client.
+                                No client data yet.
                             </td>
                         </tr>
                     @endforelse

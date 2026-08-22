@@ -189,7 +189,7 @@ class requestOrderController extends Controller
                     $seo['ai_identified_topics'] = $preview['topics'] ?? null;
                     $project->update(['seo_requirements' => $seo]);
 
-                    $project->logActivity('Hasil analisis SEO & Backlink (preview sebelum submit) diterapkan ke project');
+                    $project->logActivity('SEO & Backlink analysis results (preview before submission) applied to project');
                     $previewApplied = true;
                 }
             }
@@ -203,7 +203,7 @@ class requestOrderController extends Controller
                 if (!empty($resolvableUrl)) {
                     Cache::put(
                         \App\Jobs\GenerateKeywordRecommendationsJob::cacheKey($project->id),
-                        ['status' => 'queued', 'progress' => 0, 'message' => 'Menunggu diproses...'],
+                        ['status' => 'queued', 'progress' => 0, 'message' => 'Waiting to be processed...'],
                         now()->addMinutes(10)
                     );
 
@@ -212,13 +212,13 @@ class requestOrderController extends Controller
             }
 
             return redirect()->route('pages.projects.show', $project)
-                ->with('success', 'Draft proyek berhasil disimpan!');
+                ->with('success', 'Project draft saved successfully!');
 
         } catch (\Exception $e) {
             DB::rollBack();
 
             return back()->withInput()
-                ->with('error', 'Gagal menyimpan data: ' . $e->getMessage());
+                ->with('error', 'Failed to save data: ' . $e->getMessage());
         }
     }
 

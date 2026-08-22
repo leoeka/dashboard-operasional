@@ -24,7 +24,7 @@ class ServicePackageController extends Controller
         $data = $this->validated($request);
         ServicePackage::create($data);
 
-        return redirect()->route('service-packages.index')->with('success', 'Paket berhasil ditambahkan.');
+        return redirect()->route('service-packages.index')->with('success', 'Package added successfully.');
     }
 
     public function edit(ServicePackage $servicePackage)
@@ -36,14 +36,14 @@ class ServicePackageController extends Controller
     {
         $servicePackage->update($this->validated($request));
 
-        return redirect()->route('service-packages.index')->with('success', 'Paket berhasil diperbarui.');
+        return redirect()->route('service-packages.index')->with('success', 'Package updated successfully.');
     }
 
     public function destroy(ServicePackage $servicePackage)
     {
         $servicePackage->delete();
 
-        return back()->with('success', 'Paket dihapus.');
+        return back()->with('success', 'Package deleted.');
     }
 
     private function validated(Request $request): array

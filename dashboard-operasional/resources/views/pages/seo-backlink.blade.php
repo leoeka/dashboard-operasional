@@ -9,11 +9,11 @@
             <div class="flex flex-col sm:flex-row gap-2 w-fit">
                 <a href="{{ route('pages.projects.seo-proposal.download', $project) }}"
                     class="inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 hover:text-emerald-800 border border-emerald-200 hover:bg-emerald-50 px-3 py-2 rounded-lg transition w-fit">
-                    <i class='bx bx-file'></i> Unduh Proposal (PDF)
+                    <i class='bx bx-file'></i> Download Proposal (PDF)
                 </a>
                 <a href="{{ route('pages.projects.seo-backlink.report.download', $project) }}"
                     class="inline-flex items-center gap-2 text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 hover:bg-blue-50 px-3 py-2 rounded-lg transition w-fit">
-                    <i class='bx bx-download'></i> Unduh Laporan (PDF)
+                    <i class='bx bx-download'></i> Download Report (PDF)
                 </a>
             </div>
         @endif
@@ -35,7 +35,7 @@
             <label class="text-sm font-medium text-slate-600">Project:</label>
             <select name="project" onchange="this.form.submit()"
                 class="flex-1 bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none">
-                <option value="">-- Pilih project --</option>
+                <option value="">-- Select project --</option>
                 @foreach ($projects as $p)
                     <option value="{{ $p->id }}" @selected($project && $project->id === $p->id)>
                         {{ $p->name }} ({{ $p->client_name }})
@@ -47,14 +47,14 @@
 
     @if (!$project)
         <x-card padding="p-16">
-            <p class="text-sm text-slate-400 text-center">Pilih project di atas untuk kelola SEO & Backlink.</p>
+            <p class="text-sm text-slate-400 text-center">Select a project above to manage SEO & Backlink.</p>
         </x-card>
     @else
         {{-- SEO & BACKLINK --}}
         @if (!$project->wants_seo && !$project->wants_backlink)
             <x-card padding="p-10">
                 <p class="text-sm text-slate-400 text-center">
-                    Project ini tidak meminta layanan SEO atau Backlink saat pengajuan.
+                    This project did not request SEO or Backlink services at submission.
                 </p>
             </x-card>
         @else
@@ -66,10 +66,10 @@
                 $isConnected = false; // TODO: ganti jadi cek kolom wp_application_password setelah fitur Connect Website dibangun
 
                 $connectHint = match (true) {
-                    $cmsPlatform === 'baru' => 'Ambil username & password dari dashboard sandbox ZipWP, lalu tempel di sini.',
-                    $cmsPlatform === 'wordpress' => 'Minta akses WordPress dari client, lalu tempel di sini.',
-                    in_array($cmsPlatform, ['shopify', 'wix']) => 'Platform ini (' . ucfirst($cmsPlatform) . ') belum didukung untuk publish otomatis — artikel akan disediakan untuk diunduh/disalin manual.',
-                    default => 'Tanyakan ke client platform website mereka untuk mengaktifkan publish otomatis.',
+                    $cmsPlatform === 'baru' => 'Get the username & password from the ZipWP sandbox dashboard, then paste them here.',
+                    $cmsPlatform === 'wordpress' => 'Request WordPress access from the client, then paste it here.',
+                    in_array($cmsPlatform, ['shopify', 'wix']) => 'This platform (' . ucfirst($cmsPlatform) . ') is not yet supported for automatic publishing — articles will be provided for manual download/copy.',
+                    default => 'Ask the client about their website platform to enable automatic publishing.',
                 };
 
                 $keywordList = collect(explode(',', $seo['keywords'] ?? ''))
@@ -98,17 +98,17 @@
                     <button type="button" @click="tab = 'ringkasan'; location.hash = 'ringkasan'"
                         :class="tab === 'ringkasan' ? 'border-brand-500 text-brand-600 font-semibold' : 'border-transparent text-slate-400 hover:text-slate-600'"
                         class="px-4 py-2.5 text-sm border-b-2 -mb-px transition whitespace-nowrap">
-                        Ringkasan
+                        Summary
                     </button>
                     <button type="button" @click="tab = 'performa'; location.hash = 'performa'"
                         :class="tab === 'performa' ? 'border-brand-500 text-brand-600 font-semibold' : 'border-transparent text-slate-400 hover:text-slate-600'"
                         class="px-4 py-2.5 text-sm border-b-2 -mb-px transition whitespace-nowrap">
-                        Performa
+                        Performance
                     </button>
                     <button type="button" @click="tab = 'traffic'; location.hash = 'traffic'"
                         :class="tab === 'traffic' ? 'border-brand-500 text-brand-600 font-semibold' : 'border-transparent text-slate-400 hover:text-slate-600'"
                         class="px-4 py-2.5 text-sm border-b-2 -mb-px transition whitespace-nowrap">
-                        Laporan Traffic
+                        Traffic Report
                     </button>
                 </div>
 
@@ -120,11 +120,11 @@
                             @if ($isConnected)
                                 <span
                                     class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                                    <i class='bx bx-check'></i> Terhubung
+                                    <i class='bx bx-check'></i> Connected
                                 </span>
                             @else
                                 <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
-                                    Belum terhubung
+                                    Not connected
                                 </span>
                             @endif
                         </div>
@@ -134,15 +134,15 @@
                             <div class="border-t border-slate-100 pt-4 mb-4">
                                 <div class="flex items-center gap-2 mb-2">
                                     <i class='bx bx-search text-blue-600'></i>
-                                    <span class="text-sm font-medium text-slate-700">Kebutuhan SEO</span>
+                                    <span class="text-sm font-medium text-slate-700">SEO Requirements</span>
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">URL target</span>
+                                        <span class="text-slate-400 w-28 flex-shrink-0">Target URL</span>
                                         <span class="text-slate-700 break-all">{{ $seo['target_url'] ?: '-' }}</span>
                                     </div>
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Lokasi</span>
+                                        <span class="text-slate-400 w-28 flex-shrink-0">Location</span>
                                         <span class="text-slate-700">{{ $seo['location'] ?: '-' }}</span>
                                     </div>
                                     <div class="flex gap-2 sm:col-span-2">
@@ -155,7 +155,7 @@
                                                 -
                                             @endforelse
                                             @if ($keywordList->count() > 4)
-                                                <span class="text-xs text-slate-400">+{{ $keywordList->count() - 4 }} lainnya</span>
+                                                <span class="text-xs text-slate-400">+{{ $keywordList->count() - 4 }} more</span>
                                             @endif
                                         </span>
                                     </div>
@@ -164,7 +164,7 @@
                                         <span>
                                             @if ($cmsPlatform)
                                                 <span
-                                                    class="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">{{ ucfirst($cmsPlatform === 'baru' ? 'Website Baru (dari kami)' : $cmsPlatform) }}</span>
+                                                    class="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">{{ ucfirst($cmsPlatform === 'baru' ? 'New Website (from us)' : $cmsPlatform) }}</span>
                                             @else
                                                 -
                                             @endif
@@ -179,24 +179,24 @@
                             <div class="border-t border-slate-100 pt-4 mb-4">
                                 <div class="flex items-center gap-2 mb-2">
                                     <i class='bx bx-link text-blue-600'></i>
-                                    <span class="text-sm font-medium text-slate-700">Kebutuhan Backlink</span>
+                                    <span class="text-sm font-medium text-slate-700">Backlink Requirements</span>
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Jumlah</span>
+                                        <span class="text-slate-400 w-28 flex-shrink-0">Quantity</span>
                                         <span class="text-slate-700">{{ $backlink['quantity'] ?? '-' }} backlink</span>
                                     </div>
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Prioritas</span>
+                                        <span class="text-slate-400 w-28 flex-shrink-0">Priority</span>
                                         <span
-                                            class="text-slate-700">{{ $backlink['priority'] === 'quality' ? 'Kualitas' : ($backlink['priority'] === 'quantity' ? 'Kuantitas' : '-') }}</span>
+                                            class="text-slate-700">{{ $backlink['priority'] === 'quality' ? 'Quality' : ($backlink['priority'] === 'quantity' ? 'Quantity' : '-') }}</span>
                                     </div>
                                     <div class="flex gap-2">
                                         <span class="text-slate-400 w-28 flex-shrink-0">Niche</span>
                                         <span class="text-slate-700">{{ $backlink['niche'] ?: '-' }}</span>
                                     </div>
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Jenis anchor</span>
+                                        <span class="text-slate-400 w-28 flex-shrink-0">Anchor type</span>
                                         <span class="text-slate-700">
                                             @forelse (($backlink['anchor_type'] ?? []) as $type)
                                                 <span
@@ -215,15 +215,15 @@
                             @if (!$isConnected)
                                 <button type="button" disabled
                                     class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg opacity-60 cursor-not-allowed w-fit">
-                                    <i class='bx bx-plug'></i> Hubungkan Website
+                                    <i class='bx bx-plug'></i> Connect Website
                                 </button>
                                 <p class="text-xs text-slate-400">{{ $connectHint }}</p>
                             @else
                                 <button type="button" disabled
                                     class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg opacity-60 cursor-not-allowed w-fit">
-                                    <i class='bx bx-magic-wand'></i> Generate Artikel
+                                    <i class='bx bx-magic-wand'></i> Generate Article
                                 </button>
-                                <p class="text-xs text-slate-400">Fitur generate artikel belum tersedia</p>
+                                <p class="text-xs text-slate-400">Article generation feature not yet available</p>
                             @endif
                         </div>
                     </x-card>
@@ -231,30 +231,30 @@
                     {{-- KARTU ANALISIS AI — keyword & kompetitor otomatis --}}
                     <x-card class="mb-6">
                         <div class="flex items-center justify-between mb-1">
-                            <h2 class="font-semibold text-slate-800">Analisis AI — Keyword & Kompetitor</h2>
+                            <h2 class="font-semibold text-slate-800">AI Analysis — Keyword & Competitor</h2>
                             @if ($aiRecommendations)
                                 <span
                                     class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                                    <i class='bx bx-check'></i> Sudah dianalisis
+                                    <i class='bx bx-check'></i> Analyzed
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-400 mb-4">Keyword & kompetitor otomatis via AI.</p>
+                        <p class="text-xs text-slate-400 mb-4">Automatic keyword & competitor discovery via AI.</p>
 
                         @if (!$resolvedUrl)
                             <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                                URL website client belum diisi. Isi dulu di
-                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-medium">halaman Edit
-                                    Project</a>
-                                — analisis akan otomatis jalan sekali setelah URL tersimpan, atau bisa dipicu manual di sini
-                                setelahnya.
+                                The client's website URL has not been filled in. Fill it in first on the
+                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-medium">Edit
+                                    Project page</a>
+                                — the analysis will run automatically once after the URL is saved, or it can be triggered
+                                manually here afterward.
                             </div>
                         @else
                             <div id="aiAnalysisBox" data-project-id="{{ $project->id }}">
                                 <div id="aiIdleState" class="{{ $aiRecommendations ? 'hidden' : '' }}">
                                     <button type="button" id="btnStartAnalysis"
                                         class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
-                                        <i class='bx bx-magic-wand'></i> Mulai Analisis AI
+                                        <i class='bx bx-magic-wand'></i> Start AI Analysis
                                     </button>
                                 </div>
 
@@ -270,13 +270,13 @@
                                     class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
                                     <p id="aiErrorMessage"></p>
                                     <button type="button" id="btnRetryAnalysis"
-                                        class="mt-2 text-xs font-semibold text-red-700 underline">Coba lagi</button>
+                                        class="mt-2 text-xs font-semibold text-red-700 underline">Try again</button>
                                 </div>
 
                                 @if ($aiRecommendations)
                                     <button type="button" id="btnRerunAnalysis"
                                         class="text-xs font-semibold text-blue-600 hover:text-blue-800">
-                                        Jalankan ulang analisis
+                                        Re-run analysis
                                     </button>
                                 @endif
                             </div>
@@ -285,7 +285,7 @@
                                 <div class="border-t border-slate-100 mt-4 pt-4 space-y-4">
                                     @if (!empty($aiTopics['core_topics']))
                                         <div>
-                                            <p class="text-xs text-slate-400 mb-1">Topik inti terdeteksi</p>
+                                            <p class="text-xs text-slate-400 mb-1">Core topics detected</p>
                                             <div>
                                                 @foreach ($aiTopics['core_topics'] as $topic)
                                                     <span
@@ -299,10 +299,10 @@
                                     <div>
                                         <div class="flex items-center justify-between mb-2">
                                             <p class="text-xs text-slate-400">
-                                                Kandidat Keyword ({{ count($aiRecommendations['main_keywords'] ?? []) }})
+                                                Keyword Candidates ({{ count($aiRecommendations['main_keywords'] ?? []) }})
                                                 <span
                                                     class="ml-1 inline-block text-[10px] px-1.5 py-0.5 rounded-full {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500' }}">
-                                                    {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'Data Google Ads' : 'Estimasi AI' }}
+                                                    {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'Google Ads Data' : 'AI Estimate' }}
                                                 </span>
                                             </p>
                                             <span id="keywordSelectedCount" class="text-xs text-slate-400"></span>
@@ -316,9 +316,9 @@
                                                         <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
                                                             <th class="pb-2 pr-2 w-6"></th>
                                                             <th class="pb-2 pr-4">Keyword</th>
-                                                            <th class="pb-2 pr-4">Volume/bulan</th>
-                                                            <th class="pb-2 pr-4">Persaingan</th>
-                                                            <th class="pb-2">Alasan</th>
+                                                            <th class="pb-2 pr-4">Volume/month</th>
+                                                            <th class="pb-2 pr-4">Competition</th>
+                                                            <th class="pb-2">Reason</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>
@@ -343,9 +343,9 @@
                                             <div class="flex items-center gap-2 mt-3">
                                                 <button type="submit" id="btnSaveKeywordSelection"
                                                     class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
-                                                    <i class='bx bx-check'></i> Simpan Pilihan
+                                                    <i class='bx bx-check'></i> Save Selection
                                                 </button>
-                                                <span id="keywordSelectSaved" class="hidden text-xs text-emerald-600">Tersimpan.</span>
+                                                <span id="keywordSelectSaved" class="hidden text-xs text-emerald-600">Saved.</span>
                                                 <span id="keywordSelectError" class="hidden text-xs text-red-600"></span>
                                             </div>
                                         </form>
@@ -365,7 +365,7 @@
 
                                     @if (!empty($aiRecommendations['summary']))
                                         <div>
-                                            <p class="text-xs text-slate-400 mb-1">Ringkasan strategi</p>
+                                            <p class="text-xs text-slate-400 mb-1">Strategy summary</p>
                                             <p class="text-sm text-slate-600">{{ $aiRecommendations['summary'] }}</p>
                                         </div>
                                     @endif
@@ -377,7 +377,7 @@
                                             $competitorPagespeed = $seo['competitor_pagespeed'] ?? null;
                                         @endphp
                                         <div class="border-t border-slate-100 pt-4">
-                                            <p class="text-xs text-slate-400 mb-2">Centang maks 3 kompetitor untuk dianalisis:</p>
+                                            <p class="text-xs text-slate-400 mb-2">Check up to 3 competitors to analyze:</p>
 
                                             <form id="competitorSelectForm">
                                                 @csrf
@@ -393,16 +393,16 @@
                                                 </ul>
 
                                                 <textarea name="manual_urls" rows="2"
-                                                    placeholder="Tambah manual, 1 URL per baris: https://contoh-kompetitor-lain.com/"
+                                                    placeholder="Add manually, 1 URL per line: https://other-competitor-example.com/"
                                                     class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-2"></textarea>
 
                                                 <button type="submit" id="btnSelectCompetitors"
                                                     class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
                                                     <i class='bx bx-refresh'></i>
-                                                    {{ $competitorPagespeed ? 'Pilih Ulang & Analisis' : 'Pilih & Analisis Kompetitor Ini' }}
+                                                    {{ $competitorPagespeed ? 'Re-select & Analyze' : 'Select & Analyze These Competitors' }}
                                                 </button>
-                                                <span id="compPagespeedSpinner" class="hidden text-xs text-slate-400 ml-2">Memproses (bisa
-                                                    1-2 menit)...</span>
+                                                <span id="compPagespeedSpinner" class="hidden text-xs text-slate-400 ml-2">Processing (can take
+                                                    1-2 minutes)...</span>
                                                 <p id="competitorSelectError" class="hidden text-xs text-red-600 mt-2"></p>
                                             </form>
 
@@ -428,7 +428,7 @@
                                                             <div class="mt-2 pt-2 border-t border-slate-100">
                                                                 <a href="https://www.semrush.com/analytics/overview/?q={{ urlencode($compHost) }}&searchType=domain"
                                                                     target="_blank" rel="noopener"
-                                                                    class="text-[11px] text-blue-600 hover:underline block">Buka Semrush &rarr;</a>
+                                                                    class="text-[11px] text-blue-600 hover:underline block">Open Semrush &rarr;</a>
 
                                                                 @if (!empty($seo['manual_screenshots']['competitor_semrush'][$compHost]))
                                                                     <div class="mt-1">
@@ -440,7 +440,7 @@
                                                                             @method('DELETE')
                                                                             <input type="hidden" name="target" value="competitor_semrush:{{ $compHost }}">
                                                                             <button type="submit"
-                                                                                class="text-[11px] text-red-600 hover:underline">Hapus</button>
+                                                                                class="text-[11px] text-red-600 hover:underline">Delete</button>
                                                                         </form>
                                                                     </div>
                                                                 @else
@@ -451,7 +451,7 @@
                                                                         <input type="file" name="screenshot" accept="image/*" required
                                                                             class="text-[11px] w-full">
                                                                         <button type="submit"
-                                                                            class="text-[11px] bg-blue-600 text-white px-2 py-1 rounded mt-1">Unggah</button>
+                                                                            class="text-[11px] bg-blue-600 text-white px-2 py-1 rounded mt-1">Upload</button>
                                                                     </form>
                                                                 @endif
                                                             </div>
@@ -459,7 +459,7 @@
                                                             <div class="mt-2 pt-2 border-t border-slate-100">
                                                                 <a href="https://pagespeed.web.dev/report?url={{ urlencode($comp['url']) }}"
                                                                     target="_blank" rel="noopener"
-                                                                    class="text-[11px] text-blue-600 hover:underline block">Buka PageSpeed &rarr;</a>
+                                                                    class="text-[11px] text-blue-600 hover:underline block">Open PageSpeed &rarr;</a>
 
                                                                 @if (!empty($seo['manual_screenshots']['competitor_pagespeed'][$compHost]))
                                                                     <div class="mt-1">
@@ -471,7 +471,7 @@
                                                                             @method('DELETE')
                                                                             <input type="hidden" name="target" value="competitor_pagespeed:{{ $compHost }}">
                                                                             <button type="submit"
-                                                                                class="text-[11px] text-red-600 hover:underline">Hapus</button>
+                                                                                class="text-[11px] text-red-600 hover:underline">Delete</button>
                                                                         </form>
                                                                     </div>
                                                                 @else
@@ -482,7 +482,7 @@
                                                                         <input type="file" name="screenshot" accept="image/*" required
                                                                             class="text-[11px] w-full">
                                                                         <button type="submit"
-                                                                            class="text-[11px] bg-blue-600 text-white px-2 py-1 rounded mt-1">Unggah</button>
+                                                                            class="text-[11px] bg-blue-600 text-white px-2 py-1 rounded mt-1">Upload</button>
                                                                     </form>
                                                                 @endif
                                                             </div>
@@ -517,7 +517,7 @@
                                                                 clearInterval(pollTimer);
                                                                 btn.disabled = false;
                                                                 spinner.classList.add('hidden');
-                                                                errorBox.textContent = data.message || 'Gagal menganalisis.';
+                                                                errorBox.textContent = data.message || 'Failed to analyze.';
                                                                 errorBox.classList.remove('hidden');
                                                             }
                                                         });
@@ -544,14 +544,14 @@
                                                             } else {
                                                                 btn.disabled = false;
                                                                 spinner.classList.add('hidden');
-                                                                errorBox.textContent = data.message || 'Gagal memulai analisis.';
+                                                                errorBox.textContent = data.message || 'Failed to start analysis.';
                                                                 errorBox.classList.remove('hidden');
                                                             }
                                                         })
                                                         .catch(() => {
                                                             btn.disabled = false;
                                                             spinner.classList.add('hidden');
-                                                            errorBox.textContent = 'Gagal memulai analisis. Coba lagi.';
+                                                            errorBox.textContent = 'Failed to start analysis. Try again.';
                                                             errorBox.classList.remove('hidden');
                                                         });
                                                 });
@@ -560,7 +560,7 @@
                                                     const checked = document.querySelectorAll('.competitor-checkbox:checked');
                                                     if (checked.length > 3) {
                                                         this.checked = false;
-                                                        errorBox.textContent = 'Maksimal 3 kompetitor (termasuk yang ditambah manual).';
+                                                        errorBox.textContent = 'Maximum 3 competitors (including those added manually).';
                                                         errorBox.classList.remove('hidden');
                                                     } else {
                                                         errorBox.classList.add('hidden');
@@ -569,7 +569,7 @@
                                             })();
                                         </script>
                                     @else
-                                        <p class="empty-note text-xs text-slate-400">Belum ada kompetitor yang ditemukan untuk project ini.</p>
+                                        <p class="empty-note text-xs text-slate-400">No competitors found for this project yet.</p>
                                     @endif
                                 </div>
                             @endif
@@ -618,7 +618,7 @@
                                                     window.location.reload();
                                                 } else if (data.status === 'failed') {
                                                     clearInterval(pollTimer);
-                                                    errorMessage.textContent = data.message || 'Analisis gagal, silakan coba lagi.';
+                                                    errorMessage.textContent = data.message || 'Analysis failed, please try again.';
                                                     showState('error');
                                                 }
                                             })
@@ -636,7 +636,7 @@
                                             .then(res => res.json())
                                             .then(() => startPolling())
                                             .catch(() => {
-                                                errorMessage.textContent = 'Gagal memulai analisis. Coba lagi.';
+                                                errorMessage.textContent = 'Failed to start analysis. Try again.';
                                                 showState('error');
                                             });
                                     }
@@ -662,7 +662,7 @@
 
                                     function updateCount() {
                                         const n = document.querySelectorAll('.keyword-checkbox:checked').length;
-                                        countLabel.textContent = n + ' dipilih';
+                                        countLabel.textContent = n + ' selected';
                                     }
 
                                     checkboxes.forEach(cb => cb.addEventListener('change', updateCount));
@@ -688,13 +688,13 @@
                                                 if (ok && data.success) {
                                                     savedMsg.classList.remove('hidden');
                                                 } else {
-                                                    errorMsg.textContent = data.message || 'Gagal menyimpan pilihan.';
+                                                    errorMsg.textContent = data.message || 'Failed to save selection.';
                                                     errorMsg.classList.remove('hidden');
                                                 }
                                             })
                                             .catch(() => {
                                                 btn.disabled = false;
-                                                errorMsg.textContent = 'Gagal menyimpan pilihan. Coba lagi.';
+                                                errorMsg.textContent = 'Failed to save selection. Try again.';
                                                 errorMsg.classList.remove('hidden');
                                             });
                                     });
@@ -708,29 +708,29 @@
                 <div x-show="tab === 'performa'">
                     <x-card class="mb-6">
                         <div class="flex items-center justify-between mb-1">
-                            <h2 class="font-semibold text-slate-800">Performa Website (PageSpeed)</h2>
+                            <h2 class="font-semibold text-slate-800">Website Performance (PageSpeed)</h2>
                             @if ($pagespeed)
                                 <span
                                     class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                                    <i class='bx bx-check'></i> Sudah dianalisis
+                                    <i class='bx bx-check'></i> Analyzed
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-400 mb-4">Kecepatan & Core Web Vitals (Lighthouse).</p>
+                        <p class="text-xs text-slate-400 mb-4">Speed & Core Web Vitals (Lighthouse).</p>
 
                         @if (!$resolvedUrl)
                             <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                                URL website client belum diisi. Isi dulu di
-                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-medium">halaman Edit
-                                    Project</a>.
+                                The client's website URL has not been filled in. Fill it in first on the
+                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-medium">Edit
+                                    Project page</a>.
                             </div>
                         @else
                             <div id="pagespeedBox">
                                 <button type="button" id="btnAnalyzePagespeed"
                                     class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
-                                    <i class='bx bx-tachometer'></i> {{ $pagespeed ? 'Jalankan Ulang Analisis' : 'Analisis Performa' }}
+                                    <i class='bx bx-tachometer'></i> {{ $pagespeed ? 'Re-run Analysis' : 'Analyze Performance' }}
                                 </button>
-                                <p class="text-xs text-slate-400 mt-1">Proses ~30-60 detik.</p>
+                                <p class="text-xs text-slate-400 mt-1">Takes ~30-60 seconds.</p>
 
                                 <div id="pagespeedProgress" class="hidden mt-3">
                                     <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
@@ -761,10 +761,10 @@
                                                     <table class="w-full text-sm">
                                                         <thead>
                                                             <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
-                                                                <th class="pb-1 pr-4">Metrik</th>
-                                                                <th class="pb-1 pr-4">Nilai</th>
+                                                                <th class="pb-1 pr-4">Metric</th>
+                                                                <th class="pb-1 pr-4">Value</th>
                                                                 <th class="pb-1 pr-4">Status</th>
-                                                                <th class="pb-1">Sumber</th>
+                                                                <th class="pb-1">Source</th>
                                                             </tr>
                                                         </thead>
                                                         <tbody>
@@ -784,7 +784,7 @@
                                                                             class="text-xs px-2 py-0.5 rounded-full {{ $statusColor }}">{{ $statusLabel }}</span>
                                                                     </td>
                                                                     <td class="py-1.5 text-xs text-slate-400">
-                                                                        {{ ($m['source'] ?? null) === 'field' ? 'Data pengguna nyata' : (($m['source'] ?? null) === 'lab' ? 'Simulasi' : '-') }}
+                                                                        {{ ($m['source'] ?? null) === 'field' ? 'Real user data' : (($m['source'] ?? null) === 'lab' ? 'Simulated' : '-') }}
                                                                     </td>
                                                                 </tr>
                                                             @endforeach
@@ -794,13 +794,13 @@
                                             </div>
                                         @endif
                                     @endforeach
-                                    <p class="text-xs text-slate-400">Terakhir dianalisis: {{ $pagespeed['analyzed_at'] ?? '-' }}</p>
+                                    <p class="text-xs text-slate-400">Last analyzed: {{ $pagespeed['analyzed_at'] ?? '-' }}</p>
 
                                     <div class="border-t border-slate-100 mt-4 pt-4">
-                                        <p class="text-xs font-medium text-slate-600 mb-1">Screenshot Semrush Overview (untuk Proposal)</p>
+                                        <p class="text-xs font-medium text-slate-600 mb-1">Semrush Overview Screenshot (for Proposal)</p>
                                         <a href="https://www.semrush.com/analytics/overview/?q={{ urlencode(parse_url($resolvedUrl, PHP_URL_HOST)) }}&searchType=domain"
                                             target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">
-                                            Buka Semrush untuk domain ini &rarr;
+                                            Open Semrush for this domain &rarr;
                                         </a>
 
                                         @if (!empty($seo['manual_screenshots']['own_semrush']))
@@ -813,8 +813,7 @@
                                                     @method('DELETE')
                                                     <input type="hidden" name="target" value="own_semrush">
                                                     <input type="hidden" name="return_tab" value="performa">
-                                                    <button type="submit" class="text-xs text-red-600 hover:underline">Hapus & unggah
-                                                        ulang</button>
+                                                    <button type="submit" class="text-xs text-red-600 hover:underline">Delete & re-upload</button>
                                                 </form>
                                             </div>
                                         @else
@@ -825,15 +824,15 @@
                                                 <input type="hidden" name="return_tab" value="performa">
                                                 <input type="file" name="screenshot" accept="image/*" required class="text-xs">
                                                 <button type="submit"
-                                                    class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg">Unggah</button>
+                                                    class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg">Upload</button>
                                             </form>
                                         @endif
                                     </div>
 
                                     <div class="border-t border-slate-100 mt-4 pt-4">
-                                        <p class="text-xs font-medium text-slate-600 mb-1">Screenshot Laporan PageSpeed (untuk Proposal)</p>
+                                        <p class="text-xs font-medium text-slate-600 mb-1">PageSpeed Report Screenshot (for Proposal)</p>
                                         <a href="https://pagespeed.web.dev/report?url={{ urlencode($resolvedUrl) }}" target="_blank"
-                                            rel="noopener" class="text-xs text-blue-600 hover:underline">Buka PageSpeed untuk situs ini
+                                            rel="noopener" class="text-xs text-blue-600 hover:underline">Open PageSpeed for this site
                                             &rarr;</a>
 
                                         @if (!empty($seo['manual_screenshots']['own_pagespeed']))
@@ -846,8 +845,7 @@
                                                     @method('DELETE')
                                                     <input type="hidden" name="target" value="own_pagespeed">
                                                     <input type="hidden" name="return_tab" value="performa">
-                                                    <button type="submit" class="text-xs text-red-600 hover:underline">Hapus & unggah
-                                                        ulang</button>
+                                                    <button type="submit" class="text-xs text-red-600 hover:underline">Delete & re-upload</button>
                                                 </form>
                                             </div>
                                         @else
@@ -858,7 +856,7 @@
                                                 <input type="hidden" name="return_tab" value="performa">
                                                 <input type="file" name="screenshot" accept="image/*" required class="text-xs">
                                                 <button type="submit"
-                                                    class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg">Unggah</button>
+                                                    class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg">Upload</button>
                                             </form>
                                         @endif
                                     </div>
@@ -890,7 +888,7 @@
                                                 } else if (data.status === 'failed') {
                                                     clearInterval(pollTimer);
                                                     progress.classList.add('hidden');
-                                                    errorBox.textContent = data.message || 'Analisis gagal.';
+                                                    errorBox.textContent = data.message || 'Analysis failed.';
                                                     errorBox.classList.remove('hidden');
                                                 }
                                             })
@@ -914,7 +912,7 @@
                                                 checkStatus();
                                             })
                                             .catch(() => {
-                                                errorBox.textContent = 'Gagal memulai analisis.';
+                                                errorBox.textContent = 'Failed to start analysis.';
                                                 errorBox.classList.remove('hidden');
                                             });
                                     });
@@ -928,26 +926,26 @@
                 <div x-show="tab === 'traffic'">
                     <x-card class="mb-6">
                         <div class="flex items-center justify-between mb-1">
-                            <h2 class="font-semibold text-slate-800">Laporan Search Console</h2>
+                            <h2 class="font-semibold text-slate-800">Search Console Report</h2>
                             @if ($searchConsole)
                                 <span
                                     class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                                    <i class='bx bx-check'></i> Ada data
+                                    <i class='bx bx-check'></i> Data available
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-400 mb-4">28 hari terakhir.</p>
+                        <p class="text-xs text-slate-400 mb-4">Last 28 days.</p>
 
                         @if (!$resolvedUrl)
                             <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                                URL website client belum diisi.
+                                The client's website URL has not been filled in.
                             </div>
                         @else
                             <button type="button" id="btnAnalyzeGsc"
                                 class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
-                                <i class='bx bx-refresh'></i> {{ $searchConsole ? 'Refresh Data' : 'Tarik Data Search Console' }}
+                                <i class='bx bx-refresh'></i> {{ $searchConsole ? 'Refresh Data' : 'Fetch Search Console Data' }}
                             </button>
-                            <span id="gscSpinner" class="hidden text-xs text-slate-400 ml-2">Memuat...</span>
+                            <span id="gscSpinner" class="hidden text-xs text-slate-400 ml-2">Loading...</span>
 
                             <div id="gscError" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
                             </div>
@@ -962,7 +960,7 @@
                                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                                         <div class="rounded-lg p-3 text-center bg-slate-50">
                                             <div class="text-lg font-bold text-slate-700">{{ $gscTotals['clicks'] ?? 0 }}</div>
-                                            <div class="text-[11px] text-slate-400">Total Klik</div>
+                                            <div class="text-[11px] text-slate-400">Total Clicks</div>
                                         </div>
                                         <div class="rounded-lg p-3 text-center bg-slate-50">
                                             <div class="text-lg font-bold text-slate-700">{{ $gscTotals['impressions'] ?? 0 }}</div>
@@ -978,21 +976,21 @@
                                             <div class="text-lg font-bold text-slate-700">
                                                 {{ isset($gscTotals['position']) ? round($gscTotals['position'], 1) : '-' }}
                                             </div>
-                                            <div class="text-[11px] text-slate-400">Posisi Rata-rata</div>
+                                            <div class="text-[11px] text-slate-400">Average Position</div>
                                         </div>
                                     </div>
 
                                     @if (!empty($gscTopQueries))
-                                        <p class="text-xs text-slate-400 mb-2">Top Kata Kunci Pencarian</p>
+                                        <p class="text-xs text-slate-400 mb-2">Top Search Queries</p>
                                         <div class="overflow-x-auto mb-4">
                                             <table class="w-full text-sm">
                                                 <thead>
                                                     <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
                                                         <th class="pb-1 pr-4">Query</th>
-                                                        <th class="pb-1 pr-4">Klik</th>
-                                                        <th class="pb-1 pr-4">Tayang</th>
+                                                        <th class="pb-1 pr-4">Clicks</th>
+                                                        <th class="pb-1 pr-4">Impressions</th>
                                                         <th class="pb-1 pr-4">CTR</th>
-                                                        <th class="pb-1">Posisi</th>
+                                                        <th class="pb-1">Position</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -1015,13 +1013,13 @@
                                     @endif
 
                                     @if (!empty($gscByDevice))
-                                        <p class="text-xs text-slate-400 mb-2">Klik per Device</p>
+                                        <p class="text-xs text-slate-400 mb-2">Clicks per Device</p>
                                         <div class="overflow-x-auto">
                                             <table class="w-full text-sm">
                                                 <thead>
                                                     <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
                                                         <th class="pb-1 pr-4">Device</th>
-                                                        <th class="pb-1">Klik</th>
+                                                        <th class="pb-1">Clicks</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody>
@@ -1038,9 +1036,9 @@
                                     @endif
 
                                     <p class="text-xs text-slate-400 mt-3">
-                                        Periode: {{ $searchConsole['period']['start'] ?? '-' }} s/d
+                                        Period: {{ $searchConsole['period']['start'] ?? '-' }} to
                                         {{ $searchConsole['period']['end'] ?? '-' }}
-                                        &middot; Terakhir ditarik: {{ $searchConsole['analyzed_at'] ?? '-' }}
+                                        &middot; Last fetched: {{ $searchConsole['analyzed_at'] ?? '-' }}
                                     </p>
                                 </div>
                             @endif
@@ -1072,14 +1070,14 @@
                                                 } else {
                                                     btn.disabled = false;
                                                     spinner.classList.add('hidden');
-                                                    errorBox.textContent = data.message || 'Gagal mengambil data Search Console.';
+                                                    errorBox.textContent = data.message || 'Failed to fetch Search Console data.';
                                                     errorBox.classList.remove('hidden');
                                                 }
                                             })
                                             .catch(() => {
                                                 btn.disabled = false;
                                                 spinner.classList.add('hidden');
-                                                errorBox.textContent = 'Gagal mengambil data. Coba lagi.';
+                                                errorBox.textContent = 'Failed to fetch data. Try again.';
                                                 errorBox.classList.remove('hidden');
                                             });
                                     });
@@ -1090,46 +1088,46 @@
 
                     <x-card class="mb-6">
                         <div class="flex items-center justify-between mb-1">
-                            <h2 class="font-semibold text-slate-800">Laporan Google Analytics (GA4)</h2>
+                            <h2 class="font-semibold text-slate-800">Google Analytics (GA4) Report</h2>
                             @if ($ga4)
                                 <span
                                     class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
-                                    <i class='bx bx-check'></i> Ada data
+                                    <i class='bx bx-check'></i> Data available
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-400 mb-4">28 hari terakhir.</p>
+                        <p class="text-xs text-slate-400 mb-4">Last 28 days.</p>
 
                         @if (!$resolvedUrl)
                             <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
-                                URL website client belum diisi.
+                                The client's website URL has not been filled in.
                             </div>
                         @else
                             <button type="button" id="btnAnalyzeGa4"
                                 class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
-                                <i class='bx bx-refresh'></i> {{ $ga4 ? 'Refresh Data' : 'Tarik Data GA4' }}
+                                <i class='bx bx-refresh'></i> {{ $ga4 ? 'Refresh Data' : 'Fetch GA4 Data' }}
                             </button>
-                            <span id="ga4Spinner" class="hidden text-xs text-slate-400 ml-2">Memuat...</span>
+                            <span id="ga4Spinner" class="hidden text-xs text-slate-400 ml-2">Loading...</span>
 
                             <div id="ga4Error" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
                             </div>
 
                             <div id="ga4SelectBox" class="hidden mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                <p class="text-sm text-blue-700 mb-2">Ketemu beberapa Property GA4 yang cocok, pilih salah satu:</p>
+                                <p class="text-sm text-blue-700 mb-2">Found several matching GA4 Properties, choose one:</p>
                                 <select id="ga4PropertySelect"
                                     class="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm mb-2"></select>
                                 <button type="button" id="btnConfirmGa4Property"
-                                    class="text-xs font-semibold bg-blue-600 text-white px-3 py-1.5 rounded-lg">Pakai Property
-                                    Ini</button>
+                                    class="text-xs font-semibold bg-blue-600 text-white px-3 py-1.5 rounded-lg">Use This
+                                    Property</button>
                             </div>
 
                             <div id="ga4ManualBox" class="hidden mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                                <p class="text-sm text-amber-700 mb-2">Tidak ketemu Property GA4 otomatis. Isi Property ID manual (GA4 →
-                                    Admin → Property Settings, formatnya angka saja, mis. 123456789):</p>
+                                <p class="text-sm text-amber-700 mb-2">Could not find a GA4 Property automatically. Enter the Property ID
+                                    manually (GA4 → Admin → Property Settings, numbers only, e.g. 123456789):</p>
                                 <input type="text" id="ga4ManualInput" placeholder="123456789"
                                     class="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm mb-2">
                                 <button type="button" id="btnConfirmGa4Manual"
-                                    class="text-xs font-semibold bg-amber-600 text-white px-3 py-1.5 rounded-lg">Simpan & Tarik
+                                    class="text-xs font-semibold bg-amber-600 text-white px-3 py-1.5 rounded-lg">Save & Fetch
                                     Data</button>
                             </div>
 
@@ -1175,7 +1173,7 @@
                                             <table class="w-full text-sm">
                                                 <thead>
                                                     <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
-                                                        <th class="pb-1 pr-4">Halaman</th>
+                                                        <th class="pb-1 pr-4">Page</th>
                                                         <th class="pb-1 pr-4">Sessions</th>
                                                         <th class="pb-1 pr-4">Engagement Rate</th>
                                                         <th class="pb-1 pr-4">Avg. Engagement</th>
@@ -1203,8 +1201,8 @@
 
                                     <p class="text-xs text-slate-400 mt-3">
                                         Property ID: {{ $seo['ga4_property_id'] ?? '-' }}
-                                        &middot; Periode: {{ $ga4['period']['start'] ?? '-' }} s/d {{ $ga4['period']['end'] ?? '-' }}
-                                        &middot; Terakhir ditarik: {{ $ga4['analyzed_at'] ?? '-' }}
+                                        &middot; Period: {{ $ga4['period']['start'] ?? '-' }} to {{ $ga4['period']['end'] ?? '-' }}
+                                        &middot; Last fetched: {{ $ga4['analyzed_at'] ?? '-' }}
                                     </p>
                                 </div>
                             @endif
@@ -1258,14 +1256,14 @@
                                                     manualBox.classList.remove('hidden');
                                                 } else {
                                                     btn.disabled = false;
-                                                    errorBox.textContent = data.message || 'Gagal mengambil data GA4.';
+                                                    errorBox.textContent = data.message || 'Failed to fetch GA4 data.';
                                                     errorBox.classList.remove('hidden');
                                                 }
                                             })
                                             .catch(() => {
                                                 btn.disabled = false;
                                                 spinner.classList.add('hidden');
-                                                errorBox.textContent = 'Gagal mengambil data. Coba lagi.';
+                                                errorBox.textContent = 'Failed to fetch data. Try again.';
                                                 errorBox.classList.remove('hidden');
                                             });
                                     }

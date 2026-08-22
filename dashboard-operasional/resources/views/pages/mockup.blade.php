@@ -90,7 +90,7 @@
                     </div>
                 </div>
             @empty
-                <p class="col-span-full text-center text-gray-400 py-10">Tidak ada mockup ditemukan.</p>
+                <p class="col-span-full text-center text-gray-400 py-10">No mockups found.</p>
             @endforelse
 
         </div>

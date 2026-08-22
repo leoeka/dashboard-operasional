@@ -18,11 +18,11 @@ class SiteCleanupController extends Controller
     public function destroy(Request $request, Project $project, ZipWpMcpService $zipWp)
     {
         if (!$project->mockupTemplate || !$project->mockupTemplate->site_uuid) {
-            return back()->with('error', 'Project ini tidak punya site ZipWP yang bisa dihapus.');
+            return back()->with('error', 'This project does not have a ZipWP site that can be deleted.');
         }
 
         if (!$project->mockupTemplate->isLiveOnZipWp()) {
-            return back()->with('error', 'Site ini sudah pernah ditandai dihapus sebelumnya.');
+            return back()->with('error', 'This site has already been marked as deleted previously.');
         }
 
         // WAJIB konfirmasi eksplisit — checkbox "sudah baca & yakin" harus
@@ -32,7 +32,7 @@ class SiteCleanupController extends Controller
         $request->validate([
             'confirm_migrated' => 'required|accepted',
         ], [
-            'confirm_migrated.accepted' => 'Kamu harus mencentang konfirmasi dulu sebelum menghapus.',
+            'confirm_migrated.accepted' => 'You must check the confirmation box before deleting.',
         ]);
 
         try {
@@ -41,16 +41,16 @@ class SiteCleanupController extends Controller
             $project->mockupTemplate->update(['zipwp_deleted_at' => now()]);
             $project->update(['status' => 'completed']);
 
-            Log::info('Project ditandai done & site ZipWP dihapus', [
+            Log::info('Project marked as done & ZipWP site deleted', [
                 'project_id' => $project->id,
                 'site_uuid' => $project->mockupTemplate->site_uuid,
             ]);
 
-            return back()->with('success', 'Project ditandai selesai & site berhasil dihapus dari ZipWP.');
+            return back()->with('success', 'Project marked as completed & site successfully deleted from ZipWP.');
         } catch (\Throwable $e) {
-            Log::error('Gagal hapus site ZipWP: ' . $e->getMessage(), ['project_id' => $project->id]);
+            Log::error('Failed to delete ZipWP site: ' . $e->getMessage(), ['project_id' => $project->id]);
 
-            return back()->with('error', 'Gagal menghapus site dari ZipWP: ' . $e->getMessage());
+            return back()->with('error', 'Failed to delete site from ZipWP: ' . $e->getMessage());
         }
     }
 }

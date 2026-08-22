@@ -32,7 +32,7 @@ class DashboardController extends Controller
         })->count();
         $seoProjectCount = Project::where('wants_seo', true)->count();
         $backlinkProjectCount = Project::where('wants_backlink', true)->count();
-        $proposalPending = Proposal::where('status', 'pending')->count();
+        $totalProposal = Proposal::count();
         $requestProjectCount = Project::where('status', 'request')->count();
         $activeProjectCount = Project::where('status', 'in_progress')->count();
         $unpaidInvoiceCount = Invoice::where('status', 'unpaid')->count();
@@ -58,7 +58,7 @@ class DashboardController extends Controller
             'seoProjectCount',
             'backlinkProjectCount',
             'activeProjectCount',
-            'proposalPending',
+            'totalProposal',
             'requestProjectCount',
             'unpaidInvoiceCount',
             'unpaidInvoiceAmount',

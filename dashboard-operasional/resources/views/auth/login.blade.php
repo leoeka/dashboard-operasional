@@ -11,7 +11,7 @@
             <i class='bx bx-grid-alt text-3xl text-white'></i>
         </div>
         <h2 class="text-2xl font-bold">SiteFlow</h2>
-        <p class="text-xs font-medium opacity-90 mt-1">Masuk untuk mengelola proyek kamu</p>
+        <p class="text-xs font-medium opacity-90 mt-1">Sign in to manage your projects</p>
     </div>
 
     <div class="p-8">
@@ -33,7 +33,7 @@
                         <i class='bx bx-user text-xl'></i>
                     </span>
                     <input id="username" type="text" name="username" value="{{ old('username') }}" required autofocus
-                           placeholder="Masukkan username"
+                           placeholder="Enter username"
                            class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all placeholder:text-slate-400" />
                 </div>
                 @error('username')
@@ -51,7 +51,7 @@
                         <i class='bx bx-lock-alt text-xl'></i>
                     </span>
                     <input id="password" type="password" name="password" required
-                           placeholder="Masukkan Password"
+                           placeholder="Enter password"
                            class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-slate-800 text-sm focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all placeholder:text-slate-400" />
                 </div>
                 @error('password')
@@ -65,12 +65,12 @@
             <div class="flex items-center justify-between pt-1">
                 <label for="remember_me" class="inline-flex items-center cursor-pointer">
                     <input id="remember_me" type="checkbox" name="remember" class="rounded border-slate-300 text-brand-500 shadow-sm focus:ring-brand-500">
-                    <span class="ms-2 text-xs text-slate-600 font-medium">Ingat Saya</span>
+                    <span class="ms-2 text-xs text-slate-600 font-medium">Remember Me</span>
                 </label>
 
                 @if (Route::has('password.request'))
                     <a class="text-xs text-brand-500 hover:text-brand-700 font-semibold transition-colors" href="{{ route('password.request') }}">
-                        Lupa password?
+                        Forgot password?
                     </a>
                 @endif
             </div>
@@ -78,7 +78,7 @@
             <!-- Submit Button -->
             <div class="pt-2">
                 <button type="submit" class="w-full grad-blue text-white font-semibold py-3 px-4 rounded-xl shadow-md hover:opacity-95 transition-all flex items-center justify-center gap-2">
-                    <span>Masuk Sekarang</span>
+                    <span>Sign In</span>
                     <i class='bx bx-right-arrow-alt text-xl'></i>
                 </button>
             </div>

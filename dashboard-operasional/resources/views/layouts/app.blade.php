@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="id">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
 <head>
     <meta charset="UTF-8">
@@ -127,7 +127,7 @@
                         <div
                             class="hidden sm:flex items-center gap-2 text-slate-400 bg-slate-50 rounded-lg px-3 py-2 w-full max-w-xs md:w-80">
                             <i class='bx bx-search'></i>
-                            <input type="text" placeholder="Cari proyek atau klien..."
+                            <input type="text" placeholder="Search projects or clients..."
                                 class="bg-transparent outline-none text-sm w-full text-slate-600 placeholder:text-slate-400">
                         </div>
                     </div>

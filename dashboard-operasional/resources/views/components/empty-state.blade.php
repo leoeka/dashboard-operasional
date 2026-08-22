@@ -1,4 +1,4 @@
-@props(['icon' => 'bx-inbox', 'title' => 'Belum ada data', 'description' => ''])
+@props(['icon' => 'bx-inbox', 'title' => 'No data yet', 'description' => ''])
 
 <div class="flex flex-col items-center text-center py-16">
     <div class="w-16 h-16 rounded-2xl grad-purple flex items-center justify-center mb-4">

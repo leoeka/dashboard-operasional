@@ -3,7 +3,7 @@
 
 @section('content')
     <div class="max-w-4xl mx-auto bg-white p-4 sm:p-8 rounded-lg shadow-md">
-        <h2 class="text-2xl font-bold mb-6 text-gray-800">Tambah Client & Draft Project Baru</h2>
+        <h2 class="text-2xl font-bold mb-6 text-gray-800">Add Client & New Draft Project</h2>
 
         {{-- Pesan Alert Error --}}
         @if (session('error'))
@@ -29,12 +29,12 @@
 
             <!-- SECTION 1: DATA CLIENT -->
             <div class="border-b pb-4">
-                <h3 class="text-lg font-semibold text-gray-700 mb-4">1. Informasi Client</h3>
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">1. Client Information</h3>
                 <div class="mb-4">
-                    <label class="block text-sm font-medium text-gray-700">Pilih Client</label>
+                    <label class="block text-sm font-medium text-gray-700">Select Client</label>
                     <select name="client_id" id="clientSelect"
                         class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
-                        <option value="">-- Client baru --</option>
+                        <option value="">-- New Client --</option>
                         @foreach ($clients as $client)
                             <option value="{{ $client->id }}"
                                 data-contact="{{ $client->contact_name }}"
@@ -47,19 +47,19 @@
                             </option>
                         @endforeach
                     </select>
-                    <p class="text-xs text-gray-500 mt-1">Pilih client lama untuk membuat request baru tanpa menduplikasi data client.</p>
+                    <p class="text-xs text-gray-500 mt-1">Select an existing client to create a new request without duplicating client data.</p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="newClientFields">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Nama Contact/Client <span
+                        <label class="block text-sm font-medium text-gray-700">Contact/Client Name <span
                                 class="text-red-500">*</span></label>
                         <input type="text" name="client_name" value="{{ old('client_name') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Nama Perusahaan <span
+                        <label class="block text-sm font-medium text-gray-700">Company Name <span
                                 class="text-red-500">*</span></label>
                         <input type="text" name="company_name" value="{{ old('company_name') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
@@ -72,13 +72,13 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Nomor Telepon / WhatsApp</label>
+                        <label class="block text-sm font-medium text-gray-700">Phone Number / WhatsApp</label>
                         <input type="text" name="phone" value="{{ old('phone') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700">Alamat</label>
+                        <label class="block text-sm font-medium text-gray-700">Address</label>
                         <textarea name="address" rows="2"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">{{ old('address') }}</textarea>
                     </div>
@@ -87,10 +87,10 @@
 
             <!-- SECTION 2: PILIH KEBUTUHAN LAYANAN -->
             <div class="border-b pb-4">
-                <h3 class="text-lg font-semibold text-gray-700 mb-4">2. Kebutuhan Layanan <span
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">2. Service Requirements <span
                         class="text-red-500">*</span></h3>
-                <p class="text-xs text-gray-500 mb-3">Pilih satu atau lebih layanan yang dibutuhkan client (bisa kombinasi,
-                    misal: Web + SEO, atau SEO + Backlink, atau ketiganya).</p>
+                <p class="text-xs text-gray-500 mb-3">Select one or more services the client needs (combinations allowed,
+                    e.g. Web + SEO, or SEO + Backlink, or all three).</p>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <label
@@ -98,7 +98,7 @@
                         <input type="checkbox" name="service_type[]" value="website" id="chk-website"
                             class="service-checkbox h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                             {{ in_array('website', old('service_type', [])) ? 'checked' : '' }}>
-                        <span class="text-sm font-medium text-gray-700">Buat Website</span>
+                        <span class="text-sm font-medium text-gray-700">Create Website</span>
                     </label>
 
                     <label
@@ -117,27 +117,27 @@
                         <span class="text-sm font-medium text-gray-700">Backlink</span>
                     </label>
                 </div>
-                <p id="service-error" class="text-xs text-red-500 mt-2 hidden">Pilih minimal satu kebutuhan layanan.</p>
+                <p id="service-error" class="text-xs text-red-500 mt-2 hidden">Select at least one service requirement.</p>
             </div>
 
             <!-- SECTION 3: DATA PROJECT & REQUIREMENTS (WEBSITE) -->
             <div class="border-b pb-4 service-section" id="section-website" style="display:none;">
-                <h3 class="text-lg font-semibold text-gray-700 mb-4">3. Kebutuhan Project Website</h3>
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">3. Website Project Requirements</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Tipe Bisnis <span
+                        <label class="block text-sm font-medium text-gray-700">Business Type <span
                                 class="text-red-500">*</span></label>
-                        <input type="text" name="business_type" placeholder="Contoh: E-commerce, F&B, Edukasi"
+                        <input type="text" name="business_type" placeholder="e.g. E-commerce, F&B, Education"
                             value="{{ old('business_type') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Tipe Website <span
+                        <label class="block text-sm font-medium text-gray-700">Website Type <span
                                 class="text-red-500">*</span></label>
                         <select name="website_type"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">
-                            <option value="">-- Pilih Tipe Website --</option>
+                            <option value="">-- Select Website Type --</option>
                             <option value="Company Profile"
                                 {{ old('website_type') == 'Company Profile' ? 'selected' : '' }}>Company Profile</option>
                             <option value="Online Shop / E-Commerce"
@@ -152,49 +152,49 @@
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700">Deskripsi Bisnis <span
+                        <label class="block text-sm font-medium text-gray-700">Business Description <span
                                 class="text-red-500">*</span></label>
                         <textarea name="business_description" rows="3"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">{{ old('business_description') }}</textarea>
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700">Target Bisnis (Goal) <span
+                        <label class="block text-sm font-medium text-gray-700">Business Target (Goal) <span
                                 class="text-red-500">*</span></label>
                         <textarea name="business_goal" rows="3"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">{{ old('business_goal') }}</textarea>
                     </div>
 
                     <div class="md:col-span-2 border-t border-gray-200 pt-4">
-                        <h4 class="text-base font-semibold text-gray-700 mb-2">Contoh Mockup / Referensi Desain</h4>
-                        <label class="block text-sm font-medium text-gray-700">Lampiran dari Client</label>
+                        <h4 class="text-base font-semibold text-gray-700 mb-2">Sample Mockup / Design Reference</h4>
+                        <label class="block text-sm font-medium text-gray-700">Attachments from Client</label>
                         <input type="file" name="assets[]" multiple
                             class="website-asset-input mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                        <p class="text-xs text-gray-500 mt-1">Bawa contoh desain, logo, brief, atau referensi lain (JPG, PNG, PDF, DOCX, ZIP; maks. 10MB/file).</p>
+                        <p class="text-xs text-gray-500 mt-1">Upload design samples, logo, brief, or other references (JPG, PNG, PDF, DOCX, ZIP; max. 10MB/file).</p>
                     </div>
                 </div>
             </div>
 
             <!-- SECTION 4: KEBUTUHAN SEO -->
             <div class="border-b pb-4 service-section" id="section-seo" style="display:none;">
-                <h3 class="text-lg font-semibold text-gray-700 mb-4">4. Kebutuhan SEO</h3>
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">4. SEO Requirements</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                    <div class="md:col-span-2" id="seo-existing-url-wrapper">
-                        <label class="block text-sm font-medium text-gray-700">URL Website yang Akan Dioptimasi <span
+                        <label class="block text-sm font-medium text-gray-700">Website URL to Optimize <span
                                 class="text-red-500">*</span></label>
                         <input type="text" name="seo_target_url" id="seo_target_url"
-                            placeholder="https://contohwebsite.com" value="{{ old('seo_target_url') }}"
+                            placeholder="https://examplewebsite.com" value="{{ old('seo_target_url') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">
                         <p class="text-xs text-gray-500 mt-1" id="seo-note-baru" style="display:none;">
-                            *Karena website juga dibuat baru, isi kolom ini setelah domain/URL final tersedia (boleh
-                            dikosongkan dulu jika belum ada — analisis SEO otomatis akan menunggu URL ini terisi).
+                            *Since the website is also being newly built, fill in this field once the final domain/URL is
+                            available (you may leave it blank for now if not yet available — automatic SEO analysis will wait until this URL is filled in).
                         </p>
 
                         <button type="button" id="btnAnalyzePreview" disabled
                             class="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                            Analisis Sekarang
+                            Analyze Now
                         </button>
-                        <p class="text-xs text-gray-400 mt-1">Cek preview keyword & kompetitor sebelum disimpan (opsional).</p>
+                        <p class="text-xs text-gray-400 mt-1">Preview keywords & competitors before saving (optional).</p>
 
                         <div id="previewProgress" class="hidden mt-2">
                             <div class="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
@@ -211,8 +211,8 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Target Lokasi/Area (jika ada)</label>
-                        <input type="text" name="seo_location" placeholder="Contoh: Denpasar, Bali"
+                        <label class="block text-sm font-medium text-gray-700">Target Location/Area (if any)</label>
+                        <input type="text" name="seo_location" placeholder="e.g. Denpasar, Bali"
                             value="{{ old('seo_location') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
                     </div>
@@ -227,17 +227,17 @@
      (di dalam <div id="section-seo">) dengan ini: -->
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Platform Website Client <span
+                        <label class="block text-sm font-medium text-gray-700">Client Website Platform <span
                                 class="text-red-500">*</span></label>
                         <select name="seo_cms_platform"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">
-                            <option value="">-- Pilih Platform --</option>
+                            <option value="">-- Select Platform --</option>
                             <option value="wordpress" {{ old('seo_cms_platform') == 'wordpress' ? 'selected' : '' }}>WordPress</option>
-                            <option value="baru" {{ old('seo_cms_platform') == 'baru' ? 'selected' : '' }}>Website Baru (dibuat oleh kami)</option>
-                            <option value="lainnya" {{ old('seo_cms_platform') == 'lainnya' ? 'selected' : '' }}>Platform Lain (publish manual)</option>
+                            <option value="baru" {{ old('seo_cms_platform') == 'baru' ? 'selected' : '' }}>New Website (built by us)</option>
+                            <option value="lainnya" {{ old('seo_cms_platform') == 'lainnya' ? 'selected' : '' }}>Other Platform (manual publish)</option>
                         </select>
                         <p class="text-xs text-gray-500 mt-1">
-                            WordPress & Website Baru: artikel bisa dipublish otomatis. Platform lain: artikel diunduh/dikirim manual.
+                            WordPress & New Website: articles can be published automatically. Other platforms: articles are downloaded/sent manually.
                         </p>
                     </div>
                 </div>
@@ -245,20 +245,20 @@
 
             <!-- SECTION 5: KEBUTUHAN BACKLINK -->
             <div class="border-b pb-4 service-section" id="section-backlink" style="display:none;">
-                <h3 class="text-lg font-semibold text-gray-700 mb-4">5. Kebutuhan Backlink</h3>
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">5. Backlink Requirements</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="md:col-span-2" id="backlink-existing-url-wrapper">
-                        <label class="block text-sm font-medium text-gray-700">URL Tujuan Backlink <span
+                        <label class="block text-sm font-medium text-gray-700">Backlink Target URL <span
                                 class="text-red-500">*</span></label>
                         <input type="text" name="backlink_target_url" id="backlink_target_url"
-                            placeholder="https://contohwebsite.com" value="{{ old('backlink_target_url') }}"
+                            placeholder="https://examplewebsite.com" value="{{ old('backlink_target_url') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">
-                        <p class="text-xs text-gray-500 mt-1">Biasanya sama dengan URL website di atas — otomatis
-                            disalin kalau dikosongkan.</p>
+                        <p class="text-xs text-gray-500 mt-1">Usually the same as the website URL above — automatically
+                            copied if left blank.</p>
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Jumlah Backlink <span
+                        <label class="block text-sm font-medium text-gray-700">Number of Backlinks <span
                                 class="text-red-500">*</span></label>
                         <input type="number" min="1" name="backlink_quantity"
                             value="{{ old('backlink_quantity') }}"
@@ -272,9 +272,9 @@
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700">Niche / Kategori Backlink yang
-                            Diinginkan</label>
-                        <input type="text" name="backlink_niche" placeholder="Opsional — contoh: Travel, Bisnis, Teknologi"
+                        <label class="block text-sm font-medium text-gray-700">Desired Backlink Niche /
+                            Category</label>
+                        <input type="text" name="backlink_niche" placeholder="Optional — e.g. Travel, Business, Technology"
                             value="{{ old('backlink_niche') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
                     </div>
@@ -286,24 +286,24 @@
                         sini, section-backlink, tempat yang benar.
                     --}}
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Jenis Anchor Text yang Diinginkan</label>
+                        <label class="block text-sm font-medium text-gray-700">Desired Anchor Text Type</label>
                         <select name="backlink_anchor_type[]" multiple
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="exact_match">Exact Match (persis keyword)</option>
+                            <option value="exact_match">Exact Match (exact keyword)</option>
                             <option value="partial_match">Partial Match</option>
-                            <option value="branding">Branding (nama brand)</option>
-                            <option value="generic">Generic (klik di sini, dst)</option>
+                            <option value="branding">Branding (brand name)</option>
+                            <option value="generic">Generic (click here, etc.)</option>
                         </select>
-                        <p class="text-xs text-gray-500 mt-1">Opsional — bisa dikosongkan dulu, disesuaikan lagi
-                            setelah tim review hasil analisis SEO.</p>
+                        <p class="text-xs text-gray-500 mt-1">Optional — can be left blank for now and adjusted later
+                            after the team reviews the SEO analysis results.</p>
                     </div>
 
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Prioritas</label>
+                        <label class="block text-sm font-medium text-gray-700">Priority</label>
                         <select name="backlink_priority"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
-                            <option value="quality">Kualitas (situs otoritas tinggi, lebih sedikit)</option>
-                            <option value="quantity">Kuantitas (lebih banyak, otoritas beragam)</option>
+                            <option value="quality">Quality (fewer, high-authority sites)</option>
+                            <option value="quantity">Quantity (more sites, varied authority)</option>
                         </select>
                     </div>
                 </div>
@@ -312,10 +312,10 @@
             <!-- BUTTON SUBMIT -->
             <div class="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4">
                 <a href="{{ route('pages.projects') }}"
-                    class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 text-center">Batal</a>
+                    class="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 text-center">Cancel</a>
                 <button type="submit"
                     class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-semibold">
-                    Simpan Draft
+                    Save Draft
                 </button>
             </div>
         </form>
@@ -475,7 +475,7 @@
                         checkPreviewStatus(data.token);
                     })
                     .catch(() => {
-                        previewError.textContent = 'Gagal memulai analisis. Coba lagi.';
+                        previewError.textContent = 'Failed to start analysis. Please try again.';
                         previewError.classList.remove('hidden');
                     });
             });
@@ -494,7 +494,7 @@
                         } else if (data.status === 'failed') {
                             clearInterval(previewPollTimer);
                             previewProgress.classList.add('hidden');
-                            previewError.textContent = data.message || 'Analisis gagal.';
+                            previewError.textContent = data.message || 'Analysis failed.';
                             previewError.classList.remove('hidden');
                             analysisTokenInput.value = '';
                         }
@@ -509,13 +509,13 @@
                 let html = '';
 
                 if (topics.core_topics && topics.core_topics.length) {
-                    html += '<div><p class="text-xs text-gray-500 mb-1">Topik terdeteksi</p><div>' +
+                    html += '<div><p class="text-xs text-gray-500 mb-1">Detected topics</p><div>' +
                         topics.core_topics.map(t => `<span class="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">${escapeHtml(t)}</span>`).join('') +
                         '</div></div>';
                 }
 
                 if (rec.main_keywords && rec.main_keywords.length) {
-                    html += '<div><p class="text-xs text-gray-500 mb-2">10 Keyword Utama</p><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-gray-400 border-b"><th class="pb-1 pr-3">Keyword</th><th class="pb-1 pr-3">Volume/bln</th><th class="pb-1">Persaingan</th></tr></thead><tbody>';
+                    html += '<div><p class="text-xs text-gray-500 mb-2">Top 10 Keywords</p><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-gray-400 border-b"><th class="pb-1 pr-3">Keyword</th><th class="pb-1 pr-3">Volume/mo</th><th class="pb-1">Competition</th></tr></thead><tbody>';
                     rec.main_keywords.forEach(kw => {
                         html += `<tr class="border-b border-gray-50"><td class="py-1 pr-3 font-medium text-gray-700">${escapeHtml(kw.keyword)}</td><td class="py-1 pr-3 text-gray-500">${escapeHtml(kw.avg_monthly_searches ?? '-')}</td><td class="py-1 text-gray-500">${escapeHtml(kw.competition ?? '-')}</td></tr>`;
                     });
@@ -523,16 +523,16 @@
                 }
 
                 if (competitors.length) {
-                    html += '<div><p class="text-xs text-gray-500 mb-1">Kompetitor ditemukan</p><ul class="text-sm text-blue-600 space-y-0.5">' +
+                    html += '<div><p class="text-xs text-gray-500 mb-1">Competitors found</p><ul class="text-sm text-blue-600 space-y-0.5">' +
                         competitors.map(u => `<li><a href="${encodeURI(u)}" target="_blank" rel="noopener" class="hover:underline break-all">${escapeHtml(u)}</a></li>`).join('') +
                         '</ul></div>';
                 }
 
                 if (rec.summary) {
-                    html += `<div><p class="text-xs text-gray-500 mb-1">Ringkasan</p><p class="text-sm text-gray-600">${escapeHtml(rec.summary)}</p></div>`;
+                    html += `<div><p class="text-xs text-gray-500 mb-1">Summary</p><p class="text-sm text-gray-600">${escapeHtml(rec.summary)}</p></div>`;
                 }
 
-                html += '<p class="text-xs text-emerald-600">&#10003; Hasil ini akan otomatis tersimpan begitu Anda klik Simpan Draft di bawah.</p>';
+                html += '<p class="text-xs text-emerald-600">&#10003; This result will be automatically saved once you click Save Draft below.</p>';
 
                 previewResult.innerHTML = html;
                 previewResult.classList.remove('hidden');

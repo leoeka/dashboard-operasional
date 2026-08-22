@@ -228,7 +228,7 @@
 
 <body>
 
-    {{-- ===== HALAMAN 1: COVER ===== --}}
+    {{-- ===== PAGE 1: COVER ===== --}}
     <div class="cover">
         <div class="title-block">
             <div class="client-name">{{ strtoupper($project->client_name) }}</div>
@@ -240,7 +240,7 @@
         </div>
     </div>
 
-    {{-- ===== HALAMAN 2: GREETING ===== --}}
+    {{-- ===== PAGE 2: GREETING ===== --}}
     <div class="content-page">
         <div class="header-band">
             <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
@@ -262,7 +262,7 @@
         <span class="page-number">1</span>
     </div>
 
-    {{-- ===== HALAMAN: DESIGN MOCK UP ===== --}}
+    {{-- ===== PAGE: DESIGN MOCK UP ===== --}}
     <div class="content-page">
         <div class="header-band">
             <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
@@ -275,7 +275,7 @@
             <img src="{{ $mockup['screenshot_path'] }}" class="mockup-section-img">
         @else
             <p style="text-align:center; color:#94a3b8;">
-                Design mock up belum tersedia.
+                Design mock up not available yet.
                 @if (!empty($mockup['fail_reason']))
                     <br>{{ $mockup['fail_reason'] }}
                 @endif
@@ -287,7 +287,7 @@
     @include('pdf.proposal-pages')
 
     @if (false)
-    {{-- ===== HALAMAN: COST TABLE + OTHER SERVICES + SYARAT + KLIEN + PENUTUP ===== --}}
+    {{-- ===== PAGE: COST TABLE + OTHER SERVICES + TERMS + CLIENTS + CLOSING ===== --}}
     <div class="content-page">
         <div class="header-band">
             <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
@@ -307,7 +307,7 @@
             <tbody>
                 <tr>
                     <td>Website Development<br>{{ $project->type ?? 'Business Package' }}</td>
-                    <td>{{ $project->value ? 'IDR ' . number_format($project->value, 0, ',', '.') : 'Hubungi kami untuk penawaran' }}
+                    <td>{{ $project->value ? 'IDR ' . number_format($project->value, 0, ',', '.') : 'Contact us for a quote' }}
                     </td>
                     <td>
                         <ul class="feature-list">
@@ -337,10 +337,10 @@
             <tbody>
                 <tr>
                     <td>Setup Google Ads + Management Ads</td>
-                    <td>IDR 3.000.000 (30 Hari) + 20% Fee Management</td>
+                    <td>IDR 3.000.000 (30 Days) + 20% Fee Management</td>
                     <td>
                         <ul class="feature-list">
-                            <li>Full campaign setup di Google Ads</li>
+                            <li>Full campaign setup in Google Ads</li>
                             <li>Advanced keyword research</li>
                             <li>High-converting ad copy</li>
                             <li>Smart bidding &amp; budget optimization</li>
@@ -355,21 +355,21 @@
                     <td>
                         <ul class="feature-list">
                             <li>1 Video Ads + 1 Carousel Ads</li>
-                            <li>Setup campaign di Meta Ads Manager</li>
-                            <li>Targeting audience (lokasi, minat, demografi)</li>
+                            <li>Campaign setup in Meta Ads Manager</li>
+                            <li>Audience targeting (location, interests, demographics)</li>
                             <li>Copywriting caption + CTA</li>
                         </ul>
                     </td>
                 </tr>
                 <tr>
-                    <td>Optimasi SEO</td>
-                    <td>IDR 4.000.000 / Bulan</td>
+                    <td>SEO Optimization</td>
+                    <td>IDR 4.000.000 / Month</td>
                     <td>
                         <ul class="feature-list">
                             <li>10 keywords (main + derivative)</li>
                             <li>Website audit &amp; technical SEO fixing</li>
                             <li>On Page SEO + internal linking</li>
-                            <li>SEO articles (10/bulan, max 1000 kata)</li>
+                            <li>SEO articles (10/month, max 1000 words)</li>
                             <li>Link building &amp; monthly report</li>
                         </ul>
                     </td>

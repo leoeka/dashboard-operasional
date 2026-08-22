@@ -63,16 +63,16 @@
         <tbody>
             <tr>
                 <td>Setup Goole Ads +<br>Management Ads</td>
-                <td>IDR 3.000.000 (30 Hari) + 20% (Fee Management Meta Ads) = IDR 3.600.000</td>
+                <td>IDR 3.000.000 (30 Days) + 20% (Fee Management Meta Ads) = IDR 3.600.000</td>
                 <td>
                     <ul class="feature-list">
-                        <li>Full campaign setup di Google Ads</li>
+                        <li>Full campaign setup in Google Ads</li>
                         <li>Advanced keyword research (high-converting keywords)</li>
                         <li>High-converting ad copy (headline + CTA optimized)</li>
                         <li>Smart bidding &amp; budget optimization</li>
                         <li>Conversion tracking (Leads, WhatsApp, calls)</li>
-                        <li>Audience targeting yang lebih spesifik &amp; tepat</li>
-                        <li>Continuous optimization untuk hasil maksimal</li>
+                        <li>More specific and accurate audience targeting</li>
+                        <li>Continuous optimization for maximum results</li>
                         <li>Detailed monthly report + strategic insights</li>
                     </ul>
                 </td>
@@ -82,12 +82,12 @@
                 <td>IDR 750.000 (One Time Payment)</td>
                 <td>
                     <ul class="feature-list">
-                        <li>1 Video Ads (siap tayang)</li>
-                        <li>Setup campaign di Meta Ads Manager</li>
-                        <li>2 materi iklan:<br>- 1 Video Ads<br>- 1 Carousel Ads (gambar)</li>
-                        <li>Targeting audience (lokasi, minat, demografi)</li>
-                        <li>2 copywriting (caption + CTA)</li>
-                        <li>Setup budget &amp; penjadwalan iklan</li>
+                        <li>1 Video Ad (ready to publish)</li>
+                        <li>Campaign setup in Meta Ads Manager</li>
+                        <li>2 ad creatives:<br>- 1 Video Ad<br>- 1 Carousel Ad (image)</li>
+                        <li>Audience targeting (location, interests, demographics)</li>
+                        <li>2 copywriting pieces (caption + CTA)</li>
+                        <li>Budget setup &amp; ad scheduling</li>
                     </ul>
                 </td>
             </tr>
@@ -114,25 +114,25 @@
         <tbody>
             <tr>
                 <td>Setup Meta Ads (Facebook<br>&amp; Instagram Ads) +<br>Management Ads</td>
-                <td>IDR 3.000.000 (30 Hari) + 20% (Fee Management Meta Ads) = IDR 3.600.000</td>
+                <td>IDR 3.000.000 (30 Days) + 20% (Fee Management Meta Ads) = IDR 3.600.000</td>
                 <td>
                     <ul class="feature-list">
-                        <li>1 Video Ads (siap tayang)</li>
-                        <li>Setup campaign di Meta Ads Manager</li>
-                        <li>2 materi iklan:<br>- 1 Video Ads<br>- 1 Carousel Ads (gambar)</li>
-                        <li>Targeting audience (lokasi, minat, demografi)</li>
-                        <li>2 copywriting (caption + CTA)</li>
-                        <li>Setup budget &amp; penjadwalan iklan</li>
-                        <li>Management &amp; optimasi iklan harian</li>
-                        <li>Monitoring performa campaign</li>
-                        <li>Improvement targeting &amp; ads</li>
-                        <li>Laporan performa berkala</li>
+                        <li>1 Video Ad (ready to publish)</li>
+                        <li>Campaign setup in Meta Ads Manager</li>
+                        <li>2 ad creatives:<br>- 1 Video Ad<br>- 1 Carousel Ad (image)</li>
+                        <li>Audience targeting (location, interests, demographics)</li>
+                        <li>2 copywriting pieces (caption + CTA)</li>
+                        <li>Budget setup &amp; ad scheduling</li>
+                        <li>Daily ad management &amp; optimization</li>
+                        <li>Campaign performance monitoring</li>
+                        <li>Targeting &amp; ad improvements</li>
+                        <li>Periodic performance report</li>
                     </ul>
                 </td>
             </tr>
             <tr>
-                <td>Optimasi SEO</td>
-                <td>IDR 4.000.000 / Bulan</td>
+                <td>SEO Optimization</td>
+                <td>IDR 4.000.000 / Month</td>
                 <td>
                     <ul class="feature-list">
                         <li>Minimum 3 words/long tail keywords</li>

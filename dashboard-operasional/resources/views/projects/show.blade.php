@@ -4,7 +4,7 @@
 @section('content')
 
     <a href="{{ route('pages.projects') }}" class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
-        <i class='bx bx-arrow-back'></i> Kembali ke Projects
+        <i class='bx bx-arrow-back'></i> Back to Projects
     </a>
 
     @if (session('success'))
@@ -28,11 +28,11 @@
 
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-6 text-sm">
             <div>
-                <p class="text-slate-400 mb-1">Jenis Website</p>
+                <p class="text-slate-400 mb-1">Website Type</p>
                 <p class="font-medium text-slate-700">{{ $project->type ?? '-' }}</p>
             </div>
             <div>
-                <p class="text-slate-400 mb-1">Tanggal Dibuat</p>
+                <p class="text-slate-400 mb-1">Date Created</p>
                 <p class="font-medium text-slate-700">{{ $project->created_at->translatedFormat('d M Y') }}</p>
             </div>
         </div>
@@ -51,10 +51,10 @@
                     </div>
                     <div>
                         <h2 class="font-bold text-slate-800 text-base">
-                            Proposal Proyek
+                            Project Proposal
                         </h2>
                         <p class="text-xs text-slate-400">
-                            Analisis & dokumen penawaran
+                            Analysis & proposal document
                         </p>
                     </div>
                 </div>
@@ -62,12 +62,12 @@
             {{-- Description --}}
             <p class="text-xs text-slate-500 leading-relaxed">
                 @if ($project->latestProposal)
-                    Proposal telah berhasil dibuat berdasarkan data request proyek. Berikut hasil
-                    analisis dan dokumennya.
+                    The proposal has been successfully created based on the project request data. Here are
+                    the analysis results and document.
                 @else
-                    Generate proposal berdasarkan data request proyek.
-                    Sistem akan menyiapkan analisis kebutuhan, strategi website,
-                    target market, dan struktur website.
+                    Generate a proposal based on the project request data.
+                    The system will prepare a needs analysis, website strategy,
+                    target market, and website structure.
                 @endif
             </p>
         </div>
@@ -81,12 +81,12 @@
                     <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                         <span class="text-xs font-semibold text-slate-700 flex items-center gap-2">
                             <i class='bx bxs-file-pdf text-red-500 text-base'></i>
-                            Dokumen Viewer
+                            Document Viewer
                         </span>
                         @if ($proposal->pdf_path)
                             <a href="{{ Storage::url($proposal->pdf_path) }}" target="_blank"
                                 class="text-[11px] text-blue-600 hover:underline flex items-center gap-1">
-                                Buka Tab Baru <i class='bx bx-link-external'></i>
+                                Open New Tab <i class='bx bx-link-external'></i>
                             </a>
                         @endif
                     </div>
@@ -108,9 +108,9 @@
                                     class="w-16 h-16 bg-slate-200 text-slate-400 rounded-full flex items-center justify-center mb-3">
                                     <i class='bx bx-file-blank text-3xl'></i>
                                 </div>
-                                <h3 class="text-sm font-semibold text-slate-700">File PDF Belum Tersedia</h3>
+                                <h3 class="text-sm font-semibold text-slate-700">PDF File Not Available Yet</h3>
                                 <p class="text-xs text-slate-400 mt-1 max-w-sm">
-                                    Proposal belum digenerate atau file PDF belum tersimpan di server.
+                                    The proposal has not been generated yet, or the PDF file has not been saved on the server.
                                 </p>
                             </div>
                         @endif
@@ -131,7 +131,7 @@
                             text-xs font-semibold px-4 py-2.5 rounded-lg
                             active:scale-95 transition">
                         <i class='bx bx-download'></i>
-                        Download PDF Proposal
+                        Download Proposal PDF
                     </a>
                 @endif
             @else
@@ -184,18 +184,18 @@
                             <div class="mx-auto mb-2 w-9 h-9 rounded-full bg-emerald-100 flex items-center justify-center">
                                 <i class='bx bx-check text-emerald-600 text-lg'></i>
                             </div>
-                            <p class="text-sm font-semibold text-slate-700">Project sudah selesai</p>
+                            <p class="text-sm font-semibold text-slate-700">Project is complete</p>
                             <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                                Live preview sudah tidak aktif karena site ZipWP otomatis dihapus
-                                setelah project ditandai "Done". Ini screenshot terakhir sebelum
-                                site dihapus:
+                                Live preview is no longer active because the ZipWP site was automatically deleted
+                                after the project was marked "Done". This is the last screenshot before
+                                the site was deleted:
                             </p>
 
                             @if ($project->mockupTemplate->previewUrl())
                                 <img src="{{ $project->mockupTemplate->previewUrl() }}"
                                     class="mt-4 mx-auto rounded-xl border border-slate-200 object-cover shadow-sm max-w-lg w-full">
                             @else
-                                <p class="text-xs text-slate-400 mt-3">Screenshot tidak tersedia.</p>
+                                <p class="text-xs text-slate-400 mt-3">Screenshot not available.</p>
                             @endif
                         </div>
                     @elseif ($project->mockupTemplate->source_url)
@@ -207,7 +207,7 @@
                                 </span>
                                 <a href="{{ $project->mockupTemplate->source_url }}" target="_blank" rel="noopener"
                                     class="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1">
-                                    Buka di tab baru <i class='bx bx-link-external'></i>
+                                    Open in new tab <i class='bx bx-link-external'></i>
                                 </a>
                             </div>
                             <iframe src="{{ $project->mockupTemplate->source_url }}" loading="lazy"
@@ -228,7 +228,7 @@
                         <a href="{{ rtrim($project->mockupTemplate->source_url, '/') }}/wp-admin" target="_blank"
                             rel="noopener"
                             class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition">
-                            <i class='bx bx-log-in-circle'></i> Login ke WP-Admin
+                            <i class='bx bx-log-in-circle'></i> Log in to WP-Admin
                         </a>
                     @endif
 
@@ -244,7 +244,7 @@
                     --}}
                     <a href="https://app.zipwp.com" target="_blank" rel="noopener"
                         class="inline-flex items-center gap-2 bg-slate-100 text-slate-600 text-xs font-semibold px-4 py-2 rounded-lg hover:bg-slate-200 transition">
-                        <i class='bx bx-key'></i> Buka Dashboard ZipWP (lupa password?)
+                        <i class='bx bx-key'></i> Open ZipWP Dashboard (forgot password?)
                     </a>
                 </div>
 
@@ -336,10 +336,10 @@
                     class="mx-auto mb-3 w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
                     <i class='bx bx-image-alt text-xl'></i>
                 </div>
-                <p class="text-sm font-medium text-slate-600">Mockup belum dibuat</p>
+                <p class="text-sm font-medium text-slate-600">Mockup not yet created</p>
                 <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
-                    Mockup akan otomatis digenerate setelah proposal berhasil dibuat. Silakan generate
-                    proposal terlebih dahulu.
+                    The mockup will be automatically generated once the proposal is successfully created. Please
+                    generate the proposal first.
                 </p>
             </div>
         @endif
@@ -354,14 +354,14 @@
 
             if (btn) {
                 btn.disabled = true;
-                btn.querySelector('span').innerText = 'Memproses...';
+                btn.querySelector('span').innerText = 'Processing...';
             }
             idleWarning?.classList.add('hidden');
 
             ProgressModal.open('mockup-progress-modal');
             ProgressModal.update('mockup-progress-modal', {
                 percent: 0,
-                message: 'Memulai proses...',
+                message: 'Starting process...',
                 status: 'processing',
             });
 
@@ -373,14 +373,14 @@
                 },
             }).then(response => {
                 if (!response.ok) {
-                    throw new Error(`Generate gagal (${response.status})`);
+                    throw new Error(`Generate failed (${response.status})`);
                 }
 
                 pollProposalStatus(projectId);
             }).catch(error => {
                 ProgressModal.update('mockup-progress-modal', {
                     percent: 0,
-                    message: error.message || 'Gagal memulai generate proposal.',
+                    message: error.message || 'Failed to start proposal generation.',
                     status: 'failed',
                 });
                 if (btn) {
@@ -398,7 +398,7 @@
                     })
                     .then(res => {
                         if (!res.ok) {
-                            throw new Error(`Status proposal gagal (${res.status})`);
+                            throw new Error(`Failed to get proposal status (${res.status})`);
                         }
                         return res.json();
                     })
@@ -428,7 +428,7 @@
                     .catch(error => {
                         ProgressModal.update('mockup-progress-modal', {
                             percent: 0,
-                            message: error.message || 'Gagal membaca status proposal.',
+                            message: error.message || 'Failed to read proposal status.',
                             status: 'failed',
                         });
                         if (btn) {

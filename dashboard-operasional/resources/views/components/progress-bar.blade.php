@@ -1,4 +1,4 @@
-@props(['name' => 'progress-modal', 'title' => 'Memproses...'])
+@props(['name' => 'progress-modal', 'title' => 'Processing...'])
 
 {{--
 Komponen reusable: popup progress berbentuk lingkaran (circular progress
@@ -34,7 +34,7 @@ elemen-elemen di dalamnya).
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
                 <span id="{{ $name }}-percent" class="text-2xl font-bold text-slate-800">0%</span>
-                <span id="{{ $name }}-status" class="text-[11px] text-slate-400 mt-1">Memproses</span>
+                <span id="{{ $name }}-status" class="text-[11px] text-slate-400 mt-1">Processing</span>
             </div>
         </div>
 
@@ -42,7 +42,7 @@ elemen-elemen di dalamnya).
 
         <button type="button" id="{{ $name }}-close-btn" x-on:click="$dispatch('close')"
             class="hidden mt-4 text-xs bg-slate-700 text-white rounded-lg px-4 py-2 hover:bg-slate-800 transition">
-            Tutup
+            Close
         </button>
     </div>
 </x-modal>
@@ -82,7 +82,7 @@ elemen-elemen di dalamnya).
                 }
                 if (percentEl) percentEl.innerText = Math.round(percent) + '%';
                 if (statusEl) {
-                    statusEl.innerText = status === 'done' ? 'Selesai' : status === 'failed' ? 'Gagal' : 'Memproses';
+                    statusEl.innerText = status === 'done' ? 'Done' : status === 'failed' ? 'Failed' : 'Processing';
                 }
                 if (messageEl) messageEl.innerText = message;
                 if (closeBtn) closeBtn.classList.toggle('hidden', status === 'processing');

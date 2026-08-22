@@ -193,7 +193,7 @@ class ProjectController extends Controller
                 $seo['ai_identified_topics'] = $preview['topics'] ?? null;
                 $project->update(['seo_requirements' => $seo]);
 
-                $project->logActivity('Hasil analisis SEO & Backlink (preview sebelum submit) diterapkan ke project');
+                $project->logActivity('SEO & Backlink analysis result (preview before submit) applied to project');
                 $previewApplied = true;
             }
         }
@@ -211,7 +211,7 @@ class ProjectController extends Controller
             if (!empty($newUrl) && empty($previousUrl) && !$alreadyAnalyzed) {
                 Cache::put(
                     \App\Jobs\GenerateKeywordRecommendationsJob::cacheKey($project->id),
-                    ['status' => 'queued', 'progress' => 0, 'message' => 'Menunggu diproses...'],
+                    ['status' => 'queued', 'progress' => 0, 'message' => 'Waiting to be processed...'],
                     now()->addMinutes(10)
                 );
 
@@ -222,10 +222,10 @@ class ProjectController extends Controller
         if ($statusChanged && $data['status'] === 'completed') {
             $project->logActivity('Project completed');
         } else {
-            $project->logActivity('Informasi project diperbarui');
+            $project->logActivity('Project information updated');
         }
 
-        return redirect()->route('pages.projects.show', $project)->with('success', 'Project berhasil diperbarui.');
+        return redirect()->route('pages.projects.show', $project)->with('success', 'Project updated successfully.');
     }
 
 
@@ -233,7 +233,7 @@ class ProjectController extends Controller
     {
         $project->delete();
 
-        return redirect()->route('pages.projects')->with('success', 'Project berhasil dihapus.');
+        return redirect()->route('pages.projects')->with('success', 'Project deleted successfully.');
     }
 
     public function storeFile(Request $request, Project $project)
@@ -253,9 +253,9 @@ class ProjectController extends Controller
         ]);
 
         $label = ProjectFile::categoryLabels()[$request->category] ?? 'File';
-        $project->logActivity("File {$label} ditambahkan");
+        $project->logActivity("File {$label} added");
 
-        return back()->with('success', 'File berhasil diunggah.');
+        return back()->with('success', 'File uploaded successfully.');
     }
 
 
@@ -267,7 +267,7 @@ class ProjectController extends Controller
 
         $project->update(['mockup_template_id' => $request->mockup_template_id]);
 
-        $project->logActivity("Mockup template dipilih: {$request->mockup_template_id}");
+        $project->logActivity("Mockup template selected: {$request->mockup_template_id}");
 
         return back()->with('success');
     }
@@ -289,7 +289,7 @@ class ProjectController extends Controller
                 'currentPage' => 1,
                 'lastPage' => 1,
                 'totalItems' => 0,
-            ])->with('error', 'Gagal terhubung ke ZipWP. Coba lagi beberapa saat.');
+            ])->with('error', 'Failed to connect to ZipWP. Please try again in a moment.');
         }
 
         $templates = $data['templates'] ?? [];
@@ -346,7 +346,7 @@ class ProjectController extends Controller
 
     public function generateProposal(Project $project)
     {
-        $this->reportProgress($project, 'queued', 0, 'Menunggu diproses...');
+        $this->reportProgress($project, 'queued', 0, 'Waiting to be processed...');
         \App\Jobs\GenerateProposalJob::dispatch($project);
         return response()->json(['queued' => true]);
     }
@@ -375,14 +375,14 @@ class ProjectController extends Controller
         @set_time_limit(180);
 
         // 1. UPDATE PROGRESS: Load Data
-        $this->reportProgress($project, 'processing', 10, 'Mengambil data project dan client...');
+        $this->reportProgress($project, 'processing', 10, 'Fetching project and client data...');
 
         $project->load(['client', 'files']);
         $client = $project->client;
 
         if (!$client) {
-            $this->reportProgress($project, 'failed', 0, 'Project ini belum terhubung dengan data client.');
-            throw new \Exception('Project belum terhubung dengan data client.');
+            $this->reportProgress($project, 'failed', 0, 'This project is not yet linked to client data.');
+            throw new \Exception('Project is not linked to client data.');
         }
 
         // 2. UPDATE PROGRESS: Ambil daftar template ZipWP dulu (kalau belum
@@ -405,7 +405,7 @@ class ProjectController extends Controller
                 'preview_url' => $project->zipwp_template_preview_url,
             ];
         } else {
-            $this->reportProgress($project, 'processing', 15, 'Mengambil daftar template ZipWP...');
+            $this->reportProgress($project, 'processing', 15, 'Fetching ZipWP template list...');
 
             try {
                 $candidates = $zipWp->listTemplates(
@@ -440,22 +440,22 @@ class ProjectController extends Controller
                 }
 
                 if (empty($candidates)) {
-                    $mockupFailReason = "Tidak ada template ZipWP yang tersedia sama sekali (dicoba dengan & tanpa filter search).";
+                    $mockupFailReason = "No ZipWP templates were available at all (tried with & without search filter).";
                     Log::warning($mockupFailReason, ['project_id' => $project->id]);
                 }
             } catch (\Throwable $e) {
                 Log::error('ZipWP listTemplates Error: ' . $e->getMessage(), ['project_id' => $project->id]);
-                $mockupFailReason = 'Gagal mengambil daftar template ZipWP.';
+                $mockupFailReason = 'Failed to fetch the ZipWP template list.';
             }
         }
 
         // 3. UPDATE PROGRESS: AI Analysis (Gemini bisnis + GPT desain & pilih template)
-        $this->reportProgress($project, 'processing', 25, 'Menganalisis profil bisnis dengan AI...');
+        $this->reportProgress($project, 'processing', 25, 'Analyzing business profile with AI...');
 
         try {
             $analysis = $aiService->analyzeProject($project, $client, $candidates);
         } catch (\Throwable $e) {
-            $this->reportProgress($project, 'failed', 0, 'Gagal analisis AI: ' . $e->getMessage());
+            $this->reportProgress($project, 'failed', 0, 'AI analysis failed: ' . $e->getMessage());
             throw $e;
         }
 
@@ -482,7 +482,7 @@ class ProjectController extends Controller
         $designDirectionRaw = $analysis['design_direction'] ?? null;
 
         // 4. UPDATE PROGRESS: Bangun website di ZipWP pakai template pilihan GPT
-        $this->reportProgress($project, 'processing', 50, 'Membuat website preview...');
+        $this->reportProgress($project, 'processing', 50, 'Creating website preview...');
 
         if (!$reuseExistingSite) {
             // Template sekarang dipilih langsung oleh GPT sebagai bagian dari
@@ -533,7 +533,7 @@ class ProjectController extends Controller
                     ]);
 
                     if (!$zipWpSiteUuid) {
-                        $mockupFailReason = 'ZipWP tidak mengembalikan site_uuid saat create-ai-site.';
+                        $mockupFailReason = 'ZipWP did not return a site_uuid during create-ai-site.';
                         Log::warning($mockupFailReason, ['project_id' => $project->id, 'raw_result' => $createResult]);
                     }
 
@@ -548,7 +548,7 @@ class ProjectController extends Controller
 
                             // Update progress secara berkala saat polling
                             $currentProgress = 50 + ($attempt * 2);
-                            $this->reportProgress($project, 'processing', $currentProgress, "Membangun website ZipWP (Langkah {$attempt}/20)...");
+                            $this->reportProgress($project, 'processing', $currentProgress, "Building ZipWP website (Step {$attempt}/20)...");
 
                             $progressStatus = $zipWp->getSiteProgress($zipWpSiteUuid);
 
@@ -558,14 +558,14 @@ class ProjectController extends Controller
                             }
 
                             if (($progressStatus['status'] ?? null) === 'failed') {
-                                $mockupFailReason = 'ZipWP gagal membangun site.';
+                                $mockupFailReason = 'ZipWP failed to build the site.';
                                 Log::warning($mockupFailReason, ['project_id' => $project->id, 'progress_status' => $progressStatus]);
                                 break;
                             }
                         }
 
                         if (!$zipWpSiteUrl && !$mockupFailReason) {
-                            $mockupFailReason = "Timeout: ZipWP belum selesai membangun site setelah {$maxAttempts}x percobaan (site_uuid: {$zipWpSiteUuid}).";
+                            $mockupFailReason = "Timeout: ZipWP did not finish building the site after {$maxAttempts} attempts (site_uuid: {$zipWpSiteUuid}).";
                             Log::warning($mockupFailReason, ['project_id' => $project->id]);
                         }
 
@@ -578,7 +578,7 @@ class ProjectController extends Controller
                     }
                 } catch (\Throwable $e) {
                     Log::error('ZipWP Error: ' . $e->getMessage());
-                    $mockupFailReason = 'Gagal generate website otomatis.';
+                    $mockupFailReason = 'Failed to auto-generate the website.';
                 }
             }
         }
@@ -591,13 +591,13 @@ class ProjectController extends Controller
                 'project_id' => $project->id,
                 'reason' => $mockupFailReason,
             ]);
-            $this->reportProgress($project, 'processing', 75, 'Mockup tidak tersedia, melanjutkan pembuatan PDF proposal...');
+            $this->reportProgress($project, 'processing', 75, 'Mockup not available, continuing with PDF proposal generation...');
         }
 
         // 3B. Ambil screenshot dari situs ZipWP (kalau site_url tersedia) untuk ditempel di PDF
         $mockupScreenshotPath = null;
         if ($zipWpSiteUrl) {
-            $this->reportProgress($project, 'processing', 75, 'Mengambil screenshot preview website...');
+            $this->reportProgress($project, 'processing', 75, 'Capturing website preview screenshot...');
 
             $screenshotService = app(ScreenshotService::class);
             $savedPath = $screenshotService->capture($zipWpSiteUrl, "mockups/{$project->id}.png");
@@ -613,7 +613,7 @@ class ProjectController extends Controller
         }
 
         // 4. UPDATE PROGRESS: Generate PDF Proposal
-        $this->reportProgress($project, 'processing', 80, 'Menyusun dokumen PDF proposal...');
+        $this->reportProgress($project, 'processing', 80, 'Assembling the PDF proposal document...');
 
         if ($bestTemplate && !$project->mockup_template_id) {
             $mockupTemplate = MockupTemplate::create([
@@ -664,7 +664,6 @@ class ProjectController extends Controller
                 ['project_id' => $project->id],
                 [
                     'client_name' => $project->client_name,
-                    'status' => 'pending',
                     'pdf_path' => $fileName,
                     'version' => 1,
                     'ai_reasoning' => json_encode($analysis, JSON_UNESCAPED_UNICODE),
@@ -674,13 +673,13 @@ class ProjectController extends Controller
 
             // 5. UPDATE PROGRESS: Selesai!
             $completionMessage = $mockupFailReason
-                ? 'Proposal berhasil dibuat; mockup belum tersedia karena layanan ZipWP gagal.'
-                : 'Proposal dan Website berhasil dibuat!';
+                ? 'Proposal created successfully; mockup is not available because the ZipWP service failed.'
+                : 'Proposal and Website created successfully!';
             $this->reportProgress($project, 'completed', 100, $completionMessage);
 
         } catch (\Throwable $e) {
             Log::error('PDF Error: ' . $e->getMessage());
-            $this->reportProgress($project, 'failed', 0, 'PDF Proposal gagal dibuat: ' . $e->getMessage());
+            $this->reportProgress($project, 'failed', 0, 'Failed to create PDF proposal: ' . $e->getMessage());
             throw $e;
         }
     }
@@ -728,7 +727,7 @@ class ProjectController extends Controller
         if (!$proposal) {
             return redirect()
                 ->route('pages.projects.show', $project)
-                ->with('error', 'Proposal belum dibuat.');
+                ->with('error', 'Proposal has not been created yet.');
         }
 
         return view('projects.proposal-preview', compact(
@@ -745,11 +744,11 @@ class ProjectController extends Controller
             ->first();
 
         if (!$proposal || !$proposal->pdf_path) {
-            return back()->with('error', 'PDF proposal belum dibuat.');
+            return back()->with('error', 'PDF proposal has not been created yet.');
         }
 
         if (!Storage::disk('public')->exists($proposal->pdf_path)) {
-            return back()->with('error', 'File PDF tidak ditemukan.');
+            return back()->with('error', 'PDF file not found.');
         }
 
         return response()->download(
@@ -788,7 +787,7 @@ class ProjectController extends Controller
     {
         Cache::put(
             \App\Jobs\GenerateKeywordRecommendationsJob::cacheKey($project->id),
-            ['status' => 'queued', 'progress' => 0, 'message' => 'Menunggu diproses...'],
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Waiting to be processed...'],
             now()->addMinutes(10)
         );
 
@@ -826,7 +825,7 @@ class ProjectController extends Controller
 
         Cache::put(
             $this->previewCacheKey($token),
-            ['status' => 'queued', 'progress' => 0, 'message' => 'Menunggu diproses...'],
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Waiting to be processed...'],
             now()->addMinutes(15)
         );
 
@@ -867,7 +866,7 @@ class ProjectController extends Controller
     {
         Cache::put(
             \App\Jobs\AnalyzePageSpeedJob::cacheKey($project->id),
-            ['status' => 'queued', 'progress' => 0, 'message' => 'Menunggu diproses...'],
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Waiting to be processed...'],
             now()->addMinutes(10)
         );
 
@@ -895,7 +894,7 @@ class ProjectController extends Controller
             ?? null;
 
         if (!$url) {
-            return response()->json(['success' => false, 'message' => 'URL website belum tersedia.'], 422);
+            return response()->json(['success' => false, 'message' => 'Website URL is not available yet.'], 422);
         }
 
         $result = $service->getPerformance($url);
@@ -903,7 +902,7 @@ class ProjectController extends Controller
         if (!$result) {
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal mengambil data — cek apakah website ini sudah terverifikasi di akun Search Console kantor, atau kredensial GOOGLE_SEARCH_CONSOLE_REFRESH_TOKEN belum diisi.',
+                'message' => 'Failed to fetch data — check whether this website is verified in the office Search Console account, or whether the GOOGLE_SEARCH_CONSOLE_REFRESH_TOKEN credential has not been set.',
             ], 422);
         }
 
@@ -911,7 +910,7 @@ class ProjectController extends Controller
         $seo['search_console'] = array_merge($result, ['analyzed_at' => now()->toDateTimeString()]);
         $project->update(['seo_requirements' => $seo]);
 
-        $project->logActivity('Laporan Search Console diperbarui');
+        $project->logActivity('Search Console report updated');
 
         return response()->json(['success' => true]);
     }
@@ -924,14 +923,14 @@ class ProjectController extends Controller
             ?? null;
 
         if (!$url) {
-            return response()->json(['success' => false, 'message' => 'URL website belum tersedia.'], 422);
+            return response()->json(['success' => false, 'message' => 'Website URL is not available yet.'], 422);
         }
 
         $accessToken = $service->getAccessToken();
         if (!$accessToken) {
             return response()->json([
                 'success' => false,
-                'message' => 'Kredensial GA4 belum lengkap — cek GOOGLE_ANALYTICS_REFRESH_TOKEN di .env.',
+                'message' => 'GA4 credentials are incomplete — check GOOGLE_ANALYTICS_REFRESH_TOKEN in .env.',
             ], 422);
         }
 
@@ -946,7 +945,7 @@ class ProjectController extends Controller
                     'success' => false,
                     'needs_selection' => true,
                     'candidates' => $resolved['candidates'],
-                    'message' => 'Ketemu lebih dari 1 Property GA4 yang cocok.',
+                    'message' => 'Found more than 1 matching GA4 Property.',
                 ], 422);
             }
 
@@ -954,7 +953,7 @@ class ProjectController extends Controller
                 return response()->json([
                     'success' => false,
                     'needs_manual_input' => true,
-                    'message' => 'Tidak ketemu Property GA4 otomatis.',
+                    'message' => 'Could not automatically find a GA4 Property.',
                 ], 422);
             }
 
@@ -966,7 +965,7 @@ class ProjectController extends Controller
         if (!$result) {
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal mengambil data dari GA4 — cek Property ID atau akses akun ke property ini.',
+                'message' => 'Failed to fetch data from GA4 — check the Property ID or account access to this property.',
             ], 422);
         }
 
@@ -974,7 +973,7 @@ class ProjectController extends Controller
         $seo['google_analytics'] = array_merge($result, ['analyzed_at' => now()->toDateTimeString()]);
         $project->update(['seo_requirements' => $seo]);
 
-        $project->logActivity('Laporan Google Analytics (GA4) diperbarui');
+        $project->logActivity('Google Analytics (GA4) report updated');
 
         return response()->json(['success' => true]);
     }
@@ -1015,7 +1014,7 @@ class ProjectController extends Controller
 
         Cache::put(
             \App\Jobs\AnalyzeCompetitorPageSpeedJob::cacheKey($project->id),
-            ['status' => 'running', 'progress' => 0, 'message' => 'Memulai...'],
+            ['status' => 'running', 'progress' => 0, 'message' => 'Starting...'],
             now()->addMinutes(10)
         );
 
@@ -1043,14 +1042,14 @@ class ProjectController extends Controller
         if ($combined->count() > 3) {
             return response()->json([
                 'success' => false,
-                'message' => 'Total kompetitor (centang + manual) maksimal 3.',
+                'message' => 'Total competitors (checked + manual) must be at most 3.',
             ], 422);
         }
 
         if ($combined->isEmpty()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Pilih minimal 1 kompetitor.',
+                'message' => 'Select at least 1 competitor.',
             ], 422);
         }
 
@@ -1062,7 +1061,7 @@ class ProjectController extends Controller
 
         Cache::put(
             \App\Jobs\AnalyzeCompetitorPageSpeedJob::cacheKey($project->id),
-            ['status' => 'running', 'progress' => 0, 'message' => 'Memulai...'],
+            ['status' => 'running', 'progress' => 0, 'message' => 'Starting...'],
             now()->addMinutes(10)
         );
 
@@ -1084,7 +1083,7 @@ class ProjectController extends Controller
         if (empty($mainKeywords)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Belum ada hasil analisis keyword untuk project ini.',
+                'message' => 'No keyword analysis results yet for this project.',
             ], 422);
         }
 
@@ -1099,7 +1098,7 @@ class ProjectController extends Controller
         $seo['ai_recommendations']['main_keywords'] = $mainKeywords;
         $project->update(['seo_requirements' => $seo]);
 
-        $project->logActivity('Pilihan keyword untuk proposal diperbarui (' . $selected->count() . ' dipilih)');
+        $project->logActivity('Keyword selection for proposal updated (' . $selected->count() . ' selected)');
 
         return response()->json(['success' => true]);
     }
@@ -1142,7 +1141,7 @@ class ProjectController extends Controller
         $project->update(['seo_requirements' => $seo]);
 
         return $this->manualScreenshotRedirect($request, $project)
-            ->with('success', 'Screenshot berhasil diunggah.');
+            ->with('success', 'Screenshot uploaded successfully.');
     }
 
     public function deleteManualScreenshot(Request $request, Project $project)
@@ -1176,7 +1175,7 @@ class ProjectController extends Controller
         $project->update(['seo_requirements' => $seo]);
 
         return $this->manualScreenshotRedirect($request, $project)
-            ->with('success', 'Screenshot dihapus.');
+            ->with('success', 'Screenshot deleted.');
     }
 
     /** Keep manually uploaded performance screenshots on the Performa tab. */

@@ -19,13 +19,13 @@ class ReportController extends Controller
 
         $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.report', $data);
 
-        return $pdf->download('Laporan-' . now()->format('Y-m-d') . '.pdf');
+        return $pdf->download('Report-' . now()->format('Y-m-d') . '.pdf');
     }
 
     public function downloadExcel()
     {
         $data = $this->gatherData();
-        $filename = 'Laporan-' . now()->format('Y-m-d') . '.csv';
+        $filename = 'Report-' . now()->format('Y-m-d') . '.csv';
 
         return response()->streamDownload(function () use ($data) {
             $handle = fopen('php://output', 'w');
@@ -39,36 +39,36 @@ class ReportController extends Controller
                 'completed' => 'Completed',
             ];
 
-            fputcsv($handle, ['RINGKASAN PROJECT']);
-            fputcsv($handle, ['Status', 'Jumlah']);
+            fputcsv($handle, ['PROJECT SUMMARY']);
+            fputcsv($handle, ['Status', 'Count']);
             foreach ($statusLabels as $key => $label) {
                 fputcsv($handle, [$label, $data['projectByStatus'][$key] ?? 0]);
             }
             fputcsv($handle, []);
 
-            fputcsv($handle, ['RINGKASAN KEUANGAN']);
-            fputcsv($handle, ['Item', 'Nilai']);
-            fputcsv($handle, ['Masuk Bulan Ini', $data['paidThisMonth']]);
-            fputcsv($handle, ['Belum Dibayar', $data['unpaidTotal']]);
-            fputcsv($handle, ['Invoice Terlambat', $data['overdueInvoiceCount']]);
+            fputcsv($handle, ['FINANCIAL SUMMARY']);
+            fputcsv($handle, ['Item', 'Value']);
+            fputcsv($handle, ['Income This Month', $data['paidThisMonth']]);
+            fputcsv($handle, ['Unpaid', $data['unpaidTotal']]);
+            fputcsv($handle, ['Overdue Invoices', $data['overdueInvoiceCount']]);
             fputcsv($handle, []);
 
-            fputcsv($handle, ['PEMASUKAN 6 BULAN TERAKHIR']);
-            fputcsv($handle, ['Bulan', 'Total']);
+            fputcsv($handle, ['INCOME - LAST 6 MONTHS']);
+            fputcsv($handle, ['Month', 'Total']);
             foreach ($data['incomeChart'] as $item) {
                 fputcsv($handle, [$item['label'], $item['total']]);
             }
             fputcsv($handle, []);
 
-            fputcsv($handle, ['CLIENT PALING AKTIF']);
-            fputcsv($handle, ['Perusahaan', 'Jumlah Project']);
+            fputcsv($handle, ['MOST ACTIVE CLIENTS']);
+            fputcsv($handle, ['Company', 'Project Count']);
             foreach ($data['topClients'] as $client) {
                 fputcsv($handle, [$client->company_name, $client->projects_count]);
             }
             fputcsv($handle, []);
 
-            fputcsv($handle, ['PERFORMA']);
-            fputcsv($handle, ['Rata-rata Durasi Project Selesai (hari)', $data['avgDuration']]);
+            fputcsv($handle, ['PERFORMANCE']);
+            fputcsv($handle, ['Average Completed Project Duration (days)', $data['avgDuration']]);
 
             fclose($handle);
         }, $filename, ['Content-Type' => 'text/csv']);

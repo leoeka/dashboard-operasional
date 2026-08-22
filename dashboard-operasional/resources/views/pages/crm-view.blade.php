@@ -4,7 +4,7 @@
 @section('content')
 
     <a href="{{ route('pages.crm') }}" class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
-        <i class='bx bx-arrow-back'></i> Kembali ke Client
+        <i class='bx bx-arrow-back'></i> Back to Clients
     </a>
 
     <x-card class="mb-6">
@@ -24,18 +24,18 @@
                 <p class="font-medium text-slate-700 break-words">{{ $client->email ?? '-' }}</p>
             </div>
             <div>
-                <p class="text-slate-400 mb-1">Telepon</p>
+                <p class="text-slate-400 mb-1">Phone</p>
                 <p class="font-medium text-slate-700">{{ $client->phone ?? '-' }}</p>
             </div>
             <div>
-                <p class="text-slate-400 mb-1">Alamat</p>
+                <p class="text-slate-400 mb-1">Address</p>
                 <p class="font-medium text-slate-700 break-words">{{ $client->address ?? '-' }}</p>
             </div>
         </div>
     </x-card>
 
     <x-card>
-        <h2 class="font-semibold text-slate-800 mb-4">Riwayat Project</h2>
+        <h2 class="font-semibold text-slate-800 mb-4">Project History</h2>
         <div class="divide-y divide-slate-100">
             @forelse ($client->projects as $project)
                 <a href="{{ route('pages.projects.show', $project) }}"
@@ -47,7 +47,7 @@
                     <x-badge :color="$project->statusColor()" class="w-fit">{{ $project->statusLabel() }}</x-badge>
                 </a>
             @empty
-                <p class="text-sm text-slate-400 py-4 text-center">Belum ada project untuk client ini.</p>
+                <p class="text-sm text-slate-400 py-4 text-center">No projects for this client yet.</p>
             @endforelse
         </div>
     </x-card>

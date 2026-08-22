@@ -5,7 +5,7 @@
 
     <a href="{{ route('pages.projects.show', $project) }}"
         class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
-        <i class='bx bx-arrow-back'></i> Kembali
+        <i class='bx bx-arrow-back'></i> Back
     </a>
 
     <x-page-header title="Edit Project" />
@@ -17,11 +17,11 @@
             @method('PUT')
 
             <div>
-                <label class="text-sm font-medium text-slate-600 mb-1 block">Client (dari CRM)</label>
+                <label class="text-sm font-medium text-slate-600 mb-1 block">Client (from CRM)</label>
                 <select name="client_id" id="clientSelect"
                     onchange="document.querySelector('[name=client_name]').value = this.options[this.selectedIndex].dataset.name || ''; onClientChange(this.value);"
                     class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-                    <option value="">-- Tanpa data client di CRM --</option>
+                    <option value="">-- No client data in CRM --</option>
                     @foreach ($clients as $c)
                         <option value="{{ $c->id }}" data-name="{{ $c->company_name }}" @selected(old('client_id', $project->client_id) == $c->id)>
                             {{ $c->company_name }} ({{ $c->contact_name }})
@@ -31,27 +31,27 @@
             </div>
 
             <div>
-                <label class="text-sm font-medium text-slate-600 mb-1 block">Nama Project</label>
-                <input type="text" name="name" value="{{ old('name', $project->name) }}" placeholder="mis. Website PT ABC"
+                <label class="text-sm font-medium text-slate-600 mb-1 block">Project Name</label>
+                <input type="text" name="name" value="{{ old('name', $project->name) }}" placeholder="e.g. PT ABC Website"
                     class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                 @error('name')
                 <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <label class="text-sm font-medium text-slate-600 mb-1 block">Nama Client (tampil di tabel)</label>
+                <label class="text-sm font-medium text-slate-600 mb-1 block">Client Name (shown in table)</label>
                 <input type="text" name="client_name" value="{{ old('client_name', $project->client_name) }}"
                     class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                 @error('client_name')
                 <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
-                <p class="text-xs text-slate-400 mt-1">Otomatis terisi kalau pilih Client di atas. Bisa diedit manual kalau
-                    perlu.</p>
+                <p class="text-xs text-slate-400 mt-1">Automatically filled when you select a Client above. Can be edited
+                    manually if needed.</p>
             </div>
 
             <div>
-                <label class="text-sm font-medium text-slate-600 mb-1 block">Jenis Website</label>
+                <label class="text-sm font-medium text-slate-600 mb-1 block">Website Type</label>
                 <input type="text" name="type" value="{{ old('type', $project->type) }}"
-                    placeholder="mis. Company Profile, E-commerce"
+                    placeholder="e.g. Company Profile, E-commerce"
                     class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
             </div>
 
@@ -63,7 +63,7 @@
             dicentang "Website"-nya).
             --}}
             <div class="border border-slate-200 rounded-lg p-4">
-                <label class="text-sm font-medium text-slate-600 mb-2 block">Kebutuhan Layanan</label>
+                <label class="text-sm font-medium text-slate-600 mb-2 block">Service Requirements</label>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <label
                         class="flex items-center gap-2 border border-slate-200 rounded-lg p-2.5 cursor-pointer hover:bg-slate-50">
@@ -84,14 +84,14 @@
                     </label>
                 </div>
                 <p class="text-xs text-slate-400 mt-2">
-                    Untuk client yang sudah punya project Website sebelumnya, biarkan "Website" TIDAK dicentang kalau
-                    project ini khusus untuk SEO/Backlink saja.
+                    For clients that already have a previous Website project, leave "Website" UNCHECKED if
+                    this project is specifically for SEO/Backlink only.
                 </p>
             </div>
 
             {{-- SECTION SEO — kondisional --}}
             <div class="service-section border border-slate-200 rounded-lg p-4" id="section-seo" style="display:none;">
-                <label class="text-sm font-medium text-slate-600 mb-2 block">Kebutuhan SEO</label>
+                <label class="text-sm font-medium text-slate-600 mb-2 block">SEO Requirements</label>
 
                 {{--
                 AUTO-DETECT: kalau client yang dipilih sudah punya URL
@@ -101,27 +101,27 @@
                 manual. Tetap bisa diedit/diganti manual kalau perlu.
                 --}}
                 <div id="urlSuggestionBox" class="hidden mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                    <p class="text-blue-700">Website terdeteksi dari project lain client ini: <span id="detectedUrlText"
+                    <p class="text-blue-700">Website detected from this client's other project: <span id="detectedUrlText"
                             class="font-medium"></span></p>
                     <button type="button" onclick="useDetectedUrl()"
-                        class="mt-1 text-xs font-semibold text-blue-600 hover:text-blue-800">Pakai URL ini</button>
+                        class="mt-1 text-xs font-semibold text-blue-600 hover:text-blue-800">Use this URL</button>
                 </div>
 
                 <div class="space-y-3">
                     <div>
-                        <label class="text-xs text-slate-500 mb-1 block">URL Website</label>
-                        <input type="text" name="seo_target_url" id="seoTargetUrl" placeholder="https://contohwebsite.com"
+                        <label class="text-xs text-slate-500 mb-1 block">Website URL</label>
+                        <input type="text" name="seo_target_url" id="seoTargetUrl" placeholder="https://examplewebsite.com"
                             value="{{ old('seo_target_url', $project->seo_requirements['target_url'] ?? '') }}"
                             class="w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-                        <p class="text-xs text-slate-400 mt-1">Ini yang dipakai sistem untuk analisis AI (keyword &
-                            kompetitor) begitu disimpan — kalau sebelumnya kosong, analisis akan otomatis jalan sekali
-                            setelah URL ini diisi.</p>
+                        <p class="text-xs text-slate-400 mt-1">This is what the system uses for AI analysis (keywords &
+                            competitors) once saved — if it was previously empty, the analysis will automatically run
+                            once this URL is filled in.</p>
 
                         <button type="button" id="btnAnalyzePreview" disabled
                             class="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
-                            Analisis Sekarang
+                            Analyze Now
                         </button>
-                        <p class="text-xs text-slate-400 mt-1">Cek preview keyword & kompetitor sebelum disimpan (opsional).
+                        <p class="text-xs text-slate-400 mt-1">Check keyword & competitor preview before saving (optional).
                         </p>
 
                         <div id="previewProgress" class="hidden mt-2">
@@ -140,20 +140,20 @@
                         <input type="hidden" name="analysis_token" id="analysisToken" value="">
                     </div>
                     <div>
-                        <label class="text-xs text-slate-500 mb-1 block">Lokasi/Area</label>
-                        <input type="text" name="seo_location" placeholder="Contoh: Denpasar, Bali"
+                        <label class="text-xs text-slate-500 mb-1 block">Location/Area</label>
+                        <input type="text" name="seo_location" placeholder="e.g. Denpasar, Bali"
                             value="{{ old('seo_location', $project->seo_requirements['location'] ?? '') }}"
                             class="w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                     </div>
                     <div>
-                        <label class="text-xs text-slate-500 mb-1 block">Platform Website Client <span
+                        <label class="text-xs text-slate-500 mb-1 block">Client's Website Platform <span
                                 class="text-red-500">*</span></label>
                         <select name="seo_cms_platform"
                             class="conditional-required w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-                            <option value="">-- Pilih Platform --</option>
+                            <option value="">-- Select Platform --</option>
                             <option value="wordpress" {{ old('seo_cms_platform', $project->seo_requirements['cms_platform'] ?? '') == 'wordpress' ? 'selected' : '' }}>WordPress</option>
-                            <option value="baru" {{ old('seo_cms_platform', $project->seo_requirements['cms_platform'] ?? '') == 'baru' ? 'selected' : '' }}>Website Baru (dibuat oleh kami)</option>
-                            <option value="lainnya" {{ old('seo_cms_platform', $project->seo_requirements['cms_platform'] ?? '') == 'lainnya' ? 'selected' : '' }}>Platform Lain (publish manual)</option>
+                            <option value="baru" {{ old('seo_cms_platform', $project->seo_requirements['cms_platform'] ?? '') == 'baru' ? 'selected' : '' }}>New Website (built by us)</option>
+                            <option value="lainnya" {{ old('seo_cms_platform', $project->seo_requirements['cms_platform'] ?? '') == 'lainnya' ? 'selected' : '' }}>Other Platform (manual publish)</option>
                         </select>
                     </div>
                 </div>
@@ -161,37 +161,37 @@
 
             {{-- SECTION BACKLINK — kondisional --}}
             <div class="service-section border border-slate-200 rounded-lg p-4" id="section-backlink" style="display:none;">
-                <label class="text-sm font-medium text-slate-600 mb-2 block">Kebutuhan Backlink</label>
+                <label class="text-sm font-medium text-slate-600 mb-2 block">Backlink Requirements</label>
                 <div class="space-y-3">
                     <div>
-                        <label class="text-xs text-slate-500 mb-1 block">URL Tujuan Backlink <span
+                        <label class="text-xs text-slate-500 mb-1 block">Backlink Target URL <span
                                 class="text-red-500">*</span></label>
                         <input type="text" name="backlink_target_url" id="backlinkTargetUrl"
-                            placeholder="https://contohwebsite.com"
+                            placeholder="https://examplewebsite.com"
                             value="{{ old('backlink_target_url', $project->backlink_requirements['target_url'] ?? '') }}"
                             class="conditional-required w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-                        <p class="text-xs text-slate-400 mt-1">Biasanya sama dengan URL website di section SEO —
-                            otomatis disalin kalau dikosongkan.</p>
+                        <p class="text-xs text-slate-400 mt-1">Usually the same as the website URL in the SEO section —
+                            automatically copied if left empty.</p>
                     </div>
                     <div>
-                        <label class="text-xs text-slate-500 mb-1 block">Jumlah Backlink <span
+                        <label class="text-xs text-slate-500 mb-1 block">Backlink Quantity <span
                                 class="text-red-500">*</span></label>
                         <input type="number" min="1" name="backlink_quantity"
                             value="{{ old('backlink_quantity', $project->backlink_requirements['quantity'] ?? '') }}"
                             class="conditional-required w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                     </div>
                     <div>
-                        <label class="text-xs text-slate-500 mb-1 block">Niche / Kategori</label>
-                        <input type="text" name="backlink_niche" placeholder="Contoh: Travel, Bisnis, Teknologi"
+                        <label class="text-xs text-slate-500 mb-1 block">Niche / Category</label>
+                        <input type="text" name="backlink_niche" placeholder="e.g. Travel, Business, Technology"
                             value="{{ old('backlink_niche', $project->backlink_requirements['niche'] ?? '') }}"
                             class="w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                     </div>
                     <div>
-                        <label class="text-xs text-slate-500 mb-1 block">Prioritas</label>
+                        <label class="text-xs text-slate-500 mb-1 block">Priority</label>
                         <select name="backlink_priority"
                             class="w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-                            <option value="quality">Kualitas</option>
-                            <option value="quantity">Kuantitas</option>
+                            <option value="quality">Quality</option>
+                            <option value="quantity">Quantity</option>
                         </select>
                     </div>
                 </div>
@@ -212,7 +212,7 @@
 
             <button type="submit"
                 class="grad-blue text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:opacity-90 transition">
-                Simpan Perubahan
+                Save Changes
             </button>
         </form>
     </x-card>
@@ -344,7 +344,7 @@
                         checkPreviewStatus(data.token);
                     })
                     .catch(() => {
-                        previewError.textContent = 'Gagal memulai analisis. Coba lagi.';
+                        previewError.textContent = 'Failed to start analysis. Please try again.';
                         previewError.classList.remove('hidden');
                     });
             });
@@ -363,7 +363,7 @@
                         } else if (data.status === 'failed') {
                             clearInterval(previewPollTimer);
                             previewProgress.classList.add('hidden');
-                            previewError.textContent = data.message || 'Analisis gagal.';
+                            previewError.textContent = data.message || 'Analysis failed.';
                             previewError.classList.remove('hidden');
                             analysisTokenInput.value = '';
                         }
@@ -378,13 +378,13 @@
                 let html = '';
 
                 if (topics.core_topics && topics.core_topics.length) {
-                    html += '<div><p class="text-xs text-slate-400 mb-1">Topik terdeteksi</p><div>' +
+                    html += '<div><p class="text-xs text-slate-400 mb-1">Detected topics</p><div>' +
                         topics.core_topics.map(t => `<span class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">${escapeHtml(t)}</span>`).join('') +
                         '</div></div>';
                 }
 
                 if (rec.main_keywords && rec.main_keywords.length) {
-                    html += '<div><p class="text-xs text-slate-400 mb-2">10 Keyword Utama</p><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-400 border-b"><th class="pb-1 pr-3">Keyword</th><th class="pb-1 pr-3">Volume/bln</th><th class="pb-1">Persaingan</th></tr></thead><tbody>';
+                    html += '<div><p class="text-xs text-slate-400 mb-2">Top 10 Keywords</p><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-400 border-b"><th class="pb-1 pr-3">Keyword</th><th class="pb-1 pr-3">Volume/mo</th><th class="pb-1">Competition</th></tr></thead><tbody>';
                     rec.main_keywords.forEach(kw => {
                         html += `<tr class="border-b border-slate-50"><td class="py-1 pr-3 font-medium text-slate-700">${escapeHtml(kw.keyword)}</td><td class="py-1 pr-3 text-slate-500">${escapeHtml(kw.avg_monthly_searches ?? '-')}</td><td class="py-1 text-slate-500">${escapeHtml(kw.competition ?? '-')}</td></tr>`;
                     });
@@ -392,16 +392,16 @@
                 }
 
                 if (competitors.length) {
-                    html += '<div><p class="text-xs text-slate-400 mb-1">Kompetitor ditemukan</p><ul class="text-sm text-blue-600 space-y-0.5">' +
+                    html += '<div><p class="text-xs text-slate-400 mb-1">Competitors found</p><ul class="text-sm text-blue-600 space-y-0.5">' +
                         competitors.map(u => `<li><a href="${encodeURI(u)}" target="_blank" rel="noopener" class="hover:underline break-all">${escapeHtml(u)}</a></li>`).join('') +
                         '</ul></div>';
                 }
 
                 if (rec.summary) {
-                    html += `<div><p class="text-xs text-slate-400 mb-1">Ringkasan</p><p class="text-sm text-slate-600">${escapeHtml(rec.summary)}</p></div>`;
+                    html += `<div><p class="text-xs text-slate-400 mb-1">Summary</p><p class="text-sm text-slate-600">${escapeHtml(rec.summary)}</p></div>`;
                 }
 
-                html += '<p class="text-xs text-emerald-600">&#10003; Hasil ini akan otomatis tersimpan begitu Anda klik Simpan Perubahan.</p>';
+                html += '<p class="text-xs text-emerald-600">&#10003; This result will be automatically saved once you click Save Changes.</p>';
 
                 previewResult.innerHTML = html;
                 previewResult.classList.remove('hidden');

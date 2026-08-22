@@ -1,18 +1,18 @@
 {{--
-Partial KHUSUS PDF: 1 lingkaran skor (merah/oranye/hijau, gaya
-PageSpeed) — versi lingkaran SOLID (div+border-radius), BUKAN SVG.
+Partial SPECIFIC TO PDF: a single score circle (red/orange/green,
+PageSpeed style) — SOLID circle version (div+border-radius), NOT SVG.
 
-KENAPA ADA 2 FILE GAUGE (ini + pdf/partials/gauge.blade.php):
-dompdf (mesin generate PDF) TIDAK SANGGUP render teknik SVG
-progress-ring (stroke-dasharray) yang dipakai di gauge.blade.php —
-walau itu tampil sempurna di browser (halaman Workspace). Jadi
-dipisah: gauge.blade.php (SVG) buat Workspace, gauge-static.blade.php
-(lingkaran solid biasa, ini) KHUSUS buat template PDF.
+WHY THERE ARE 2 GAUGE FILES (this one + pdf/partials/gauge.blade.php):
+dompdf (the PDF generation engine) CANNOT render the SVG
+progress-ring technique (stroke-dasharray) used in gauge.blade.php —
+even though it renders perfectly in the browser (Workspace pages). So
+it's split: gauge.blade.php (SVG) for the Workspace, gauge-static.blade.php
+(plain solid circle, this one) SPECIFICALLY for the PDF template.
 
-JANGAN diganti balik ke SVG di sini — akan pecah lagi di PDF.
+DO NOT switch this back to SVG — it will break again in the PDF.
 
-Pakai dengan: @include('pdf.partials.gauge-static', ['score' => 71, 'label' => 'Performance'])
-$score null/tidak ada -> ditampilkan sebagai "-" abu-abu.
+Usage: @include('pdf.partials.gauge-static', ['score' => 71, 'label' => 'Performance'])
+$score null/missing -> shown as a gray "-".
 --}}
 @php
     $score = $score ?? null;
