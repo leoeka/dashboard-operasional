@@ -101,7 +101,7 @@
                             // ['label' => 'Website', 'route' => 'pages.website', 'icon' => 'bx-code-alt'],
                             ['label' => 'Finance', 'route' => 'pages.finance', 'icon' => 'bx-wallet'],
                             ['label' => 'Reports', 'route' => 'pages.reports', 'icon' => 'bx-bar-chart-alt-2'],
-                            ['label' => 'Settings', 'route' => 'pages.settings', 'icon' => 'bx-cog'],
+                            ['label' => 'About', 'route' => 'pages.about', 'icon' => 'bx-help-circle'],
                         ];
                     @endphp
 

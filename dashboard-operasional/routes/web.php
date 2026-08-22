@@ -6,7 +6,7 @@ use App\Http\Controllers\PageController;
 use App\Http\Controllers\requestOrderController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\SettingController;
+use App\Http\Controllers\AboutController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SiteCleanupController;
@@ -117,7 +117,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports/download-excel', [ReportController::class, 'downloadExcel'])->name('pages.reports.download-excel');
 
     // 10. Settings
-    Route::get('/settings', [SettingController::class, 'index'])->name('pages.settings');
+    Route::get('/about', [AboutController::class, 'index'])->name('pages.about');
 
     // 10. Profile
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile');

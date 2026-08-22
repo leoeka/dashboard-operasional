@@ -2,13 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
-class SettingController extends Controller
+class AboutController extends Controller
 {
     public function index()
     {
-        return view('pages.settings', [
+        return view('pages.about', [
             'appName' => 'SiteFlow',
             'appVersion' => 'v1.0.0',
             'appDescription' => 'An operational dashboard for managing website development services — from project requests and proposals to mockups, development, and financial reports.',
