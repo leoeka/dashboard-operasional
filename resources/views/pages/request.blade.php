@@ -125,11 +125,12 @@
                 <h3 class="text-lg font-semibold text-gray-700 mb-4">3. Website Project Requirements</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700">Business Type <span
+                        <label class="block text-sm font-medium text-gray-700">Website Name <span
                                 class="text-red-500">*</span></label>
-                        <input type="text" name="business_type" placeholder="e.g. E-commerce, F&B, Education"
-                            value="{{ old('business_type') }}"
+                        <input type="text" name="website_name" placeholder="e.g. Kopi Nusantara Store"
+                            value="{{ old('website_name') }}"
                             class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">
+                        <p class="text-xs text-gray-500 mt-1">Used as the project/site name and to help suggest the domain.</p>
                     </div>
 
                     <div>
@@ -152,17 +153,21 @@
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700">Business Description <span
+                        <label class="block text-sm font-medium text-gray-700">User Story <span
                                 class="text-red-500">*</span></label>
-                        <textarea name="business_description" rows="3"
-                            class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">{{ old('business_description') }}</textarea>
+                        <textarea name="user_story" rows="3"
+                            placeholder="Describe, from the client's perspective, what they want this website to do — e.g. what the business does, what visitors should be able to see/do, key products or services to feature, etc."
+                            class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">{{ old('user_story') }}</textarea>
+                        <p class="text-xs text-gray-500 mt-1">Written by the team, based on what the client requested — this is the main brief the AI uses to build the proposal.</p>
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700">Business Target (Goal) <span
+                        <label class="block text-sm font-medium text-gray-700">Target Market <span
                                 class="text-red-500">*</span></label>
-                        <textarea name="business_goal" rows="3"
-                            class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">{{ old('business_goal') }}</textarea>
+                        <textarea name="target_market" rows="2"
+                            placeholder="e.g. East Java, young urban professionals, B2B buyers in the manufacturing sector, etc."
+                            class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 conditional-required">{{ old('target_market') }}</textarea>
+                        <p class="text-xs text-gray-500 mt-1">Who/where this website should target — region, audience segment, or industry.</p>
                     </div>
 
                     <div class="md:col-span-2 border-t border-gray-200 pt-4">
@@ -462,7 +467,7 @@
                         url: seoUrlInput.value.trim(),
                         location: document.querySelector('[name="seo_location"]')?.value || '',
                         business_name: document.querySelector('[name="company_name"]')?.value || '',
-                        business_type: document.querySelector('[name="business_type"]')?.value || '',
+                        business_type: document.querySelector('[name="website_name"]')?.value || '',
                     }),
                 })
                     .then(res => res.json())

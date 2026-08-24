@@ -47,9 +47,9 @@ class requestOrderController extends Controller
             // dicentang — bikin submit gagal untuk client yang cuma mau
             // SEO/Backlink saja. Sekarang wajib CUMA kalau service_type
             // mengandung 'website'.
-            'business_type' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string', 'max:255'],
-            'business_description' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
-            'business_goal' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
+            'website_name' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string', 'max:255'],
+            'user_story' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
+            'target_market' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
             'website_type' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string', 'max:255'],
 
             // FIX (fitur SEO & Backlink otomatis): URL wajib diisi kalau
@@ -96,9 +96,11 @@ class requestOrderController extends Controller
             // B. Simpan Project
             // FIX: nama project sebelumnya selalu "Website {company_name}",
             // tidak masuk akal untuk client yang cuma minta SEO/Backlink
-            // tanpa website baru.
+            // tanpa website baru. Sekarang, kalau tim sudah isi Website Name
+            // (dipakai juga untuk menentukan domain), itu yang dipakai jadi
+            // nama project.
             $projectName = $wantsWebsite
-                ? "Website {$client->company_name}"
+                ? ($validated['website_name'] ?? "Website {$client->company_name}")
                 : $client->company_name . ' - ' . implode(' & ', array_map('ucfirst', $serviceTypes));
 
             $project = $client->projects()->create([
@@ -111,16 +113,16 @@ class requestOrderController extends Controller
             ]);
 
             // C. Simpan Requirements Website (kalau dicentang)
-            // FIX: business_type & business_goal sebelumnya cuma digabung ke
-            // string 'requirement_notes' yang BUKAN kolom asli di tabel projects
+            // FIX: sebelumnya field ini cuma digabung ke string
+            // 'requirement_notes' yang BUKAN kolom asli di tabel projects
             // (tidak ada di migration maupun $fillable) — jadi selalu hilang
             // diam-diam dan tidak pernah sampai ke prompt AI. Sekarang disimpan
             // sebagai kolom sendiri supaya bisa dipakai AiServices.
             if ($wantsWebsite) {
                 $project->update([
-                    'business_type' => $validated['business_type'],
-                    'business_goal' => $validated['business_goal'],
-                    'description' => $validated['business_description'],
+                    'website_name' => $validated['website_name'],
+                    'target_market' => $validated['target_market'],
+                    'description' => $validated['user_story'],
                 ]);
             }
 

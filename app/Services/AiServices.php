@@ -41,10 +41,12 @@ class AiServices
                     'value_proposition' => $project->description ?: 'Professional business website',
                 ],
                 'market_analysis' => [],
-                'target_market' => [],
+                'target_market' => [
+                    'demographics' => $project->target_market ?: null,
+                ],
                 'competitor_analysis' => [],
                 'website_objective' => [
-                    'primary_goal' => $project->business_goal ?: 'Generate qualified enquiries',
+                    'primary_goal' => 'Generate qualified enquiries',
                 ],
             ];
         }
@@ -104,10 +106,12 @@ class AiServices
                 'value_proposition' => $project->description ?: 'Professional business website',
             ],
             'market_analysis' => [],
-            'target_market' => [],
+            'target_market' => [
+                'demographics' => $project->target_market ?: null,
+            ],
             'competitor_analysis' => [],
             'website_objective' => [
-                'primary_goal' => $project->business_goal ?: 'Generate qualified enquiries',
+                'primary_goal' => 'Generate qualified enquiries',
             ],
             'sitemap' => [],
             'page_structure' => [],
@@ -132,10 +136,10 @@ class AiServices
      */
     private function analyzeBusinessWithGemini(Project $project, Client $client): array
     {
-        $goal = trim((string) ($project->business_goal ?? ''));
-        $goalLine = $goal !== ''
-            ? "Business Goal (stated by the client themselves — this is the SINGLE MOST IMPORTANT input, every insight below must directly serve it): {$goal}"
-            : "Business Goal: Not provided by the client — infer the most plausible goal strictly from the description below, and say so in website_objective rather than inventing an unstated goal.";
+        $targetMarket = trim((string) ($project->target_market ?? ''));
+        $targetMarketLine = $targetMarket !== ''
+            ? "Target Market (given directly by the team/client — treat this as ground truth for the target_market section, then elaborate on it with concrete detail): {$targetMarket}"
+            : "Target Market: Not specified — infer the most plausible target market strictly from the User Story below.";
 
         $location = trim((string) ($client->address ?? ($project->seo_requirements['location'] ?? '')));
         $locationLine = $location !== '' ? "\nOperating Location/Area: {$location}" : '';
@@ -148,25 +152,25 @@ Analyze the following business and return ONLY business/market-related insights.
 DO NOT include website sitemap, page structure, or visual design direction — that will be handled separately.
 
 STRICT GROUNDING RULES:
-- Base every field ONLY on the facts given below (name, industry, description, and especially the stated goal). Do not invent specific facts (e.g. real competitor names, made-up statistics) that aren't implied by the input.
-- Do NOT write generic filler that could apply to any business (e.g. \"young professionals aged 25-40 who value quality\"). Every sentence must clearly connect back to THIS business's industry, description, and goal.
-- target_market and website_objective are the most important sections — they must be directly derived from the Business Goal above, not a generic template. If the goal is e.g. \"increase online sales\", target_market should describe who is likely to buy, and website_objective's primary_goal must restate/operationalize that same goal (not a different one).
-- If some information is genuinely insufficient to be specific, make a reasonable, clearly-labeled assumption based on the industry — never leave a field as vague boilerplate.
+- The User Story below is the main source of truth — it's written by our team based on what the client actually requested. Base every field on it, plus the Target Market and Website Category given below. Do not invent specific facts (e.g. real competitor names, made-up statistics) that aren't implied by the input.
+- The Website Name is just a branding/domain label — do NOT treat it as a reliable signal of industry or positioning; rely on the User Story for that instead.
+- Do NOT write generic filler that could apply to any business (e.g. \"young professionals aged 25-40 who value quality\"). Every sentence must clearly connect back to THIS business's User Story and Target Market.
+- target_market and website_objective are the most important sections. target_market must build directly on the Target Market input above (don't contradict or ignore it). website_objective.primary_goal must be INFERRED from what the User Story says the client wants the website to achieve — state it as a concrete, operational goal (e.g. \"drive online orders from the given target market\"), not a copy of the User Story text.
+- If some information is genuinely insufficient to be specific, make a reasonable, clearly-labeled assumption based on the User Story — never leave a field as vague boilerplate.
 
 Client / Company: {$client->company_name}
-Business Name: {$project->name}
-Industry / Business Type: {$project->business_type}
+Website Name: {$project->name}
 Website Category: {$project->type}
-Business Description: {$project->description}
-{$goalLine}{$locationLine}{$existingSiteLine}
+User Story (what the client wants this website to do, written by our team): {$project->description}
+{$targetMarketLine}{$locationLine}{$existingSiteLine}
 
 Return a JSON object with EXACTLY these keys:
 {
   \"business_analysis\": { \"brand_identity\": \"...\", \"value_proposition\": \"...\", \"revenue_model\": \"...\", \"positioning\": \"...\" },
   \"market_analysis\": { \"market_trends\": \"...\", \"swot\": { \"strengths\": [...], \"weaknesses\": [...], \"opportunities\": [...], \"threats\": [...] } },
-  \"target_market\": { \"demographics\": \"specific, concrete description tied to this business\", \"psychographics\": \"...\", \"behaviors\": \"...\", \"pain_points\": [...] },
+  \"target_market\": { \"demographics\": \"specific, concrete description tied to the given Target Market\", \"psychographics\": \"...\", \"behaviors\": \"...\", \"pain_points\": [...] },
   \"competitor_analysis\": { \"likely_competitor_types\": [...], \"differentiation_strategy\": \"...\" },
-  \"website_objective\": { \"primary_goal\": \"must directly restate the client's stated Business Goal above\", \"kpis\": [...], \"conversion_goals\": [...], \"ux_goals\": [...] }
+  \"website_objective\": { \"primary_goal\": \"concrete goal inferred from the User Story\", \"kpis\": [...], \"conversion_goals\": [...], \"ux_goals\": [...] }
 }
 
 Respond with ONLY valid JSON, no markdown formatting, no explanation.
@@ -662,7 +666,7 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
             Log::warning('identifyTopicsFromWebsite: hasil tidak valid.', [
                 'project_id' => $project->id,
             ]);
-            // Fallback: pakai business_description project sebagai pengganti
+            // Fallback: pakai nama/tipe project sebagai pengganti
             // kalau AI gagal baca konten situs (situs kosong/gagal fetch, dst)
             return [
                 'core_topics' => [$project->type ?? 'bisnis umum'],
