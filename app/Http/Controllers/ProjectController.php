@@ -45,9 +45,7 @@ class ProjectController extends Controller
 
     public function show(Project $project)
     {
-        $project->load(['client', 'tasks', 'files', 'activityLogs', 'mockupTemplate',]);
-
-        return view('projects.show', compact('project'));
+        return redirect()->route('pages.seo-backlink', ['project' => $project->id]);
     }
 
     public function edit(Project $project)
@@ -763,7 +761,7 @@ class ProjectController extends Controller
 
         $project = null;
         if ($request->project) {
-            $project = Project::with('mockupTemplate')->find($request->project);
+            $project = Project::with(['mockupTemplate', 'latestProposal'])->find($request->project);
         }
 
         return view('pages.seo-backlink', compact('projects', 'project'));

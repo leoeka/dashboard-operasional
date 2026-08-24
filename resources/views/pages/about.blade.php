@@ -37,7 +37,7 @@
                     ['icon' => 'bx-group', 'iconClass' => 'bg-purple-100 text-purple-600', 'title' => 'CRM', 'desc' => 'Browse client records and see each client\'s full project history.'],
                     ['icon' => 'bx-briefcase', 'iconClass' => 'bg-emerald-50 text-emerald-500', 'title' => 'Project', 'desc' => 'Track every project through its pipeline, from request to completion.'],
                     ['icon' => 'bx-list-plus', 'iconClass' => 'bg-blue-50 text-blue-500', 'title' => 'Request Order', 'desc' => 'Create a new client and draft a project request, including website, SEO, and backlink needs.'],
-                    ['icon' => 'bx-cube', 'iconClass' => 'bg-pink-100 text-pink-600', 'title' => 'Seo & Backlink', 'desc' => 'Run AI-assisted SEO and backlink analysis, then generate a proposal for a project.'],
+                    ['icon' => 'bx-cube', 'iconClass' => 'bg-pink-100 text-pink-600', 'title' => 'Workspace', 'desc' => 'The project workspace: proposal, mockup, and AI-assisted SEO & backlink analysis, all in one place.'],
                     ['icon' => 'bx-shape-square', 'iconClass' => 'bg-purple-100 text-purple-600', 'title' => 'Mockup', 'desc' => 'Manage the AI-generated website mockup templates used in proposals.'],
                     ['icon' => 'bx-wallet', 'iconClass' => 'bg-emerald-50 text-emerald-500', 'title' => 'Finance', 'desc' => 'Create invoices, mark them as paid, and send payment reminders to clients.'],
                     ['icon' => 'bx-bar-chart-alt-2', 'iconClass' => 'bg-amber-50 text-amber-500', 'title' => 'Reports', 'desc' => 'View project and financial summaries, and download them as PDF or Excel.'],
@@ -63,8 +63,8 @@
             <div class="space-y-2">
                 @foreach ([
                     ['q' => 'How do I start a new project?', 'a' => 'Go to Request Order, add or select a client, choose the services needed (Website, SEO, and/or Backlink), and save the draft. The project will then appear on the Project page.'],
-                    ['q' => 'Where can I find a generated proposal?', 'a' => 'Open the project from the Project page — the generated proposal PDF and mockup preview are shown on its detail page once ready.'],
-                    ['q' => 'How do I run an SEO or backlink analysis?', 'a' => 'Open Seo & Backlink, select the project, and run the analysis from the Summary or Performance tab. Results are saved automatically to the project.'],
+                    ['q' => 'Where can I find a generated proposal?', 'a' => 'Open the project from the Project page — you\'ll be taken to its Workspace, where the generated proposal PDF and mockup preview are shown once ready.'],
+                    ['q' => 'How do I run an SEO or backlink analysis?', 'a' => 'Open Workspace, select the project, and run the analysis from the Summary or Performance tab. Results are saved automatically to the project.'],
                     ['q' => 'How do I record a payment?', 'a' => 'Go to Finance, find the related invoice, and use "Mark as Paid" once payment is received.'],
                     ['q' => 'How do I get a report for a client or period?', 'a' => 'Go to Reports and use "Download PDF" or "Download Excel" to export a summary of projects and finances.'],
                 ] as $faq)
