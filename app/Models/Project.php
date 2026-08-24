@@ -27,6 +27,7 @@ class Project extends Model
         'name',
         'client_name',
         'type',
+        'business_type',
         'value',
         'mockup_template_id',
         'zipwp_template_uuid',
@@ -36,6 +37,7 @@ class Project extends Model
         'zipwp_site_url',
         'status',
         'description', // sebelumnya: 'ai_generated_content'
+        'business_goal',
         'wants_seo',
         'wants_backlink',
         'seo_requirements',

@@ -111,9 +111,15 @@ class requestOrderController extends Controller
             ]);
 
             // C. Simpan Requirements Website (kalau dicentang)
+            // FIX: business_type & business_goal sebelumnya cuma digabung ke
+            // string 'requirement_notes' yang BUKAN kolom asli di tabel projects
+            // (tidak ada di migration maupun $fillable) — jadi selalu hilang
+            // diam-diam dan tidak pernah sampai ke prompt AI. Sekarang disimpan
+            // sebagai kolom sendiri supaya bisa dipakai AiServices.
             if ($wantsWebsite) {
                 $project->update([
-                    'requirement_notes' => "Jenis usaha: {$validated['business_type']}\nDeskripsi: {$validated['business_description']}\nTujuan: {$validated['business_goal']}",
+                    'business_type' => $validated['business_type'],
+                    'business_goal' => $validated['business_goal'],
                     'description' => $validated['business_description'],
                 ]);
             }

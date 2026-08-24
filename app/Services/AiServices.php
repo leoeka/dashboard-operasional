@@ -44,7 +44,7 @@ class AiServices
                 'target_market' => [],
                 'competitor_analysis' => [],
                 'website_objective' => [
-                    'primary_goal' => 'Generate qualified enquiries',
+                    'primary_goal' => $project->business_goal ?: 'Generate qualified enquiries',
                 ],
             ];
         }
@@ -107,7 +107,7 @@ class AiServices
             'target_market' => [],
             'competitor_analysis' => [],
             'website_objective' => [
-                'primary_goal' => 'Generate qualified enquiries',
+                'primary_goal' => $project->business_goal ?: 'Generate qualified enquiries',
             ],
             'sitemap' => [],
             'page_structure' => [],
@@ -132,25 +132,43 @@ class AiServices
      */
     private function analyzeBusinessWithGemini(Project $project, Client $client): array
     {
+        $goal = trim((string) ($project->business_goal ?? ''));
+        $goalLine = $goal !== ''
+            ? "Business Goal (stated by the client themselves — this is the SINGLE MOST IMPORTANT input, every insight below must directly serve it): {$goal}"
+            : "Business Goal: Not provided by the client — infer the most plausible goal strictly from the description below, and say so in website_objective rather than inventing an unstated goal.";
+
+        $location = trim((string) ($client->address ?? ($project->seo_requirements['location'] ?? '')));
+        $locationLine = $location !== '' ? "\nOperating Location/Area: {$location}" : '';
+
+        $existingSiteLine = !empty($client->website) ? "\nExisting Website (if any — this may be a redesign, not a brand-new business): {$client->website}" : '';
+
         $prompt = "
-You are a Senior Business & Market Analyst.
+You are a Senior Business & Market Analyst preparing input for a real client proposal.
 Analyze the following business and return ONLY business/market-related insights.
 DO NOT include website sitemap, page structure, or visual design direction — that will be handled separately.
- 
+
+STRICT GROUNDING RULES:
+- Base every field ONLY on the facts given below (name, industry, description, and especially the stated goal). Do not invent specific facts (e.g. real competitor names, made-up statistics) that aren't implied by the input.
+- Do NOT write generic filler that could apply to any business (e.g. \"young professionals aged 25-40 who value quality\"). Every sentence must clearly connect back to THIS business's industry, description, and goal.
+- target_market and website_objective are the most important sections — they must be directly derived from the Business Goal above, not a generic template. If the goal is e.g. \"increase online sales\", target_market should describe who is likely to buy, and website_objective's primary_goal must restate/operationalize that same goal (not a different one).
+- If some information is genuinely insufficient to be specific, make a reasonable, clearly-labeled assumption based on the industry — never leave a field as vague boilerplate.
+
+Client / Company: {$client->company_name}
 Business Name: {$project->name}
+Industry / Business Type: {$project->business_type}
+Website Category: {$project->type}
 Business Description: {$project->description}
-Client: {$client->name}
-Business Type: {$project->type}
- 
+{$goalLine}{$locationLine}{$existingSiteLine}
+
 Return a JSON object with EXACTLY these keys:
 {
-  \"business_analysis\": { ... brand identity, value proposition, revenue model, positioning ... },
-  \"market_analysis\": { ... market trends, SWOT analysis ... },
-  \"target_market\": { ... demographics, psychographics, behaviors, pain points ... },
-  \"competitor_analysis\": { ... direct competitors, differentiation strategy ... },
-  \"website_objective\": { ... primary KPIs, conversion goals, UX goals ... }
+  \"business_analysis\": { \"brand_identity\": \"...\", \"value_proposition\": \"...\", \"revenue_model\": \"...\", \"positioning\": \"...\" },
+  \"market_analysis\": { \"market_trends\": \"...\", \"swot\": { \"strengths\": [...], \"weaknesses\": [...], \"opportunities\": [...], \"threats\": [...] } },
+  \"target_market\": { \"demographics\": \"specific, concrete description tied to this business\", \"psychographics\": \"...\", \"behaviors\": \"...\", \"pain_points\": [...] },
+  \"competitor_analysis\": { \"likely_competitor_types\": [...], \"differentiation_strategy\": \"...\" },
+  \"website_objective\": { \"primary_goal\": \"must directly restate the client's stated Business Goal above\", \"kpis\": [...], \"conversion_goals\": [...], \"ux_goals\": [...] }
 }
- 
+
 Respond with ONLY valid JSON, no markdown formatting, no explanation.
 ";
 
@@ -438,12 +456,20 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
 You are a Senior UI/UX Designer and Information Architect.
 Based on the business and market analysis below, design the WEBSITE STRUCTURE and VISUAL DIRECTION.
 DO NOT repeat or re-analyze the business/market — just use it as context.
- 
+
+ALIGNMENT RULES:
+- website_objective.primary_goal in the context below is the client's actual stated goal. Every decision here must serve it directly:
+  - cta_strategy.primary_ctas must be the literal action that achieves that goal (e.g. goal = \"increase online sales\" -> primary CTA is \"Shop Now\" / \"Order Now\", NOT a generic \"Contact Us\").
+  - content_strategy must speak to target_market's demographics/psychographics/pain_points from the context, not a generic audience.
+  - sitemap/page_structure must include whatever pages that goal actually requires (e.g. a sales goal needs product/pricing/checkout-adjacent pages; a leads goal needs a strong contact/quote-request page).
+- template_selection.reason must explain the match in terms of THIS business's industry and target_market — not just \"it looks modern/professional\".
+- Avoid generic placeholder language everywhere (\"engaging content\", \"user-friendly design\") — be specific to this business.
+
 Business & Market Context:
 {$businessContext}
 
 {$templateInstruction}
- 
+
 Return a JSON object with EXACTLY these keys:
 {
   \"sitemap\": { \"primary_navigation\": [...], \"secondary_navigation\": [...], \"footer_navigation\": [...] },
@@ -451,9 +477,9 @@ Return a JSON object with EXACTLY these keys:
   \"content_strategy\": { \"tone_of_voice\": \"...\", \"key_messaging_pillars\": {...}, \"media_assets_requirements\": \"...\" },
   \"cta_strategy\": { \"primary_ctas\": {...}, \"secondary_ctas\": {...}, \"micro_conversions\": [...] },
   \"design_direction\": { \"color_palette\": {...}, \"typography\": {...}, \"layout_style\": {...} },
-  \"template_selection\": { \"uuid\": \"...\", \"name\": \"...\", \"reason\": \"...\" }
+  \"template_selection\": { \"uuid\": \"...\", \"name\": \"...\", \"reason\": \"tie explicitly to this business's industry and target market\" }
 }
- 
+
 Respond with ONLY valid JSON, no markdown formatting, no explanation.
 ";
 
