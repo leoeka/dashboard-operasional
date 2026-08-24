@@ -15,6 +15,8 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use App\Services\AiServices;
 use App\Services\ZipWpMcpService;
 use App\Services\ScreenshotService;
+use App\Services\CompetitorDiscoveryService;
+use App\Services\CompetitorContentFetcher;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\Rule;
@@ -368,8 +370,13 @@ class ProjectController extends Controller
     /**
      * Jalankan proses pembuatan proposal & report progress ke Cache/DB.
      */
-    public function runProposalGeneration(Project $project, AiServices $aiService, ZipWpMcpService $zipWp): void
-    {
+    public function runProposalGeneration(
+        Project $project,
+        AiServices $aiService,
+        ZipWpMcpService $zipWp,
+        CompetitorDiscoveryService $competitorDiscovery,
+        CompetitorContentFetcher $contentFetcher
+    ): void {
         @set_time_limit(180);
 
         // 1. UPDATE PROGRESS: Load Data
@@ -447,11 +454,57 @@ class ProjectController extends Controller
             }
         }
 
+        // 2b. UPDATE PROGRESS: Cari kompetitor NYATA yang sasarannya sama
+        // dengan Target Market project ini (via Google Places), lalu ambil
+        // isi kontennya — dipakai Gemini buat bikin target_market &
+        // competitor_analysis berbasis perbandingan sungguhan, bukan cuma
+        // tebakan AI. Kalau Target Market belum diisi, atau discovery/fetch
+        // gagal (mis. kredensial belum di-setup), lewati langkah ini dan
+        // lanjut seperti biasa TANPA data kompetitor — bukan gagalkan
+        // seluruh proses generate proposal.
+        $competitorContents = [];
+
+        if (!empty(trim((string) $project->target_market))) {
+            $this->reportProgress($project, 'processing', 20, 'Researching real websites in the target market...');
+
+            try {
+                $searchContext = $aiService->extractCompetitorSearchContext($project);
+
+                $competitorUrls = $competitorDiscovery->findCompetitors(
+                    $searchContext['business_type'] ?? ($project->type ?? ''),
+                    $searchContext['topics'] ?? [],
+                    '',
+                    $project->target_market
+                );
+
+                foreach (array_slice($competitorUrls, 0, 3) as $url) {
+                    if (!CompetitorContentFetcher::isSafeUrl($url)) {
+                        continue;
+                    }
+
+                    $content = $contentFetcher->fetch($url);
+                    if ($content) {
+                        $competitorContents[] = array_merge($content, ['url' => $url]);
+                    }
+                }
+
+                Log::info('Competitor research for proposal selesai', [
+                    'project_id' => $project->id,
+                    'competitors_found' => count($competitorContents),
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning('Competitor research for proposal gagal, lanjut tanpa data kompetitor.', [
+                    'project_id' => $project->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         // 3. UPDATE PROGRESS: AI Analysis (Gemini bisnis + GPT desain & pilih template)
         $this->reportProgress($project, 'processing', 25, 'Analyzing business profile with AI...');
 
         try {
-            $analysis = $aiService->analyzeProject($project, $client, $candidates);
+            $analysis = $aiService->analyzeProject($project, $client, $candidates, $competitorContents);
         } catch (\Throwable $e) {
             $this->reportProgress($project, 'failed', 0, 'AI analysis failed: ' . $e->getMessage());
             throw $e;

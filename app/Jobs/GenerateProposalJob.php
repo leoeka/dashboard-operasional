@@ -5,6 +5,8 @@ namespace App\Jobs;
 use App\Models\Project;
 use App\Services\AiServices;
 use App\Services\ZipWpMcpService;
+use App\Services\CompetitorDiscoveryService;
+use App\Services\CompetitorContentFetcher;
 use App\Http\Controllers\ProjectController;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -24,13 +26,17 @@ class GenerateProposalJob implements ShouldQueue
     {
     }
 
-    public function handle(AiServices $aiService, ZipWpMcpService $zipWp): void
-    {
+    public function handle(
+        AiServices $aiService,
+        ZipWpMcpService $zipWp,
+        CompetitorDiscoveryService $competitorDiscovery,
+        CompetitorContentFetcher $contentFetcher
+    ): void {
         // TAMBAHKAN BARIS INI DI SINI
         set_time_limit(0);
 
         $controller = app(ProjectController::class);
-        $controller->runProposalGeneration($this->project, $aiService, $zipWp);
+        $controller->runProposalGeneration($this->project, $aiService, $zipWp, $competitorDiscovery, $contentFetcher);
     }
 
     public function failed(Throwable $exception): void

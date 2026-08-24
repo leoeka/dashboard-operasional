@@ -14,7 +14,7 @@ use Gemini\Enums\ResponseMimeType;
 
 class AiServices
 {
-    public function analyzeProject(Project $project, Client $client, array $zipWpTemplates = []): array
+    public function analyzeProject(Project $project, Client $client, array $zipWpTemplates = [], array $competitorContents = []): array
     {
         if (!config('services.proposal_ai_enabled', true)) {
             Log::warning('AI proposal dinonaktifkan, memakai analisis fallback lokal.', [
@@ -28,7 +28,7 @@ class AiServices
         // TAHAP 1: GEMINI -> Analisis Bisnis & Target Pasar
         // =====================================================
         try {
-            $businessAnalysis = $this->analyzeBusinessWithGemini($project, $client);
+            $businessAnalysis = $this->analyzeBusinessWithGemini($project, $client, $competitorContents);
         } catch (\Throwable $e) {
             Log::warning('Gemini tidak tersedia, memakai analisis bisnis fallback.', [
                 'project_id' => $project->id,
@@ -134,7 +134,7 @@ class AiServices
      * TAHAP 1: Gemini fokus ke analisis bisnis, pasar, kompetitor.
      * Hasilnya JANGAN termasuk sitemap/design_direction — itu tugas GPT.
      */
-    private function analyzeBusinessWithGemini(Project $project, Client $client): array
+    private function analyzeBusinessWithGemini(Project $project, Client $client, array $competitorContents = []): array
     {
         $targetMarket = trim((string) ($project->target_market ?? ''));
         $targetMarketLine = $targetMarket !== ''
@@ -146,32 +146,50 @@ class AiServices
 
         $existingSiteLine = !empty($client->website) ? "\nExisting Website (if any — this may be a redesign, not a brand-new business): {$client->website}" : '';
 
+        // Kompetitor NYATA yang ditemukan live (Google Places API) untuk
+        // Target Market yang sama, lalu isinya di-fetch (bukan cuma nama)
+        // — supaya competitor_analysis & target_market berbasis perbandingan
+        // sungguhan, bukan tebakan AI semata. Kalau kosong (belum ada
+        // Target Market, discovery gagal, atau kredensial belum di-setup),
+        // bagian ini dilewati dan Gemini tetap jalan dengan cara lama.
+        $competitorContext = '';
+        if (!empty($competitorContents)) {
+            $competitorContext = "\n\nREAL websites currently serving a similar target market (found via live search just now — use these to make target_market and competitor_analysis concrete and COMPARATIVE, not generic. Compare what they offer/emphasize against our User Story above to find real gaps/differentiation opportunities):\n";
+            foreach ($competitorContents as $c) {
+                $headingsText = implode(', ', array_slice($c['headings'] ?? [], 0, 8));
+                $bodySnippet = mb_substr($c['body_text'] ?? '', 0, 400);
+                $competitorContext .= "- {$c['url']} — Title: \"{$c['title']}\" — Headings: {$headingsText} — Excerpt: \"{$bodySnippet}\"\n";
+            }
+        }
+
         $prompt = "
 You are a Senior Business & Market Analyst preparing input for a real client proposal.
 Analyze the following business and return ONLY business/market-related insights.
 DO NOT include website sitemap, page structure, or visual design direction — that will be handled separately.
 
 STRICT GROUNDING RULES:
-- The User Story below is the main source of truth — it's written by our team based on what the client actually requested. Base every field on it, plus the Target Market and Website Category given below. Do not invent specific facts (e.g. real competitor names, made-up statistics) that aren't implied by the input.
+- The User Story below is the main source of truth — it's written by our team based on what the client actually requested. Base every field on it, plus the Target Market and Website Category given below. Do not invent specific facts (e.g. real competitor names, made-up statistics) that aren't implied by the input" . (!empty($competitorContents) ? ' or the real competitor data below' : '') . ".
 - The Website Name is just a branding/domain label — do NOT treat it as a reliable signal of industry or positioning; rely on the User Story for that instead.
 - Do NOT write generic filler that could apply to any business (e.g. \"young professionals aged 25-40 who value quality\"). Every sentence must clearly connect back to THIS business's User Story and Target Market.
 - target_market and website_objective are the most important sections. target_market must build directly on the Target Market input above (don't contradict or ignore it). website_objective.primary_goal must be INFERRED from what the User Story says the client wants the website to achieve — state it as a concrete, operational goal (e.g. \"drive online orders from the given target market\"), not a copy of the User Story text.
-- If some information is genuinely insufficient to be specific, make a reasonable, clearly-labeled assumption based on the User Story — never leave a field as vague boilerplate.
+" . (!empty($competitorContents) ? "- You were given REAL competitor websites below (not hypothetical). competitor_analysis.likely_competitor_types and differentiation_strategy MUST be grounded in what they actually show (their headings/content), not generic assumptions.\n" : '') . "- If some information is genuinely insufficient to be specific, make a reasonable, clearly-labeled assumption based on the User Story — never leave a field as vague boilerplate.
 
 Client / Company: {$client->company_name}
 Website Name: {$project->name}
 Website Category: {$project->type}
 User Story (what the client wants this website to do, written by our team): {$project->description}
-{$targetMarketLine}{$locationLine}{$existingSiteLine}
+{$targetMarketLine}{$locationLine}{$existingSiteLine}{$competitorContext}
 
 Return a JSON object with EXACTLY these keys:
 {
   \"business_analysis\": { \"brand_identity\": \"...\", \"value_proposition\": \"...\", \"revenue_model\": \"...\", \"positioning\": \"...\" },
   \"market_analysis\": { \"market_trends\": \"...\", \"swot\": { \"strengths\": [...], \"weaknesses\": [...], \"opportunities\": [...], \"threats\": [...] } },
   \"target_market\": { \"demographics\": \"specific, concrete description tied to the given Target Market\", \"psychographics\": \"...\", \"behaviors\": \"...\", \"pain_points\": [...] },
-  \"competitor_analysis\": { \"likely_competitor_types\": [...], \"differentiation_strategy\": \"...\" },
+  \"competitor_analysis\": { \"likely_competitor_types\": [...], \"real_competitors_found\": [{\"url\": \"...\", \"observation\": \"what this real competitor emphasizes, based on their headings/content\"}], \"differentiation_strategy\": \"...\" },
   \"website_objective\": { \"primary_goal\": \"concrete goal inferred from the User Story\", \"kpis\": [...], \"conversion_goals\": [...], \"ux_goals\": [...] }
 }
+
+If no real competitor websites were given above, return an empty array for real_competitors_found — do not invent entries.
 
 Respond with ONLY valid JSON, no markdown formatting, no explanation.
 ";
@@ -468,6 +486,7 @@ ALIGNMENT RULES:
   - sitemap/page_structure must include whatever pages that goal actually requires (e.g. a sales goal needs product/pricing/checkout-adjacent pages; a leads goal needs a strong contact/quote-request page).
 - template_selection.reason must explain the match in terms of THIS business's industry and target_market — not just \"it looks modern/professional\".
 - Avoid generic placeholder language everywhere (\"engaging content\", \"user-friendly design\") — be specific to this business.
+- If competitor_analysis.real_competitors_found is present in the context (real websites already serving this target market), use it: content_strategy and page_structure should let this site credibly compete with what those real competitors emphasize, not just follow a generic template.
 
 Business & Market Context:
 {$businessContext}
@@ -617,6 +636,49 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
 
         // Fallback ke template pertama kalau tidak ada yang cocok sama sekali
         return $bestMatch ?? $templates[0] ?? null;
+    }
+
+    /**
+     * Sebelum situs client dibuat (jadi belum ada konten buat dibaca ulang),
+     * ekstrak istilah pencarian singkat dari User Story — dipakai
+     * CompetitorDiscoveryService buat mencari kompetitor NYATA (via Google
+     * Places) yang sasarannya mirip. Gagal secara halus (fallback ke
+     * Website Category) supaya proses generate proposal tetap lanjut kalau
+     * Gemini lagi bermasalah.
+     */
+    public function extractCompetitorSearchContext(Project $project): array
+    {
+        $prompt = "
+You are a Market Research Assistant.
+From the business info below, extract SHORT search terms that could be
+used to find REAL competing businesses/websites serving a similar
+market on Google — this is NOT a full analysis, just search terms.
+
+Website Name: {$project->name}
+Website Category: {$project->type}
+User Story: {$project->description}
+
+Wajib kembalikan HANYA format JSON murni tanpa markdown:
+{
+  \"business_type\": \"2-4 word business/industry category suitable for a search query, e.g. 'specialty coffee shop'\",
+  \"topics\": [\"keyword1\", \"keyword2\", ... 3-6 short topic keywords]
+}
+";
+
+        try {
+            $result = $this->callGeminiJson('gemini-3.6-flash', $prompt);
+        } catch (\Throwable $e) {
+            Log::warning('extractCompetitorSearchContext: gagal, fallback ke Website Category.', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage(),
+            ]);
+            return ['business_type' => $project->type ?? '', 'topics' => []];
+        }
+
+        return [
+            'business_type' => $result['business_type'] ?? ($project->type ?? ''),
+            'topics' => $result['topics'] ?? [],
+        ];
     }
 
     public function identifyTopicsFromWebsite(Project $project, array $siteContent): array
