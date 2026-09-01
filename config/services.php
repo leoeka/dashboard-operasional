@@ -37,6 +37,12 @@ return [
 
     'openai' => [
         'key' => env('OPENAI_API_KEY'),
+        'mockup_model' => env('OPENAI_MOCKUP_MODEL', 'gpt-5-mini'),
+    ],
+
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+        'builder_model' => env('ANTHROPIC_BUILDER_MODEL', 'claude-sonnet-4-5'),
     ],
 
     'proposal_ai_enabled' => env('PROPOSAL_AI_ENABLED', true),

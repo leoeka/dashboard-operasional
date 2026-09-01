@@ -175,6 +175,14 @@
                             Download Proposal PDF
                         </a>
                     @endif
+                    <a href="{{ route('pages.projects.bundle', $project) }}"
+                        class="mt-3 w-full inline-flex items-center justify-center gap-2
+                            bg-slate-900 text-white hover:bg-slate-700
+                            text-xs font-semibold px-4 py-2.5 rounded-lg
+                            active:scale-95 transition">
+                        <i class='bx bx-package'></i>
+                        Lanjut ke Build WordPress dengan Claude
+                    </a>
                 @else
                     {{-- Generate pertama kali — JS-driven, memicu job async + progress bar di kartu Mockup di bawah --}}
                     <button type="button" id="generate-proposal-btn" onclick="startGenerateProposal({{ $project->id }})"

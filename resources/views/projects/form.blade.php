@@ -12,7 +12,7 @@
 
     <x-card class="max-w-2xl">
         <form method="POST" id="projectForm" action="{{ route('pages.projects.update', $project) }}"
-            class="space-y-5">
+            enctype="multipart/form-data" class="space-y-5">
             @csrf
             @method('PUT')
 
@@ -53,6 +53,30 @@
                 <input type="text" name="type" value="{{ old('type', $project->type) }}"
                     placeholder="e.g. Company Profile, E-commerce"
                     class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+            </div>
+
+            <div class="border border-slate-200 rounded-lg p-4 space-y-3">
+                <label class="text-sm font-medium text-slate-600 block">Brand &amp; Design Reference</label>
+                <div>
+                    <label class="text-xs text-slate-500 block mb-1">Client logo (PNG, JPG, WebP; max. 2MB)</label>
+                    <input type="file" name="client_logo" accept="image/png,image/jpeg,image/webp" class="block w-full text-sm text-slate-600">
+                    @if ($project->client?->logo_path)
+                        <p class="text-xs text-slate-400 mt-1">A logo is already stored for this client. Uploading a file replaces it.</p>
+                    @endif
+                </div>
+                <div>
+                    <label class="text-xs text-slate-500 block mb-1">Design reference type</label>
+                    <select name="design_reference_type" class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm">
+                        <option value="none" @selected(old('design_reference_type', $project->design_reference_type) === 'none')>No reference</option>
+                        <option value="image" @selected(old('design_reference_type', $project->design_reference_type) === 'image')>Image</option>
+                        <option value="zip" @selected(old('design_reference_type', $project->design_reference_type) === 'zip')>ZIP template</option>
+                        <option value="url" @selected(old('design_reference_type', $project->design_reference_type) === 'url')>Website URL</option>
+                    </select>
+                </div>
+                <input type="url" name="design_reference_url" value="{{ old('design_reference_url', $project->design_reference_url) }}" placeholder="Reference website URL (optional)"
+                    class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm">
+                <input type="file" name="design_reference_file" accept="image/png,image/jpeg,image/webp,.zip" class="block w-full text-sm text-slate-600">
+                <p class="text-xs text-slate-400">References influence the mockup only; they are not used as executable templates.</p>
             </div>
 
             {{--

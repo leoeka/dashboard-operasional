@@ -4,7 +4,6 @@ namespace App\Jobs;
 
 use App\Models\Project;
 use App\Services\AiServices;
-use App\Services\ZipWpMcpService;
 use App\Services\CompetitorDiscoveryService;
 use App\Services\CompetitorContentFetcher;
 use App\Http\Controllers\ProjectController;
@@ -28,7 +27,6 @@ class GenerateProposalJob implements ShouldQueue
 
     public function handle(
         AiServices $aiService,
-        ZipWpMcpService $zipWp,
         CompetitorDiscoveryService $competitorDiscovery,
         CompetitorContentFetcher $contentFetcher
     ): void {
@@ -36,7 +34,7 @@ class GenerateProposalJob implements ShouldQueue
         set_time_limit(0);
 
         $controller = app(ProjectController::class);
-        $controller->runProposalGeneration($this->project, $aiService, $zipWp, $competitorDiscovery, $contentFetcher);
+        $controller->runProposalGeneration($this->project, $aiService, $competitorDiscovery, $contentFetcher);
     }
 
     public function failed(Throwable $exception): void

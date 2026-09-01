@@ -38,6 +38,7 @@ class requestOrderController extends Controller
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
             'address' => ['nullable', 'string'],
+            'client_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
 
             'service_type' => ['required', 'array', 'min:1'],
             'service_type.*' => ['in:website,seo,backlink'],
@@ -51,6 +52,9 @@ class requestOrderController extends Controller
             'user_story' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
             'target_market' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
             'website_type' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string', 'max:255'],
+            'design_reference_type' => ['nullable', Rule::in(['none', 'image', 'zip', 'url'])],
+            'design_reference_url' => ['nullable', 'url', 'max:2048'],
+            'design_reference_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,zip', 'max:10240'],
 
             // FIX (fitur SEO & Backlink otomatis): URL wajib diisi kalau
             // SEO dipilih TAPI website tidak sekaligus dibuat baru (kalau
@@ -119,11 +123,28 @@ class requestOrderController extends Controller
             // diam-diam dan tidak pernah sampai ke prompt AI. Sekarang disimpan
             // sebagai kolom sendiri supaya bisa dipakai AiServices.
             if ($wantsWebsite) {
+                $referencePath = null;
+                if ($request->hasFile('design_reference_file')) {
+                    $referencePath = $request->file('design_reference_file')->store('design-references', 'public');
+                }
+
                 $project->update([
                     'website_name' => $validated['website_name'],
                     'target_market' => $validated['target_market'],
                     'description' => $validated['user_story'],
+                    'design_reference_type' => $validated['design_reference_type'] ?? 'none',
+                    'design_reference_url' => ($validated['design_reference_type'] ?? null) === 'url'
+                        ? ($validated['design_reference_url'] ?? null)
+                        : null,
+                    'design_reference_path' => $referencePath,
                 ]);
+            }
+
+            // Brand asset is intentionally stored on Client, so every
+            // website proposal for the same client uses their real logo.
+            if ($request->hasFile('client_logo')) {
+                $logoPath = $request->file('client_logo')->store('client-logos', 'public');
+                $client->update(['logo_path' => $logoPath]);
             }
 
             // D. Simpan Requirements SEO (kalau dicentang) — sebagai JSON

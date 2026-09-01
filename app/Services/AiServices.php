@@ -14,14 +14,18 @@ use Gemini\Enums\ResponseMimeType;
 
 class AiServices
 {
-    public function analyzeProject(Project $project, Client $client, array $zipWpTemplates = [], array $competitorContents = []): array
+    /**
+     * AI 1 — business and market analysis only.  Template selection belongs
+     * to neither AI stage: a WordPress theme is an implementation concern.
+     */
+    public function analyzeProject(Project $project, Client $client, array $competitorContents = []): array
     {
         if (!config('services.proposal_ai_enabled', true)) {
             Log::warning('AI proposal dinonaktifkan, memakai analisis fallback lokal.', [
                 'project_id' => $project->id,
             ]);
 
-            return $this->fallbackProjectAnalysis($project, $zipWpTemplates);
+            return $this->fallbackProjectAnalysis($project);
         }
 
         // =====================================================
@@ -51,55 +55,11 @@ class AiServices
             ];
         }
 
-        // =====================================================
-        // TAHAP 2: GPT -> Sitemap, Struktur, Desain Web, + PILIH TEMPLATE
-        // =====================================================
-        try {
-            $designAnalysis = $this->analyzeDesignWithGpt($project, $businessAnalysis, $zipWpTemplates);
-        } catch (\Throwable $e) {
-            Log::warning('GPT tidak tersedia, memakai analisis desain fallback.', [
-                'project_id' => $project->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            $fallbackTemplate = $this->pickBestTemplate(
-                $zipWpTemplates,
-                $project->type ?? 'Company Profile',
-                $project->description ?? ''
-            );
-
-            $designAnalysis = [
-                'sitemap' => [],
-                'page_structure' => [],
-                'content_strategy' => [
-                    'tone_of_voice' => 'Professional and welcoming',
-                ],
-                'cta_strategy' => [],
-                'design_direction' => [
-                    'layout_style' => 'Clean, responsive and conversion-focused',
-                ],
-                'template_selection' => $fallbackTemplate ? [
-                    'uuid' => $fallbackTemplate['uuid'] ?? null,
-                    'name' => $fallbackTemplate['name'] ?? null,
-                    'reason' => 'Selected by local fallback matching.',
-                ] : null,
-            ];
-        }
-
-        // =====================================================
-        // GABUNGKAN HASIL KEDUANYA
-        // =====================================================
-        return array_merge($businessAnalysis, $designAnalysis);
+        return $businessAnalysis;
     }
 
-    private function fallbackProjectAnalysis(Project $project, array $zipWpTemplates): array
+    private function fallbackProjectAnalysis(Project $project): array
     {
-        $fallbackTemplate = $this->pickBestTemplate(
-            $zipWpTemplates,
-            $project->type ?? 'Company Profile',
-            $project->description ?? ''
-        );
-
         return [
             'business_analysis' => [
                 'brand_identity' => $project->name,
@@ -113,20 +73,6 @@ class AiServices
             'website_objective' => [
                 'primary_goal' => 'Generate qualified enquiries',
             ],
-            'sitemap' => [],
-            'page_structure' => [],
-            'content_strategy' => [
-                'tone_of_voice' => 'Professional and welcoming',
-            ],
-            'cta_strategy' => [],
-            'design_direction' => [
-                'layout_style' => 'Clean, responsive and conversion-focused',
-            ],
-            'template_selection' => $fallbackTemplate ? [
-                'uuid' => $fallbackTemplate['uuid'] ?? null,
-                'name' => $fallbackTemplate['name'] ?? null,
-                'reason' => 'Selected by local fallback matching.',
-            ] : null,
         ];
     }
 
@@ -442,6 +388,168 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
     }
 
     /**
+     * AI 2 — turn the completed business analysis into a website blueprint.
+     * This intentionally has no ZipWP/WordPress template input.
+     */
+    public function generateMockup(Project $project, array $analysis): array
+    {
+        $apiKey = config('services.openai.key');
+
+        if (!$apiKey) {
+            Log::warning('OpenAI API Key tidak ditemukan; memakai mockup fallback lokal.', ['project_id' => $project->id]);
+            return $this->fallbackMockup($project, $analysis);
+        }
+
+        $analysisJson = json_encode($analysis, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+        $referenceType = $project->design_reference_type ?: 'none';
+        $referenceUrl = $project->design_reference_url ?: 'not provided';
+        $referenceFile = $project->design_reference_path ? basename($project->design_reference_path) : 'not provided';
+        $prompt = <<<PROMPT
+You are a senior website designer. Create a complete website mockup blueprint from the client data and the AI 1 business analysis below.
+
+Client: {$project->client_name}
+Project: {$project->name}
+Website category: {$project->type}
+Client brief: {$project->description}
+
+AI 1 ANALYSIS:
+{$analysisJson}
+
+CLIENT DESIGN REFERENCE (use it only as inspiration; never copy branding, text, assets, or source code):
+Type: {$referenceType}
+Website URL: {$referenceUrl}
+Uploaded file: {$referenceFile}
+
+Return ONLY valid JSON with this exact shape:
+{
+  "website_concept": "...",
+  "design": {
+    "style": "...", "primary_color": "#...", "secondary_color": "#...", "accent_color": "#...",
+    "font_heading": "...", "font_body": "..."
+  },
+  "pages": [
+    {"name": "Home", "sections": [
+      {"type": "hero", "name": "Hero", "headline": "...", "description": "...", "cta": "...", "layout": "...", "items": []}
+    ]}
+  ],
+  "global_cta": "...",
+  "seo": {"primary_keyword": "...", "meta_title": "...", "meta_description": "..."}
+}
+
+Include Home, About, Services, and Contact where relevant. Give each page meaningful sections and realistic content tied to this client. Use section types such as hero, about, services, portfolio, features, testimonial, cta, contact, and footer. For card/grid sections, provide 3-6 concise items with title and description.
+
+If an image reference is attached to this message, it is the PRIMARY visual direction. Extract its layout hierarchy, spacing, section order, typography mood, colour treatment, card composition, navigation treatment, and CTA placement. Reinterpret those characteristics for this client; do not copy names, text, logos, photographs, or protected artwork from it. The result must be a content-rich full website mockup, never an empty basic theme or wireframe. Do not select or mention any WordPress, ZipWP, or BeTheme template.
+PROMPT;
+
+        try {
+            $messageContent = [['type' => 'text', 'text' => $prompt]];
+            $referenceImage = $this->referenceImageDataUrl($project);
+            if ($referenceImage) {
+                $messageContent[] = [
+                    'type' => 'image_url',
+                    'image_url' => ['url' => $referenceImage, 'detail' => 'high'],
+                ];
+            }
+
+            $response = Http::timeout(90)->withHeaders([
+                'Authorization' => "Bearer {$apiKey}",
+                'Content-Type' => 'application/json',
+            ])->post('https://api.openai.com/v1/chat/completions', [
+                'model' => config('services.openai.mockup_model', 'gpt-5-mini'),
+                'messages' => [['role' => 'user', 'content' => $messageContent]],
+                'response_format' => ['type' => 'json_object'],
+            ]);
+
+            $result = json_decode((string) $response->json('choices.0.message.content'), true);
+            if (!$response->successful() || !is_array($result) || empty($result['pages'])) {
+                throw new \RuntimeException('Respons mockup AI tidak valid.');
+            }
+
+            return $result;
+        } catch (\Throwable $e) {
+            Log::warning('AI mockup gagal; memakai mockup fallback lokal.', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage(),
+            ]);
+            return $this->fallbackMockup($project, $analysis);
+        }
+    }
+
+    /** Return a local design-reference image as a vision-compatible data URL. */
+    private function referenceImageDataUrl(Project $project): ?string
+    {
+        if ($project->design_reference_type !== 'image' || !$project->design_reference_path) {
+            return null;
+        }
+
+        try {
+            $path = Storage::disk('public')->path($project->design_reference_path);
+            if (!is_file($path) || filesize($path) > 5 * 1024 * 1024) {
+                return null;
+            }
+
+            $mime = mime_content_type($path) ?: '';
+            if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+                return null;
+            }
+
+            return 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($path));
+        } catch (\Throwable $e) {
+            Log::warning('Design reference image could not be attached to AI mockup request.', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    private function fallbackMockup(Project $project, array $analysis): array
+    {
+        $overview = data_get($analysis, 'business_analysis.value_proposition', $project->description ?: 'Layanan profesional untuk kebutuhan Anda.');
+        $cta = 'Konsultasikan Kebutuhan Anda';
+
+        return [
+            'website_concept' => 'Website profesional yang membangun kredibilitas dan mengarahkan calon pelanggan untuk menghubungi bisnis.',
+            'design' => [
+                'style' => 'Modern, clean, professional, and conversion-focused',
+                'primary_color' => '#1E3A5F', 'secondary_color' => '#F8FAFC', 'accent_color' => '#2563EB',
+                'font_heading' => 'Poppins', 'font_body' => 'Inter',
+            ],
+            'pages' => [
+                ['name' => 'Home', 'sections' => [
+                    ['type' => 'hero', 'name' => 'Hero', 'headline' => $project->name, 'description' => $overview, 'cta' => $cta],
+                    ['type' => 'about', 'name' => 'About', 'headline' => 'Tentang Kami', 'description' => 'Kenali nilai, pengalaman, dan komitmen kami kepada setiap pelanggan.'],
+                    ['type' => 'services', 'name' => 'Services', 'headline' => 'Layanan Kami', 'description' => 'Solusi yang disusun untuk menjawab kebutuhan bisnis dan pelanggan Anda.', 'items' => [
+                        ['title' => 'Konsultasi', 'description' => 'Diskusi kebutuhan bersama tim kami.'],
+                        ['title' => 'Solusi Utama', 'description' => 'Layanan yang tepat untuk target bisnis Anda.'],
+                        ['title' => 'Dukungan', 'description' => 'Pendampingan yang jelas dari awal hingga selesai.'],
+                    ]],
+                    ['type' => 'cta', 'name' => 'CTA', 'headline' => $cta, 'description' => 'Hubungi tim kami untuk memulai percakapan.', 'cta' => $cta],
+                ]],
+                ['name' => 'About', 'sections' => [
+                    ['name' => 'Company Profile', 'headline' => 'Mengenal ' . $project->name, 'description' => $overview],
+                    ['name' => 'Why Choose Us', 'headline' => 'Mengapa Memilih Kami', 'description' => 'Kualitas layanan, komunikasi yang jelas, dan fokus pada hasil.'],
+                ]],
+                ['name' => 'Services', 'sections' => [
+                    ['name' => 'Service List', 'headline' => 'Layanan Profesional', 'description' => 'Jelajahi layanan yang paling relevan untuk kebutuhan Anda.'],
+                ]],
+                ['name' => 'Contact', 'sections' => [
+                    ['name' => 'Contact Form', 'headline' => 'Mari Berdiskusi', 'description' => 'Kirimkan kebutuhan Anda dan tim kami akan menghubungi Anda.', 'cta' => $cta],
+                ]],
+            ],
+            'global_cta' => $cta,
+            'seo' => [
+                'primary_keyword' => strtolower((string) ($project->type ?: $project->name)),
+                'meta_title' => $project->name . ' | ' . ($project->type ?: 'Website'),
+                'meta_description' => $project->description ?: 'Informasi layanan dan kontak ' . $project->name,
+            ],
+        ];
+    }
+
+    /**
+     * Legacy template-selection implementation. It is retained only for
+     * backwards compatibility with non-proposal callers.
      * TAHAP 2: GPT fokus ke sitemap, struktur halaman, content strategy,
      * CTA strategy, dan design direction. Menerima hasil analisis Gemini
      * sebagai konteks supaya keputusan desainnya nyambung dengan bisnisnya.

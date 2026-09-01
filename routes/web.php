@@ -62,6 +62,7 @@ Route::middleware(['auth'])->group(function () {
 
     // 5. AI Workspace
     Route::get('/seo-backlink', [ProjectController::class, 'aiWorkspace'])->name('pages.seo-backlink');
+    Route::get('/workshop', [ProjectController::class, 'proposalWorkshop'])->name('pages.workshop');
     Route::post('/seo-backlink/{project}/generate', [ProjectController::class, 'generateAiContent'])->name('pages.seo-backlink.generate');
     Route::post('/projects/{project}/analyze-seo-backlink', [ProjectController::class, 'analyzeSeoBacklink'])
         ->name('pages.projects.seo-backlink.analyze');
@@ -131,6 +132,13 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/proposal/generate', [ProjectController::class, 'generateProposal'])->name('pages.projects.proposal.generate');
     Route::get('/projects/{project}/proposal/status', [ProjectController::class, 'proposalStatus'])
         ->name('pages.projects.proposal.status');
+
+    // WordPress bundle workflow
+    Route::get('/projects/{project}/bundle', [\App\Http\Controllers\BundleController::class, 'index'])->name('pages.projects.bundle');
+    Route::post('/projects/{project}/bundle/build', [\App\Http\Controllers\BundleController::class, 'build'])->name('pages.projects.bundle.build');
+    Route::get('/projects/{project}/bundle/download', [\App\Http\Controllers\BundleController::class, 'download'])->name('pages.projects.bundle.download');
+    Route::post('/templates/bundles', [\App\Http\Controllers\BundleController::class, 'storeTemplate'])->name('templates.bundles.store');
+
     Route::resource('service-packages', \App\Http\Controllers\ServicePackageController::class)->except(['show']);
 
 });

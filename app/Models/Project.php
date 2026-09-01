@@ -37,6 +37,9 @@ class Project extends Model
         'zipwp_site_url',
         'status',
         'description', // sebelumnya: 'ai_generated_content'
+        'design_reference_type',
+        'design_reference_url',
+        'design_reference_path',
         'target_market',
         'wants_seo',
         'wants_backlink',
@@ -136,6 +139,21 @@ class Project extends Model
     public function latestProposal()
     {
         return $this->hasOne(Proposal::class)->latestOfMany();
+    }
+
+    public function bundles()
+    {
+        return $this->hasMany(ProjectBundle::class);
+    }
+
+    public function brand()
+    {
+        return $this->hasOne(ProjectBrand::class);
+    }
+
+    public function content()
+    {
+        return $this->hasOne(ProjectContent::class);
     }
 
     public function autoMatchMockupTemplate(): ?MockupTemplate

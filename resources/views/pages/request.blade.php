@@ -171,11 +171,41 @@
                     </div>
 
                     <div class="md:col-span-2 border-t border-gray-200 pt-4">
-                        <h4 class="text-base font-semibold text-gray-700 mb-2">Sample Mockup / Design Reference</h4>
-                        <label class="block text-sm font-medium text-gray-700">Attachments from Client</label>
+                        <h4 class="text-base font-semibold text-gray-700 mb-2">Brand &amp; Design Reference</h4>
+
+                        <label class="block text-sm font-medium text-gray-700">Client Logo</label>
+                        <input type="file" name="client_logo" accept="image/png,image/jpeg,image/webp"
+                            class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                        <p class="text-xs text-gray-500 mt-1">Optional. PNG, JPG, or WebP; max. 2MB. This logo is rendered in the website mockup, not sent to AI 1.</p>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Design Reference Type</label>
+                                <select name="design_reference_type" id="designReferenceType"
+                                    class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="none" @selected(old('design_reference_type', 'none') === 'none')>No reference</option>
+                                    <option value="image" @selected(old('design_reference_type') === 'image')>Upload image</option>
+                                    <option value="zip" @selected(old('design_reference_type') === 'zip')>Upload ZIP template</option>
+                                    <option value="url" @selected(old('design_reference_type') === 'url')>Website URL</option>
+                                </select>
+                            </div>
+                            <div id="designReferenceFileField">
+                                <label class="block text-sm font-medium text-gray-700">Reference File</label>
+                                <input type="file" name="design_reference_file" accept="image/png,image/jpeg,image/webp,.zip"
+                                    class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                            </div>
+                            <div id="designReferenceUrlField">
+                                <label class="block text-sm font-medium text-gray-700">Reference Website URL</label>
+                                <input type="url" name="design_reference_url" value="{{ old('design_reference_url') }}" placeholder="https://example.com"
+                                    class="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500">
+                            </div>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-2">References guide AI 2 and the mockup renderer; they are not copied or executed as a WordPress template.</p>
+
+                        <label class="block text-sm font-medium text-gray-700 mt-4">Other Attachments</label>
                         <input type="file" name="assets[]" multiple
                             class="website-asset-input mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
-                        <p class="text-xs text-gray-500 mt-1">Upload design samples, logo, brief, or other references (JPG, PNG, PDF, DOCX, ZIP; max. 10MB/file).</p>
+                        <p class="text-xs text-gray-500 mt-1">Upload a brief or supporting documents (JPG, PNG, PDF, DOCX, ZIP; max. 10MB/file).</p>
                     </div>
                 </div>
             </div>
@@ -566,6 +596,17 @@
 
             // Jalankan sekali saat load (misal setelah validasi gagal & old() terisi kembali)
             toggleSections();
+
+            const designReferenceType = document.getElementById('designReferenceType');
+            const designReferenceFileField = document.getElementById('designReferenceFileField');
+            const designReferenceUrlField = document.getElementById('designReferenceUrlField');
+            function toggleDesignReferenceFields() {
+                const type = designReferenceType?.value || 'none';
+                designReferenceFileField.style.display = ['image', 'zip'].includes(type) ? 'block' : 'none';
+                designReferenceUrlField.style.display = type === 'url' ? 'block' : 'none';
+            }
+            designReferenceType?.addEventListener('change', toggleDesignReferenceFields);
+            toggleDesignReferenceFields();
         })();
     </script>
 @endsection

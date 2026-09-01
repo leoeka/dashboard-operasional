@@ -133,6 +133,72 @@
             border: 1px solid #e2e8f0;
         }
 
+        .website-preview {
+            border: 1px solid #cbd5e1;
+            background: #fff;
+            overflow: hidden;
+        }
+
+        .website-preview-nav {
+            padding: 9px 14px;
+            color: #fff;
+            font-size: 9px;
+            font-weight: bold;
+        }
+
+        .website-preview-logo {
+            max-height: 20px;
+            max-width: 100px;
+            vertical-align: middle;
+            margin-right: 7px;
+            background: #fff;
+            padding: 2px;
+        }
+
+        .website-preview-hero {
+            padding: 25px 20px;
+            color: #fff;
+        }
+
+        .website-preview-hero h3 {
+            margin: 0 0 8px;
+            font-size: 20px;
+            line-height: 1.2;
+        }
+
+        .website-preview-hero p { color: #fff; font-size: 11px; }
+
+        .website-preview-cta {
+            display: inline-block;
+            padding: 7px 11px;
+            background: #fff;
+            font-size: 9px;
+            font-weight: bold;
+        }
+
+        .website-preview-section {
+            padding: 12px 16px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .website-preview-section h4 { margin: 0 0 4px; font-size: 12px; }
+        .website-preview-section p { margin: 0; font-size: 10px; line-height: 1.45; }
+
+        .website-preview-cards { width: 100%; border-collapse: separate; border-spacing: 6px; margin-top: 6px; }
+        .website-preview-card { width: 33.33%; padding: 8px; vertical-align: top; background: #f8fafc; border: 1px solid #e2e8f0; }
+        .website-preview-card strong { display: block; font-size: 9px; margin-bottom: 3px; }
+        .website-preview-card span { font-size: 8px; color: #64748b; line-height: 1.3; }
+
+        .blueprint-page {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border: 1px solid #e2e8f0;
+            page-break-inside: avoid;
+        }
+
+        .blueprint-page h3 { margin: 0 0 6px; font-size: 13px; color: #1e3a5f; }
+        .blueprint-section { margin: 5px 0; font-size: 10px; }
+
         table.cost-table {
             width: 100%;
             border-collapse: collapse;
@@ -271,17 +337,86 @@
 
         <h2 class="section-title">Design Mock Up</h2>
 
-        @if (!empty($mockup['screenshot_path']) && file_exists($mockup['screenshot_path']))
-            <img src="{{ $mockup['screenshot_path'] }}" class="mockup-section-img">
-        @else
-            <p style="text-align:center; color:#94a3b8;">
-                Design mock up not available yet.
-                @if (!empty($mockup['fail_reason']))
-                    <br>{{ $mockup['fail_reason'] }}
+        @php
+            $design = $mockup['design'] ?? [];
+            $home = collect($mockup['pages'] ?? [])->first(fn ($page) => strtolower($page['name'] ?? '') === 'home');
+            $homeSections = $home['sections'] ?? [];
+            $hero = collect($homeSections)->first(fn ($section) => strtolower($section['name'] ?? '') === 'hero') ?? ($homeSections[0] ?? []);
+        @endphp
+
+        <p style="font-size:11px; text-align:center; color:#64748b;">
+            {{ $mockup['website_concept'] ?? 'Website mockup blueprint generated from the client analysis.' }}
+        </p>
+
+        <div class="website-preview">
+            <div class="website-preview-nav" style="background:{{ $design['primary_color'] ?? '#1E3A5F' }};">
+                @if (!empty($mockup['client_logo_path']) && file_exists($mockup['client_logo_path']))
+                    <img src="{{ $mockup['client_logo_path'] }}" class="website-preview-logo" alt="{{ $project->client_name }} logo">
                 @endif
+                {{ strtoupper($project->name) }} <span style="float:right;">HOME &nbsp; ABOUT &nbsp; SERVICES &nbsp; CONTACT</span>
+            </div>
+            <div class="website-preview-hero" style="background:{{ $design['primary_color'] ?? '#1E3A5F' }};">
+                <h3>{{ $hero['headline'] ?? $project->name }}</h3>
+                <p>{{ $hero['description'] ?? '' }}</p>
+                @if (!empty($hero['cta'] ?? $mockup['global_cta'] ?? null))
+                    <span class="website-preview-cta" style="color:{{ $design['primary_color'] ?? '#1E3A5F' }};">
+                        {{ $hero['cta'] ?? $mockup['global_cta'] }}
+                    </span>
+                @endif
+            </div>
+            @foreach (array_slice($homeSections, 1, 5) as $section)
+                <div class="website-preview-section">
+                    <h4>{{ $section['headline'] ?? $section['name'] ?? 'Website Section' }}</h4>
+                    <p>{{ $section['description'] ?? '' }}</p>
+                    @if (!empty($section['items']) && is_array($section['items']))
+                        <table class="website-preview-cards"><tr>
+                            @foreach (array_slice($section['items'], 0, 3) as $item)
+                                <td class="website-preview-card">
+                                    <strong>{{ is_array($item) ? ($item['title'] ?? $item['name'] ?? 'Item') : $item }}</strong>
+                                    @if (is_array($item) && !empty($item['description']))
+                                        <span>{{ $item['description'] }}</span>
+                                    @endif
+                                </td>
+                            @endforeach
+                        </tr></table>
+                    @endif
+                </div>
+            @endforeach
+        </div>
+
+        <p style="margin-top:12px; font-size:10px; text-align:center; color:#64748b;">
+            Style: {{ $design['style'] ?? '-' }} &nbsp;|&nbsp; Fonts: {{ $design['font_heading'] ?? '-' }} / {{ $design['font_body'] ?? '-' }}
+        </p>
+        @if (!empty($mockup['design_reference_type']) && $mockup['design_reference_type'] !== 'none')
+            <p style="font-size:9px; text-align:center; color:#64748b;">
+                Design reference supplied by client: {{ ucfirst($mockup['design_reference_type']) }}
+                @if (!empty($mockup['design_reference_url'])) — {{ $mockup['design_reference_url'] }} @endif
             </p>
         @endif
         <span class="page-number">2</span>
+    </div>
+
+    {{-- ===== PAGE: WEBSITE BLUEPRINT ===== --}}
+    <div class="content-page">
+        <div class="header-band">
+            <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
+            <span class="date">{{ now()->format('n/j/Y') }}</span>
+        </div>
+
+        <h2 class="section-title">Website Blueprint</h2>
+        @foreach ($mockup['pages'] ?? [] as $page)
+            <div class="blueprint-page">
+                <h3>{{ $page['name'] ?? 'Page' }}</h3>
+                @foreach ($page['sections'] ?? [] as $section)
+                    <div class="blueprint-section">
+                        <strong>{{ $section['name'] ?? 'Section' }}</strong>
+                        @if (!empty($section['headline'])) — {{ $section['headline'] }} @endif
+                        @if (!empty($section['cta'])) <span style="color:#2563eb;"> · CTA: {{ $section['cta'] }}</span> @endif
+                    </div>
+                @endforeach
+            </div>
+        @endforeach
+        <span class="page-number">3</span>
     </div>
 
     @include('pdf.proposal-pages')

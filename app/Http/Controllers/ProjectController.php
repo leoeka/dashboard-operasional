@@ -127,6 +127,10 @@ class ProjectController extends Controller
             'client_name' => 'required|string|max:255',
             'type' => 'nullable|string|max:255',
             'status' => 'required|in:request,in_progress,completed',
+            'client_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
+            'design_reference_type' => ['nullable', Rule::in(['none', 'image', 'zip', 'url'])],
+            'design_reference_url' => ['nullable', 'url', 'max:2048'],
+            'design_reference_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,zip', 'max:10240'],
 
             'service_type' => ['nullable', 'array'],
             'service_type.*' => ['in:website,seo,backlink'],
@@ -151,7 +155,24 @@ class ProjectController extends Controller
 
         $statusChanged = $project->status !== $data['status'];
 
+        if (($data['design_reference_type'] ?? null) !== 'url') {
+            $data['design_reference_url'] = null;
+        }
+        unset($data['client_logo'], $data['design_reference_file']);
+
         $project->update($data);
+
+        if ($request->hasFile('design_reference_file')) {
+            $project->update([
+                'design_reference_path' => $request->file('design_reference_file')->store('design-references', 'public'),
+            ]);
+        }
+
+        if ($request->hasFile('client_logo') && $project->client) {
+            $project->client->update([
+                'logo_path' => $request->file('client_logo')->store('client-logos', 'public'),
+            ]);
+        }
 
         if ($wantsSeo) {
             $project->update([
@@ -373,7 +394,6 @@ class ProjectController extends Controller
     public function runProposalGeneration(
         Project $project,
         AiServices $aiService,
-        ZipWpMcpService $zipWp,
         CompetitorDiscoveryService $competitorDiscovery,
         CompetitorContentFetcher $contentFetcher
     ): void {
@@ -389,6 +409,77 @@ class ProjectController extends Controller
             $this->reportProgress($project, 'failed', 0, 'This project is not yet linked to client data.');
             throw new \Exception('Project is not linked to client data.');
         }
+
+        // New proposal pipeline: analysis and mockup are deliberately
+        // independent from ZipWP templates and site creation.
+        $competitorContents = [];
+        if (!empty(trim((string) $project->target_market))) {
+            $this->reportProgress($project, 'processing', 20, 'Researching websites in the target market...');
+
+            try {
+                $searchContext = $aiService->extractCompetitorSearchContext($project);
+                $competitorUrls = $competitorDiscovery->findCompetitors(
+                    $searchContext['business_type'] ?? ($project->type ?? ''),
+                    $searchContext['topics'] ?? [],
+                    '',
+                    $project->target_market
+                );
+
+                foreach (array_slice($competitorUrls, 0, 3) as $url) {
+                    if (CompetitorContentFetcher::isSafeUrl($url) && ($content = $contentFetcher->fetch($url))) {
+                        $competitorContents[] = array_merge($content, ['url' => $url]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Competitor research for proposal gagal, lanjut tanpa data kompetitor.', [
+                    'project_id' => $project->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $this->reportProgress($project, 'processing', 35, 'Analyzing business requirements with AI...');
+        $analysis = $aiService->analyzeProject($project, $client, $competitorContents);
+
+        $this->reportProgress($project, 'processing', 60, 'Creating the full website mockup blueprint...');
+        $mockup = $aiService->generateMockup($project, $analysis);
+        $mockup['client_logo_path'] = $client->logo_path
+            ? Storage::disk('public')->path($client->logo_path)
+            : null;
+        $mockup['design_reference_type'] = $project->design_reference_type;
+        $mockup['design_reference_url'] = $project->design_reference_url;
+
+        $this->reportProgress($project, 'processing', 80, 'Assembling the PDF proposal document...');
+        $projectData = [
+            'project_name' => $project->name,
+            'client_name' => $project->client_name,
+            'website_type' => $project->type ?? 'Company Profile',
+            'project_code' => $project->code,
+            'generated_at' => now()->format('d F Y H:i'),
+        ];
+
+        try {
+            $pdf = Pdf::loadView('pdf.proposal', compact('project', 'projectData', 'analysis', 'mockup'));
+            $fileName = 'proposals/Proposal-Mockup-' . Str::slug($project->client_name) . '-' . $project->code . '.pdf';
+            Storage::disk('public')->put($fileName, $pdf->output());
+
+            Proposal::updateOrCreate(['project_id' => $project->id], [
+                'client_name' => $project->client_name,
+                'pdf_path' => $fileName,
+                'version' => 1,
+                'ai_reasoning' => json_encode(['analysis' => $analysis, 'mockup' => $mockup], JSON_UNESCAPED_UNICODE),
+                'summary' => $mockup['website_concept'] ?? null,
+            ]);
+
+            $project->logActivity('AI business analysis and website mockup blueprint generated');
+            $this->reportProgress($project, 'completed', 100, 'Proposal and website mockup blueprint created successfully.');
+        } catch (\Throwable $e) {
+            Log::error('PDF Error: ' . $e->getMessage());
+            $this->reportProgress($project, 'failed', 0, 'Failed to create PDF proposal: ' . $e->getMessage());
+            throw $e;
+        }
+
+        return;
 
         // 2. UPDATE PROGRESS: Ambil daftar template ZipWP dulu (kalau belum
         // ada site tersimpan), supaya bisa dikasih ke GPT sebagai konteks
@@ -818,6 +909,15 @@ class ProjectController extends Controller
         }
 
         return view('pages.seo-backlink', compact('projects', 'project'));
+    }
+
+    public function proposalWorkshop(Request $request)
+    {
+        // The original Workspace remains the primary UI while the proposal
+        // workflow is refined. Keep old /workshop bookmarks working too.
+        return redirect()->route('pages.seo-backlink', $request->filled('project') ? [
+            'project' => $request->integer('project'),
+        ] : []);
     }
 
     private function progressCacheKey(int $projectId): string
