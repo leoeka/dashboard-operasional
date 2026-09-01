@@ -12,6 +12,9 @@ class BundleExporterService
             throw new \RuntimeException('Folder export bundle tidak dapat dibuat.');
         }
 
+        $themeInstallPath = $outputDir . DIRECTORY_SEPARATOR . 'theme-install.zip';
+        $this->createThemeInstallArchive($bundle, $themeInstallPath);
+
         $zipPath = $outputDir . DIRECTORY_SEPARATOR . 'bundle-export.zip';
 
         $zip = new ZipArchive();
@@ -81,7 +84,77 @@ class BundleExporterService
             @unlink($temporaryArchive);
         }
 
-        return $zipPath;
+        return $themeInstallPath;
+    }
+
+    private function createThemeInstallArchive(array $bundle, string $archivePath): void
+    {
+        $wordpressFiles = $bundle['wordpress']['files'] ?? [];
+        $themeRoot = trim((string) ($bundle['theme']['name'] ?? 'exito-client-theme'), '/');
+        $themeFiles = [];
+
+        foreach ($wordpressFiles as $relativePath => $contents) {
+            if (is_string($relativePath) && is_string($contents)) {
+                $relativePath = str_replace('\\', '/', ltrim($relativePath, '/'));
+                if (str_starts_with($relativePath, $themeRoot . '/')) {
+                    $themeFiles[$relativePath] = $contents;
+                }
+            }
+        }
+
+        if (empty($themeFiles)) {
+            throw new \RuntimeException('File theme WordPress tidak ditemukan dalam hasil build.');
+        }
+
+        $functionsPath = $themeRoot . '/functions.php';
+        $themeFiles[$functionsPath] = ($themeFiles[$functionsPath] ?? "<?php\n") . $this->themeSetupCode($bundle);
+
+        $themeZip = new ZipArchive();
+        if ($themeZip->open($archivePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('ZIP theme WordPress tidak dapat dibuat.');
+        }
+
+        foreach ($themeFiles as $relativePath => $contents) {
+            $themeZip->addFromString($relativePath, $contents);
+        }
+
+        $themeZip->close();
+    }
+
+    private function themeSetupCode(array $bundle): string
+    {
+        $content = $bundle['content'] ?? [];
+        $brand = $bundle['brand'] ?? [];
+        $homeTitle = (string) data_get($content, 'hero.title', $brand['company_name'] ?? 'Welcome');
+        $homeDescription = (string) data_get($content, 'hero.subtitle', data_get($content, 'about.content', ''));
+        $homeTitleCode = var_export($homeTitle, true);
+        $homeDescriptionCode = var_export($homeDescription, true);
+
+        $setup = <<<'WORDPRESS_SETUP'
+
+add_action('after_switch_theme', function () {
+    $page_id = get_page_by_path('home');
+    if (!$page_id) {
+        $page_id = wp_insert_post([
+            'post_title' => __HOME_TITLE__,
+            'post_name' => 'home',
+            'post_content' => '<p>' . esc_html(__HOME_DESCRIPTION__) . '</p>',
+            'post_status' => 'publish',
+            'post_type' => 'page',
+        ]);
+    }
+    if ($page_id && !is_wp_error($page_id)) {
+        update_option('show_on_front', 'page');
+        update_option('page_on_front', $page_id);
+    }
+});
+WORDPRESS_SETUP;
+
+        return str_replace(
+            ['__HOME_TITLE__', '__HOME_DESCRIPTION__'],
+            [$homeTitleCode, $homeDescriptionCode],
+            $setup
+        );
     }
 
     private function addComponentArchive(ZipArchive $bundleZip, string $archivePath, array $files): string

@@ -75,7 +75,7 @@
 
                     <a href="{{ route('pages.projects.bundle.download', $project) }}"
                         class="inline-flex items-center gap-2 text-sm font-semibold text-emerald-600 hover:text-emerald-800 border border-emerald-200 hover:bg-emerald-50 px-4 py-2.5 rounded-lg transition {{ $hasBundle ? '' : 'pointer-events-none opacity-40' }}">
-                        <i class='bx bx-download'></i> Download ZIP siap install
+                        <i class='bx bx-download'></i> Download Theme ZIP siap install
                     </a>
                 </div>
             </div>

@@ -53,13 +53,13 @@ class BundleController extends Controller
 
     public function download(Project $project)
     {
-        $zipFile = storage_path('app/bundles/' . $project->id . '/bundle-export.zip');
+        $zipFile = storage_path('app/bundles/' . $project->id . '/theme-install.zip');
 
         if (!file_exists($zipFile)) {
             return back()->with('error', 'Bundle belum dibuat.');
         }
 
-        return response()->download($zipFile, 'project-' . $project->id . '-bundle.zip');
+        return response()->download($zipFile, 'project-' . $project->id . '-wordpress-theme.zip');
     }
 
     public function storeTemplate(Request $request)
