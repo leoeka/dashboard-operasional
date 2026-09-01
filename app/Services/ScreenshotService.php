@@ -8,6 +8,29 @@ use Spatie\Browsershot\Browsershot;
 
 class ScreenshotService
 {
+    public function captureHtml(string $html, string $relativePath): ?string
+    {
+        try {
+            $fullPath = Storage::disk('public')->path($relativePath);
+            $dir = dirname($fullPath);
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+
+            Browsershot::html($html)
+                ->windowSize(1440, 900)
+                ->setOption('args', ['--no-sandbox', '--disable-setuid-sandbox'])
+                ->fullPage()
+                ->timeout(90)
+                ->save($fullPath);
+
+            return $relativePath;
+        } catch (\Throwable $e) {
+            Log::warning('ScreenshotService: gagal merender mockup HTML - ' . $e->getMessage());
+            return null;
+        }
+    }
+
     /**
      * Ambil screenshot dari sebuah URL (pakai Chromium headless via Browsershot)
      * lalu simpan ke storage disk 'public'.

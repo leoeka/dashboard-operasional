@@ -475,6 +475,113 @@ PROMPT;
         }
     }
 
+    public function generateMockupImage(Project $project, array $analysis, array $mockup): ?string
+    {
+        $apiKey = config('services.openai.key');
+        if (!$apiKey) {
+            throw new \RuntimeException('OPENAI_API_KEY belum tersedia untuk membuat PNG mockup.');
+        }
+
+        $design = json_encode($this->normalizeUtf8([
+            'analysis' => $analysis,
+            'mockup' => $mockup,
+        ]), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE);
+
+        $prompt = "Create a polished desktop website design mockup as one complete PNG for the approved client project below. This image will be shown directly to the client in a proposal. Reproduce the supplied reference layout as closely as possible while adapting it to this client. Include a real navbar, hero with the exact headline and CTA, clear section hierarchy, product/service cards, testimonials or benefits, newsletter CTA, gallery if present, and footer. Use the exact client-specific copy supplied below wherever it is marked as approved content. Text must be large, sharp, spelled correctly, and readable. Use the client logo input as the actual navbar logo when provided. Do not show code, JSON, browser chrome, placeholder boxes, lorem ipsum, or a generic template.\n\nAPPROVED CLIENT DATA:\n{$design}";
+        $prompt = $this->toSafeAscii($prompt);
+
+        $imagePaths = $this->mockupImagePaths($project);
+        $request = Http::timeout(180)->withToken($apiKey);
+
+        if ($imagePaths) {
+            foreach ($imagePaths as $imagePath) {
+                $request = $request->attach('image[]', fopen($imagePath, 'r'), basename($imagePath));
+            }
+            $response = $request->post('https://api.openai.com/v1/images/edits', [
+                'model' => config('services.openai.image_model', 'gpt-image-1'),
+                'prompt' => $prompt,
+                'size' => '1536x1024',
+                'quality' => 'medium',
+                'output_format' => 'png',
+            ]);
+        } else {
+            $response = $request->asJson()->post('https://api.openai.com/v1/images/generations', [
+                'model' => config('services.openai.image_model', 'gpt-image-1'),
+                'prompt' => $prompt,
+                'size' => '1536x1024',
+                'quality' => 'medium',
+                'output_format' => 'png',
+            ]);
+        }
+
+        if (!$response->successful()) {
+            throw new \RuntimeException('OpenAI image API error (' . $response->status() . '): ' . $response->body());
+        }
+
+        $base64 = $response->json('data.0.b64_json');
+        if (!$base64) {
+            throw new \RuntimeException('OpenAI tidak mengembalikan PNG mockup.');
+        }
+
+        $path = 'mockups/' . $project->code . '-gpt.png';
+        Storage::disk('public')->put($path, base64_decode($base64, true));
+
+        return $path;
+    }
+
+    private function mockupImagePaths(Project $project): array
+    {
+        $paths = [];
+        $candidatePaths = [
+            $project->design_reference_path,
+            $project->client?->logo_path,
+        ];
+
+        foreach ($candidatePaths as $relativePath) {
+            if (!$relativePath) {
+                continue;
+            }
+
+            $path = Storage::disk('public')->path($relativePath);
+            if (is_file($path) && filesize($path) <= 10 * 1024 * 1024) {
+                $mime = mime_content_type($path) ?: '';
+                if (in_array($mime, ['image/jpeg', 'image/png', 'image/webp'], true)) {
+                    $paths[] = $path;
+                }
+            }
+        }
+
+        return array_values(array_unique($paths));
+    }
+
+    private function normalizeUtf8(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            $normalized = [];
+            foreach ($value as $key => $item) {
+                $normalized[$this->normalizeUtf8($key)] = $this->normalizeUtf8($item);
+            }
+            return $normalized;
+        }
+
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        $cleaned = iconv('UTF-8', 'UTF-8//IGNORE', $value);
+        return $cleaned === false ? '' : $cleaned;
+    }
+
+    private function toSafeAscii(string $value): string
+    {
+        $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+        if ($ascii !== false) {
+            return $ascii;
+        }
+
+        return preg_replace('/[^\x00-\x7F]/', '', $value) ?? '';
+    }
+
     /** Return a local design-reference image as a vision-compatible data URL. */
     private function referenceImageDataUrl(Project $project): ?string
     {

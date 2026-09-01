@@ -382,6 +382,20 @@ class ProjectController extends Controller
         );
     }
 
+    public function approveProposal(Project $project): RedirectResponse
+    {
+        $proposal = $project->latestProposal;
+
+        if (!$proposal) {
+            return back()->with('error', 'Proposal belum dibuat.');
+        }
+
+        $proposal->update(['status' => 'approved']);
+        $project->update(['status' => 'mockup']);
+
+        return back()->with('success', 'Mockup disetujui. Sekarang data desain siap dikirim ke Claude untuk build WordPress.');
+    }
+
 
     /**
      * ============================================================
@@ -448,6 +462,18 @@ class ProjectController extends Controller
             : null;
         $mockup['design_reference_type'] = $project->design_reference_type;
         $mockup['design_reference_url'] = $project->design_reference_url;
+
+        $this->reportProgress($project, 'processing', 70, 'GPT is rendering the approved website mockup as a PNG image...');
+        $mockup['screenshot_path'] = $aiService->generateMockupImage($project, $analysis, $mockup);
+
+        $home = collect($mockup['pages'] ?? [])->first(fn ($page) => strtolower($page['name'] ?? '') === 'home');
+        $homeSections = $home['sections'] ?? [];
+        $hero = collect($homeSections)->first(fn ($section) => strtolower($section['type'] ?? $section['name'] ?? '') === 'hero') ?? ($homeSections[0] ?? []);
+        $newsletter = collect($homeSections)->first(fn ($section) => str_contains(strtolower((string) ($section['name'] ?? $section['type'] ?? '')), 'newsletter'));
+        if (empty($mockup['screenshot_path'])) {
+            $mockupHtml = view('pdf.mockup-screenshot', compact('project', 'mockup', 'homeSections', 'hero', 'newsletter'))->render();
+            $mockup['screenshot_path'] = app(ScreenshotService::class)->captureHtml($mockupHtml, 'mockups/' . $project->code . '.png');
+        }
 
         $this->reportProgress($project, 'processing', 80, 'Assembling the PDF proposal document...');
         $projectData = [

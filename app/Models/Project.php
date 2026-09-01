@@ -146,16 +146,6 @@ class Project extends Model
         return $this->hasMany(ProjectBundle::class);
     }
 
-    public function brand()
-    {
-        return $this->hasOne(ProjectBrand::class);
-    }
-
-    public function content()
-    {
-        return $this->hasOne(ProjectContent::class);
-    }
-
     public function autoMatchMockupTemplate(): ?MockupTemplate
     {
         // TODO: nanti diganti pemanggilan AI sungguhan (baca requirement_notes

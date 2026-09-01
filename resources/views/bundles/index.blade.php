@@ -35,7 +35,7 @@
         <div class="mb-6 px-4 py-3 rounded-lg bg-red-50 text-red-600 text-sm">{{ session('error') }}</div>
     @endif
 
-    <div class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+    <div>
         <x-card>
             <div class="space-y-5">
                 <div>
@@ -81,52 +81,5 @@
             </div>
         </x-card>
 
-        <x-card>
-            <div class="space-y-4">
-                <div>
-                    <p class="text-xs uppercase tracking-wide text-slate-400 font-semibold">Template WordPress (opsional)</p>
-                    <p class="mt-2 text-xs leading-5 text-slate-500">Tidak perlu menambah template untuk build pertama. Claude akan membuat package berdasarkan proposal dan konten project.</p>
-                </div>
-
-                @php
-                    $templates = \App\Models\TemplateBundle::query()->where('is_active', true)->get();
-                @endphp
-
-                @forelse ($templates as $template)
-                    <div class="rounded-xl border border-slate-200 p-3">
-                        <div class="flex items-center justify-between gap-3">
-                            <div>
-                                <p class="font-semibold text-slate-700">{{ $template->name }}</p>
-                                <p class="text-xs text-slate-400">{{ $template->category }}</p>
-                            </div>
-                            <span class="rounded-full bg-blue-50 text-blue-600 px-2 py-1 text-[10px] font-bold uppercase">{{ $template->slug }}</span>
-                        </div>
-                    </div>
-                @empty
-                    <div class="rounded-xl border border-dashed border-slate-200 p-4 text-sm text-slate-400">
-                        No template bundle yet. Add one from the template library.
-                    </div>
-                @endforelse
-
-                <form method="POST" action="{{ route('templates.bundles.store') }}" class="pt-4 border-t border-slate-100 space-y-3">
-                    @csrf
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Template Name</label>
-                        <input type="text" name="name" placeholder="Restaurant Modern" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-300" required>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Slug</label>
-                        <input type="text" name="slug" placeholder="restaurant-modern" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-300" required>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-semibold uppercase tracking-wide text-slate-400 mb-1">Category</label>
-                        <input type="text" name="category" placeholder="restaurant" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-300" required>
-                    </div>
-                    <button type="submit" class="w-full inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-slate-800 hover:bg-slate-700 px-4 py-2.5 rounded-lg transition">
-                        <i class='bx bx-plus-circle'></i> Add Template Bundle
-                    </button>
-                </form>
-            </div>
-        </x-card>
     </div>
 @endsection

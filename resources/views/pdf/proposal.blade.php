@@ -189,6 +189,26 @@
         .website-preview-card strong { display: block; font-size: 9px; margin-bottom: 3px; }
         .website-preview-card span { font-size: 8px; color: #64748b; line-height: 1.3; }
 
+        .website-preview-visual { border: 1px solid #d6c7b8; background: #fffdf8; }
+        .visual-nav { padding: 11px 18px; color: #fff; font-size: 9px; font-weight: bold; }
+        .visual-nav-links { float: right; font-size: 8px; font-weight: normal; }
+        .visual-hero { padding: 30px 24px 28px; color: #fff; }
+        .visual-hero h3 { margin: 0 0 8px; font-size: 22px; line-height: 1.15; }
+        .visual-hero p { margin: 0; max-width: 450px; color: #fff; font-size: 10px; line-height: 1.5; }
+        .visual-button { display: inline-block; margin-top: 14px; padding: 7px 12px; background: #fff; font-size: 9px; font-weight: bold; }
+        .visual-content { padding: 16px 18px; }
+        .visual-heading { margin: 0 0 4px; color: #263746; font-size: 14px; }
+        .visual-copy { margin: 0; color: #64748b; font-size: 9px; line-height: 1.45; }
+        .visual-grid { width: 100%; border-collapse: separate; border-spacing: 6px; margin: 7px -6px 0; }
+        .visual-card { width: 33.33%; padding: 10px; vertical-align: top; background: #fff; border: 1px solid #eadfce; }
+        .visual-card strong { display: block; color: #263746; font-size: 9px; margin-bottom: 4px; }
+        .visual-card span { color: #64748b; font-size: 8px; line-height: 1.35; }
+        .visual-card-price { display: block; margin-top: 6px; color: #a65d32; font-size: 9px; font-weight: bold; }
+        .visual-newsletter { margin: 0 18px 16px; padding: 15px 18px; background: #f1e5d6; }
+        .visual-newsletter strong { color: #263746; font-size: 11px; }
+        .visual-newsletter span { display: block; margin-top: 3px; color: #64748b; font-size: 8px; }
+        .visual-footer { padding: 13px 18px; background: #263746; color: #fff; font-size: 8px; }
+
         .blueprint-page {
             margin-top: 12px;
             padding: 10px 12px;
@@ -348,41 +368,53 @@
             {{ $mockup['website_concept'] ?? 'Website mockup blueprint generated from the client analysis.' }}
         </p>
 
-        <div class="website-preview">
-            <div class="website-preview-nav" style="background:{{ $design['primary_color'] ?? '#1E3A5F' }};">
+        @if (!empty($mockup['screenshot_path']) && file_exists(storage_path('app/public/' . $mockup['screenshot_path'])))
+            <img src="{{ storage_path('app/public/' . $mockup['screenshot_path']) }}" class="mockup-section-img" style="max-width:100%;" alt="Website mockup {{ $project->name }}">
+        @else
+
+        <div class="website-preview-visual">
+            <div class="visual-nav" style="background:{{ $design['primary_color'] ?? '#6f4328' }};">
                 @if (!empty($mockup['client_logo_path']) && file_exists($mockup['client_logo_path']))
                     <img src="{{ $mockup['client_logo_path'] }}" class="website-preview-logo" alt="{{ $project->client_name }} logo">
+                @else
+                    {{ strtoupper($project->name) }}
                 @endif
-                {{ strtoupper($project->name) }} <span style="float:right;">HOME &nbsp; ABOUT &nbsp; SERVICES &nbsp; CONTACT</span>
+                <span class="visual-nav-links">HOME &nbsp;&nbsp; ABOUT &nbsp;&nbsp; SERVICES &nbsp;&nbsp; CONTACT</span>
             </div>
-            <div class="website-preview-hero" style="background:{{ $design['primary_color'] ?? '#1E3A5F' }};">
+            <div class="visual-hero" style="background:{{ $design['primary_color'] ?? '#6f4328' }};">
                 <h3>{{ $hero['headline'] ?? $project->name }}</h3>
                 <p>{{ $hero['description'] ?? '' }}</p>
                 @if (!empty($hero['cta'] ?? $mockup['global_cta'] ?? null))
-                    <span class="website-preview-cta" style="color:{{ $design['primary_color'] ?? '#1E3A5F' }};">
-                        {{ $hero['cta'] ?? $mockup['global_cta'] }}
-                    </span>
+                    <span class="visual-button" style="color:{{ $design['primary_color'] ?? '#6f4328' }};">{{ $hero['cta'] ?? $mockup['global_cta'] }}</span>
                 @endif
             </div>
-            @foreach (array_slice($homeSections, 1, 5) as $section)
-                <div class="website-preview-section">
-                    <h4>{{ $section['headline'] ?? $section['name'] ?? 'Website Section' }}</h4>
-                    <p>{{ $section['description'] ?? '' }}</p>
+            @foreach (array_slice($homeSections, 1, 4) as $section)
+                @php $sectionType = strtolower((string) ($section['type'] ?? $section['name'] ?? '')); @endphp
+                <div class="visual-content">
+                    <h4 class="visual-heading">{{ $section['headline'] ?? $section['name'] ?? 'Website Section' }}</h4>
+                    <p class="visual-copy">{{ $section['description'] ?? '' }}</p>
                     @if (!empty($section['items']) && is_array($section['items']))
-                        <table class="website-preview-cards"><tr>
+                        <table class="visual-grid"><tr>
                             @foreach (array_slice($section['items'], 0, 3) as $item)
-                                <td class="website-preview-card">
+                                <td class="visual-card">
                                     <strong>{{ is_array($item) ? ($item['title'] ?? $item['name'] ?? 'Item') : $item }}</strong>
-                                    @if (is_array($item) && !empty($item['description']))
-                                        <span>{{ $item['description'] }}</span>
-                                    @endif
+                                    @if (is_array($item) && !empty($item['description']))<span>{{ $item['description'] }}</span>@endif
+                                    @if (is_array($item) && !empty($item['price']))<span class="visual-card-price">{{ $item['price'] }}</span>@endif
                                 </td>
                             @endforeach
                         </tr></table>
                     @endif
                 </div>
             @endforeach
+            @php
+                $newsletter = collect($homeSections)->first(fn ($section) => str_contains(strtolower((string) ($section['name'] ?? $section['type'] ?? '')), 'newsletter'));
+            @endphp
+            @if ($newsletter)
+                <div class="visual-newsletter"><strong>{{ $newsletter['headline'] ?? $newsletter['name'] }}</strong><span>{{ $newsletter['description'] ?? '' }}</span></div>
+            @endif
+            <div class="visual-footer">{{ $mockup['footer']['text'] ?? 'Kopi Nusa · Produk · Berlangganan · Kontak' }}</div>
         </div>
+        @endif
 
         <p style="margin-top:12px; font-size:10px; text-align:center; color:#64748b;">
             Style: {{ $design['style'] ?? '-' }} &nbsp;|&nbsp; Fonts: {{ $design['font_heading'] ?? '-' }} / {{ $design['font_body'] ?? '-' }}

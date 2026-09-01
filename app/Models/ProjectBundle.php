@@ -11,7 +11,6 @@ class ProjectBundle extends Model
 
     protected $fillable = [
         'project_id',
-        'template_bundle_id',
         'bundle_path',
         'zip_path',
         'status',
@@ -24,8 +23,4 @@ class ProjectBundle extends Model
         return $this->belongsTo(Project::class);
     }
 
-    public function templateBundle()
-    {
-        return $this->belongsTo(TemplateBundle::class);
-    }
 }

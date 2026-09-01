@@ -175,6 +175,19 @@
                             Download Proposal PDF
                         </a>
                     @endif
+                    @if ($project->latestProposal->status !== 'approved')
+                        <form method="POST" action="{{ route('pages.projects.proposal.approve', $project) }}" class="mt-3">
+                            @csrf
+                            <button type="submit" class="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold px-4 py-2.5 rounded-lg transition">
+                                <i class='bx bx-check-circle'></i>
+                                Client Setuju Mockup Ini
+                            </button>
+                        </form>
+                    @else
+                        <div class="mt-3 rounded-lg bg-emerald-50 px-4 py-2.5 text-center text-xs font-semibold text-emerald-700">
+                            <i class='bx bx-check-circle mr-1'></i> Mockup disetujui client
+                        </div>
+                    @endif
                     <a href="{{ route('pages.projects.bundle', $project) }}"
                         class="mt-3 w-full inline-flex items-center justify-center gap-2
                             bg-slate-900 text-white hover:bg-slate-700

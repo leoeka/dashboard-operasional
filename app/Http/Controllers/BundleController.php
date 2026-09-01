@@ -2,38 +2,41 @@
 
 namespace App\Http\Controllers;
 
-use App\Jobs\BuildProjectBundleJob;
 use App\Models\Project;
 use App\Models\ProjectBundle;
-use App\Models\TemplateBundle;
 use App\Services\BundleBuilderService;
 use App\Services\BundleExporterService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
 
 class BundleController extends Controller
 {
     public function index(Project $project)
     {
-        $templates = TemplateBundle::query()->where('is_active', true)->get();
-
-        return view('bundles.index', [
-            'project' => $project,
-            'templates' => $templates,
-        ]);
+        return view('bundles.index', compact('project'));
     }
 
     public function build(Project $project, BundleBuilderService $builder, BundleExporterService $exporter)
     {
-        $bundle = $builder->build($project);
+        try {
+            $bundle = $builder->build($project);
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('pages.projects.bundle', $project)
+                ->with('error', $e->getMessage());
+        }
 
         $bundleDir = storage_path('app/bundles/' . $project->id);
-        $zipPath = $exporter->export($bundle, $bundleDir);
+        try {
+            $zipPath = $exporter->export($bundle, $bundleDir);
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('pages.projects.bundle', $project)
+                ->with('error', 'ZIP WordPress gagal dibuat. Perbaiki hasil build Claude lalu coba lagi.');
+        }
 
         ProjectBundle::updateOrCreate(
             ['project_id' => $project->id],
             [
-                'template_bundle_id' => $project->bundles()->latest()->value('template_bundle_id'),
                 'bundle_path' => $bundleDir,
                 'zip_path' => $zipPath,
                 'status' => 'exported',
@@ -62,20 +65,4 @@ class BundleController extends Controller
         return response()->download($zipFile, 'project-' . $project->id . '-wordpress-theme.zip');
     }
 
-    public function storeTemplate(Request $request)
-    {
-        $data = $request->validate([
-            'name' => 'required|string',
-            'slug' => 'required|string|unique:template_bundles,slug',
-            'category' => 'required|string',
-            'description' => 'nullable|string',
-            'preview_url' => 'nullable|url',
-            'is_active' => 'nullable|boolean',
-            'settings' => 'nullable|array',
-        ]);
-
-        TemplateBundle::create($data);
-
-        return back()->with('success', 'Template bundle saved successfully.');
-    }
 }

@@ -108,6 +108,7 @@ class BundleExporterService
 
         $functionsPath = $themeRoot . '/functions.php';
         $themeFiles[$functionsPath] = ($themeFiles[$functionsPath] ?? "<?php\n") . $this->themeSetupCode($bundle);
+        $themeFiles[$themeRoot . '/screenshot.png'] = $this->themeScreenshot($bundle);
 
         $themeZip = new ZipArchive();
         if ($themeZip->open($archivePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
@@ -155,6 +156,47 @@ WORDPRESS_SETUP;
             [$homeTitleCode, $homeDescriptionCode],
             $setup
         );
+    }
+
+    private function themeScreenshot(array $bundle): string
+    {
+        if (!function_exists('imagecreatetruecolor')) {
+            return '';
+        }
+
+        $brand = $bundle['brand'] ?? [];
+        $content = $bundle['content'] ?? [];
+        $title = (string) data_get($content, 'hero.title', $brand['company_name'] ?? 'Client Website');
+        $primary = (string) ($brand['primary_color'] ?? '#1F2937');
+        $primary = ltrim($primary, '#');
+        if (strlen($primary) !== 6 || !ctype_xdigit($primary)) {
+            $primary = '1F2937';
+        }
+
+        $image = imagecreatetruecolor(1200, 900);
+        $background = imagecolorallocate($image, 248, 250, 252);
+        $accent = imagecolorallocate($image, hexdec(substr($primary, 0, 2)), hexdec(substr($primary, 2, 2)), hexdec(substr($primary, 4, 2)));
+        $ink = imagecolorallocate($image, 15, 23, 42);
+        $muted = imagecolorallocate($image, 100, 116, 139);
+        imagefill($image, 0, 0, $background);
+        imagefilledrectangle($image, 0, 0, 1200, 92, $accent);
+        imagefilledrectangle($image, 0, 92, 1200, 500, $accent);
+        imagefilledrectangle($image, 56, 150, 1144, 448, $background);
+        imagestring($image, 5, 86, 182, substr($title, 0, 48), $ink);
+        imagestring($image, 3, 86, 238, 'AI-generated WordPress website', $muted);
+        imagefilledrectangle($image, 86, 292, 270, 336, $accent);
+        imagestring($image, 3, 110, 302, 'Explore website', $background);
+        imagefilledrectangle($image, 56, 550, 360, 760, $background);
+        imagefilledrectangle($image, 420, 550, 724, 760, $background);
+        imagefilledrectangle($image, 784, 550, 1144, 760, $background);
+        imagestring($image, 4, 86, 810, 'Client theme preview', $ink);
+
+        ob_start();
+        imagepng($image);
+        $png = ob_get_clean();
+        imagedestroy($image);
+
+        return (string) $png;
     }
 
     private function addComponentArchive(ZipArchive $bundleZip, string $archivePath, array $files): string

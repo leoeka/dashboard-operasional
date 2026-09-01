@@ -12,13 +12,19 @@ class BundleBuilderService
 
     public function build(Project $project): array
     {
-        $analysis = $this->resolveAnalysis($project);
+        $proposal = $project->latestProposal;
+        if (!$proposal || $proposal->status !== 'approved') {
+            throw new \RuntimeException('Mockup belum disetujui client. Setujui proposal terlebih dahulu sebelum meminta Claude membangun WordPress.');
+        }
+        $proposalData = json_decode((string) ($proposal?->ai_reasoning ?? ''), true) ?: [];
+        $analysis = $this->resolveAnalysis($project, $proposalData['analysis'] ?? []);
         $template = $this->resolveTemplate($project);
-        $brand = $this->resolveBrand($project);
-        $content = $this->resolveContent($project, $analysis);
+        $brand = $this->resolveBrand($project, $proposalData['mockup'] ?? []);
+        $content = $this->resolveContent($project, $analysis, $proposalData['mockup'] ?? []);
 
         $bundle = [
             'analysis' => $analysis,
+            'mockup' => $proposalData['mockup'] ?? [],
             'template' => $template,
             'brand' => $brand,
             'content' => $content,
@@ -33,13 +39,13 @@ class BundleBuilderService
         return $bundle;
     }
 
-    protected function resolveAnalysis(Project $project): array
+    protected function resolveAnalysis(Project $project, array $proposalAnalysis = []): array
     {
-        return [
+        return array_replace_recursive([
             'business_summary' => $project->description ?? 'Business summary not provided',
             'target_market' => $project->target_market ?? 'General market',
             'type' => $project->type ?? 'company',
-        ];
+        ], $proposalAnalysis);
     }
 
     protected function resolveTemplate(Project $project): array
@@ -52,43 +58,59 @@ class BundleBuilderService
         ];
     }
 
-    protected function resolveBrand(Project $project): array
+    protected function resolveBrand(Project $project, array $mockup = []): array
     {
+        $design = $mockup['design'] ?? [];
+
         return [
             'company_name' => $project->client_name ?? 'Client Company',
-            'primary_color' => '#1F2937',
-            'secondary_color' => '#D97706',
-            'font_primary' => 'Inter',
-            'font_secondary' => 'Playfair Display',
-            'logo_path' => null,
+            'primary_color' => $design['primary_color'] ?? '#1F2937',
+            'secondary_color' => $design['secondary_color'] ?? '#D97706',
+            'accent_color' => $design['accent_color'] ?? '#2563EB',
+            'font_primary' => $design['font_body'] ?? 'Inter',
+            'font_secondary' => $design['font_heading'] ?? 'Playfair Display',
+            'logo_path' => $project->client?->logo_path,
             'phone' => null,
             'email' => null,
             'address' => null,
         ];
     }
 
-    protected function resolveContent(Project $project, array $analysis): array
+    protected function resolveContent(Project $project, array $analysis, array $mockup = []): array
     {
+        $sections = collect($mockup['pages'] ?? [])
+            ->flatMap(fn (array $page) => $page['sections'] ?? [])
+            ->values();
+        $hero = $sections->first(fn (array $section) => strtolower((string) ($section['type'] ?? $section['name'] ?? '')) === 'hero') ?? [];
+        $about = $sections->first(fn (array $section) => strtolower((string) ($section['type'] ?? $section['name'] ?? '')) === 'about') ?? [];
+        $services = $sections->first(fn (array $section) => strtolower((string) ($section['type'] ?? $section['name'] ?? '')) === 'services') ?? [];
+        $faq = $sections->first(fn (array $section) => strtolower((string) ($section['type'] ?? $section['name'] ?? '')) === 'faq') ?? [];
+        $cta = $sections->first(fn (array $section) => strtolower((string) ($section['type'] ?? $section['name'] ?? '')) === 'cta') ?? [];
+
         return [
             'hero' => [
-                'title' => 'Modern brand experience for your business',
-                'subtitle' => 'We help ambitious brands grow with sharper positioning and stronger digital presence.',
-                'cta_primary' => 'Get Started',
-                'cta_secondary' => 'View Portfolio',
+                'title' => $hero['headline'] ?? $project->name,
+                'subtitle' => $hero['description'] ?? data_get($analysis, 'business_analysis.value_proposition', $project->description ?? ''),
+                'cta_primary' => $hero['cta'] ?? $mockup['global_cta'] ?? 'Get Started',
+                'cta_secondary' => $hero['cta_secondary'] ?? 'Learn More',
             ],
             'about' => [
-                'title' => 'About Us',
-                'content' => $analysis['business_summary'],
+                'title' => $about['headline'] ?? 'Tentang ' . $project->name,
+                'content' => $about['description'] ?? data_get($analysis, 'business_analysis.value_proposition', $analysis['business_summary']),
+            ],
+            'services' => [
+                'title' => $services['headline'] ?? 'Layanan Kami',
+                'description' => $services['description'] ?? '',
+                'items' => $services['items'] ?? [],
             ],
             'footer' => [
-                'text' => 'Built for modern business growth.',
+                'text' => data_get($mockup, 'footer.text', 'Hubungi ' . $project->name . ' untuk informasi lebih lanjut.'),
             ],
-            'faq' => [
-                ['question' => 'What do we offer?', 'answer' => 'We create digital experiences that convert.'],
-            ],
+            'faq' => $faq['items'] ?? [],
+            'cta' => ['title' => $cta['headline'] ?? $mockup['global_cta'] ?? 'Mulai Sekarang', 'description' => $cta['description'] ?? ''],
             'seo' => [
                 'title' => $project->website_name ?? 'Business Website',
-                'description' => $analysis['business_summary'],
+                'description' => data_get($mockup, 'seo.meta_description', $analysis['business_summary']),
             ],
         ];
     }

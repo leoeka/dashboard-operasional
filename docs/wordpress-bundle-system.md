@@ -15,13 +15,9 @@ Gemini Analysis
    ↓
 GPT Content Generation
    ↓
-Template Recommendation
-   ↓
 Mockup / Design Selection
    ↓
-Brand Input
-   ↓
-Content Input
+Client Approval
    ↓
 Build Bundle
    ↓
@@ -41,9 +37,8 @@ Sistem dibagi ke dalam tiga layer utama:
    - GPT: menulis hero, CTA, about, footer, FAQ, SEO copy
 
 2. Production Layer
-   - Template library
-   - Brand configuration
-   - Content mapping
+   - Approved GPT mockup and content
+   - Client asset references
    - Bundle builder
 
 3. Output Layer

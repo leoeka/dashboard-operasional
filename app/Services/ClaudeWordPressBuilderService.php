@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Project;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class ClaudeWordPressBuilderService
 {
@@ -13,8 +14,7 @@ class ClaudeWordPressBuilderService
         $apiKey = config('services.anthropic.key');
 
         if (!$apiKey) {
-            Log::warning('Anthropic API Key tidak ditemukan; memakai package WordPress lokal.', ['project_id' => $project->id]);
-            return $this->fallbackFiles($bundle);
+            throw new \RuntimeException('ANTHROPIC_API_KEY belum tersedia. Claude wajib aktif untuk membangun WordPress dari analisis GPT.');
         }
 
         $prompt = $this->buildPrompt($project, $bundle);
@@ -28,7 +28,7 @@ class ClaudeWordPressBuilderService
                 'model' => config('services.anthropic.builder_model', 'claude-sonnet-4-5'),
                 'max_tokens' => 50000,
                 'system' => 'You are a senior WordPress engineer. Return only valid JSON.',
-                'messages' => [['role' => 'user', 'content' => $prompt]],
+                'messages' => [['role' => 'user', 'content' => $this->messageContent($prompt, $bundle)]],
             ]);
 
             if (!$response->successful()) {
@@ -46,12 +46,50 @@ class ClaudeWordPressBuilderService
 
             return ['files' => $this->sanitizeFiles($files['files'])];
         } catch (\Throwable $e) {
-            Log::warning('Claude WordPress build gagal; memakai package lokal.', [
+            Log::error('Claude WordPress build gagal.', [
                 'project_id' => $project->id,
                 'error' => $e->getMessage(),
             ]);
-            return $this->fallbackFiles($bundle);
+            throw new \RuntimeException($this->friendlyError($e->getMessage()), 0, $e);
         }
+    }
+
+    private function messageContent(string $prompt, array $bundle): array
+    {
+        $content = [['type' => 'text', 'text' => $prompt]];
+        $path = data_get($bundle, 'mockup.screenshot_path');
+
+        if ($path) {
+            $fullPath = Storage::disk('public')->path($path);
+            if (is_file($fullPath)) {
+                $mime = mime_content_type($fullPath) ?: 'image/png';
+                $content[] = [
+                    'type' => 'image',
+                    'source' => [
+                        'type' => 'base64',
+                        'media_type' => $mime,
+                        'data' => base64_encode((string) file_get_contents($fullPath)),
+                    ],
+                ];
+            }
+        }
+
+        return $content;
+    }
+
+    private function friendlyError(string $message): string
+    {
+        $lowerMessage = strtolower($message);
+
+        if (str_contains($lowerMessage, 'credit balance') || str_contains($lowerMessage, 'billing')) {
+            return 'Claude belum dapat membangun WordPress karena saldo Anthropic habis. Isi kredit Anthropic lalu jalankan build ulang.';
+        }
+
+        if (str_contains($lowerMessage, 'credential validation')) {
+            return 'Credential Claude tidak valid. Periksa ANTHROPIC_API_KEY lalu jalankan build ulang.';
+        }
+
+        return 'Claude gagal membangun WordPress dari analisis GPT. Periksa konfigurasi Claude lalu coba lagi.';
     }
 
     private function buildPrompt(Project $project, array $bundle): string
@@ -59,6 +97,7 @@ class ClaudeWordPressBuilderService
         $bundleJson = json_encode([
             'analysis' => $bundle['analysis'] ?? [],
             'template' => $bundle['template'] ?? [],
+            'mockup_png' => ['path' => data_get($bundle, 'mockup.screenshot_path')],
             'brand' => $bundle['brand'] ?? [],
             'content' => $bundle['content'] ?? [],
             'elementor' => $bundle['elementor'] ?? [],
@@ -74,13 +113,18 @@ The business analysis, approved GPT website blueprint, brand values, and final c
 {$bundleJson}
 
 Return ONLY this JSON shape:
-{"files":{"exito-client-theme/style.css":"...","exito-client-theme/functions.php":"...","exito-client-theme/index.php":"...","exito-client-theme/front-page.php":"...","exito-client-theme/header.php":"...","exito-client-theme/footer.php":"...","exito-client-theme/assets/theme.json":"...","exito-core/exito-core.php":"...","elementor/home.json":"...","README.md":"..."}}
+{"files":{"exito-client-theme/style.css":"...","exito-client-theme/functions.php":"...","exito-client-theme/index.php":"...","exito-client-theme/front-page.php":"...","exito-client-theme/page.php":"...","exito-client-theme/header.php":"...","exito-client-theme/footer.php":"...","exito-client-theme/assets/theme.json":"...","exito-core/exito-core.php":"...","elementor/home.json":"...","README.md":"..."}}
 
 Rules:
 - Generate valid WordPress PHP files with a safe unique prefix: exito_client_.
 - The theme must be installable as a normal WordPress theme and render the approved content without external build tools.
+- Recreate the approved mockup faithfully, not a generic landing page: preserve its section order, navigation, spacing rhythm, visual hierarchy, card/grid composition, typography mood, color palette, CTA placement, and footer structure.
+- The front page must render every meaningful Home section in the supplied blueprint: hero, value propositions, services/products, testimonials, newsletter/CTA, and footer. Do not stop after the hero.
+- Use the supplied pages blueprint to create usable About, Services, and Contact page templates or sections. The generated result must look like the mockup in a browser at desktop and mobile widths.
+- If this is an ecommerce project, include WooCommerce-friendly product grids and purchase CTAs, but do not invent products beyond the supplied content.
 - The plugin must have a valid WordPress plugin header and expose a small setup/admin notice explaining the generated bundle.
 - Use escaped output, wp_enqueue_style, wp_head, wp_footer, and standard WordPress APIs.
+- Use semantic HTML, responsive CSS, CSS variables for the supplied colors, real cards/grids, polished buttons, and accessible navigation. Do not use placeholder text or a bare unstyled page.
 - Keep all text and colors grounded in the supplied approved content. Do not invent client facts.
 - Include a complete README with installation order: theme, plugin, Elementor templates.
 - Every value in files must be a string. Do not include binary assets; reference them by filename in README.
@@ -105,28 +149,5 @@ PROMPT;
         }
 
         return $safeFiles;
-    }
-
-    private function fallbackFiles(array $bundle): array
-    {
-        $themeName = $bundle['theme']['name'] ?? 'exito-client-theme';
-        $pluginName = $bundle['plugin']['name'] ?? 'exito-core';
-        $content = $bundle['content'] ?? [];
-        $brand = $bundle['brand'] ?? [];
-        $title = addslashes((string) data_get($content, 'hero.title', $brand['company_name'] ?? 'Client Website'));
-        $description = addslashes((string) data_get($content, 'hero.subtitle', 'Welcome to our website.'));
-        $primaryColor = $brand['primary_color'] ?? '#1F2937';
-
-        return ['files' => [
-            "{$themeName}/style.css" => "/*\nTheme Name: {$brand['company_name']}\nVersion: 1.0.0\n*/\n:root{--primary-color:{$primaryColor}}body{font-family:Arial,sans-serif;margin:0;color:#1f2937}main{max-width:1100px;margin:auto;padding:64px 24px}.hero{padding:80px 0}.button{background:var(--primary-color);color:#fff;padding:12px 20px;text-decoration:none}",
-            "{$themeName}/functions.php" => "<?php\nadd_action('wp_enqueue_scripts', function () { wp_enqueue_style('exito-client-style', get_stylesheet_uri(), [], '1.0.0'); });\n",
-            "{$themeName}/index.php" => "<?php get_header(); ?><main><?php if (have_posts()) : while (have_posts()) : the_post(); the_title('<h1>','</h1>'); the_content(); endwhile; endif; ?></main><?php get_footer(); ?>",
-            "{$themeName}/front-page.php" => "<?php get_header(); ?><main><section class=\"hero\"><h1>{$title}</h1><p>{$description}</p><a class=\"button\" href=\"#contact\">" . addslashes((string) data_get($content, 'hero.cta_primary', 'Get Started')) . "</a></section></main><?php get_footer(); ?>",
-            "{$themeName}/header.php" => "<!doctype html><html <?php language_attributes(); ?>><head><meta charset=\"<?php bloginfo('charset'); ?>\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><?php wp_head(); ?></head><body <?php body_class(); ?>>",
-            "{$themeName}/footer.php" => "<?php wp_footer(); ?></body></html>",
-            "{$pluginName}/{$pluginName}.php" => "<?php\n/** Plugin Name: Exito Client Core\n * Version: 1.0.0\n */\nif (!defined('ABSPATH')) exit;\n",
-            'elementor/home.json' => json_encode($bundle['elementor']['home'] ?? [], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE),
-            'README.md' => "# WordPress Bundle\n\nInstall the theme ZIP, then the plugin ZIP. Import files in `elementor/` with Elementor if used.\n",
-        ]];
     }
 }

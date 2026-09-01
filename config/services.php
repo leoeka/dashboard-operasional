@@ -38,6 +38,7 @@ return [
     'openai' => [
         'key' => env('OPENAI_API_KEY'),
         'mockup_model' => env('OPENAI_MOCKUP_MODEL', 'gpt-5-mini'),
+        'image_model' => env('OPENAI_IMAGE_MODEL', 'gpt-image-1'),
     ],
 
     'anthropic' => [
