@@ -3,12 +3,15 @@
 namespace App\Services;
 
 use App\Models\Project;
+use App\Services\Concerns\LintsGeneratedPhp;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
 class ClaudeWordPressBuilderService
 {
+    use LintsGeneratedPhp;
+
     public function build(Project $project, array $bundle): array
     {
         $apiKey = config('services.anthropic.key');
@@ -19,23 +22,34 @@ class ClaudeWordPressBuilderService
 
         $prompt = $this->buildPrompt($project, $bundle);
 
+        $headers = [
+            'x-api-key' => $apiKey,
+            'anthropic-version' => '2023-06-01',
+            'content-type' => 'application/json',
+        ];
+
+        // Required by the Anthropic API when ANTHROPIC_API_KEY is an
+        // "identity-linked" key (tied to a personal Console login rather
+        // than scoped to one workspace) — omitted entirely for a normal
+        // workspace-scoped API key, which doesn't need or want this header.
+        $workspaceId = config('services.anthropic.workspace_id');
+        if ($workspaceId) {
+            $headers['anthropic-workspace-id'] = $workspaceId;
+        }
+
         try {
-            $response = Http::timeout(180)->withHeaders([
-                'x-api-key' => $apiKey,
-                'anthropic-version' => '2023-06-01',
-                'content-type' => 'application/json',
-            ])->post('https://api.anthropic.com/v1/messages', [
-                'model' => config('services.anthropic.builder_model', 'claude-sonnet-4-5'),
-                'max_tokens' => 50000,
-                'system' => 'You are a senior WordPress engineer. Return only valid JSON.',
-                'messages' => [['role' => 'user', 'content' => $this->messageContent($prompt, $bundle)]],
-            ]);
-
-            if (!$response->successful()) {
-                throw new \RuntimeException('Anthropic API error: ' . $response->body());
-            }
-
-            $text = (string) $response->json('content.0.text');
+            // Generating a full WordPress theme+plugin (up to 50k output
+            // tokens) while also reading the mockup PNG plus the client's
+            // logo/photos genuinely takes a while. A plain (non-streaming)
+            // request gets zero bytes back until the ENTIRE response is
+            // ready, and infrastructure in front of the Anthropic API
+            // (Cloudflare, etc.) silently kills long-idle connections like
+            // that well before generation finishes — raising our own
+            // timeout doesn't fix it ("cURL error 28: ... 0 bytes
+            // received" even at 480s). Streaming avoids this entirely:
+            // Anthropic itself recommends it for large/long-running
+            // requests, since data starts flowing back within seconds.
+            $text = $this->streamCompletion($headers, $prompt, $bundle);
             $text = preg_replace('/^```(?:json)?\s*/i', '', trim($text));
             $text = preg_replace('/\s*```$/', '', $text);
             $files = json_decode($text, true);
@@ -54,6 +68,78 @@ class ClaudeWordPressBuilderService
         }
     }
 
+    /**
+     * Calls the Anthropic Messages API with `stream: true` and accumulates
+     * the streamed text deltas into the final response text. See the
+     * comment in build() for why this is required rather than a plain
+     * request — a plain request for an output this large gets zero bytes
+     * back until it's entirely done, and gets silently killed by
+     * infrastructure in front of the API well before that.
+     */
+    private function streamCompletion(array $headers, string $prompt, array $bundle): string
+    {
+        $response = Http::withOptions(['stream' => true])
+            ->timeout(config('services.anthropic.build_timeout', 480))
+            ->withHeaders($headers)
+            ->post('https://api.anthropic.com/v1/messages', [
+                'model' => config('services.anthropic.builder_model', 'claude-sonnet-4-5'),
+                'max_tokens' => 50000,
+                'stream' => true,
+                'system' => 'You are a senior WordPress engineer. Return only valid JSON.',
+                'messages' => [['role' => 'user', 'content' => $this->messageContent($prompt, $bundle)]],
+            ]);
+
+        if (!$response->successful()) {
+            throw new \RuntimeException('Anthropic API error: ' . $response->body());
+        }
+
+        $body = $response->toPsrResponse()->getBody();
+        $text = '';
+        $buffer = '';
+
+        while (!$body->eof()) {
+            $chunk = $body->read(8192);
+            if ($chunk === '' || $chunk === false) {
+                continue;
+            }
+            $buffer .= $chunk;
+
+            while (($newlinePos = strpos($buffer, "\n")) !== false) {
+                $line = rtrim(substr($buffer, 0, $newlinePos), "\r");
+                $buffer = substr($buffer, $newlinePos + 1);
+
+                if (!str_starts_with($line, 'data:')) {
+                    continue;
+                }
+
+                $payload = trim(substr($line, 5));
+                if ($payload === '' || $payload === '[DONE]') {
+                    continue;
+                }
+
+                $event = json_decode($payload, true);
+                if (!is_array($event)) {
+                    continue;
+                }
+
+                $eventType = $event['type'] ?? '';
+
+                if ($eventType === 'content_block_delta' && isset($event['delta']['text'])) {
+                    $text .= $event['delta']['text'];
+                } elseif ($eventType === 'error') {
+                    $message = $event['error']['message'] ?? json_encode($event);
+                    throw new \RuntimeException('Anthropic stream error: ' . $message);
+                }
+            }
+        }
+
+        if ($text === '') {
+            throw new \RuntimeException('Claude tidak mengembalikan konten apa pun (stream kosong).');
+        }
+
+        return $text;
+    }
+
     private function messageContent(string $prompt, array $bundle): array
     {
         $content = [['type' => 'text', 'text' => $prompt]];
@@ -63,6 +149,7 @@ class ClaudeWordPressBuilderService
             $fullPath = Storage::disk('public')->path($path);
             if (is_file($fullPath)) {
                 $mime = mime_content_type($fullPath) ?: 'image/png';
+                $content[] = ['type' => 'text', 'text' => 'Approved mockup design (visual reference for the whole build):'];
                 $content[] = [
                     'type' => 'image',
                     'source' => [
@@ -74,7 +161,66 @@ class ClaudeWordPressBuilderService
             }
         }
 
+        $logo = $bundle['assets']['logo'] ?? null;
+        if (is_array($logo) && !empty($logo['bytes'])) {
+            $content[] = [
+                'type' => 'text',
+                'text' => "The client's real logo — already embedded for you at assets/{$logo['filename']} in the theme package. Use it as-is for the site logo (e.g. in header.php); do not invent or describe a different logo.",
+            ];
+            $content[] = [
+                'type' => 'image',
+                'source' => ['type' => 'base64', 'media_type' => $logo['mime'], 'data' => base64_encode($logo['bytes'])],
+            ];
+        }
+
+        foreach ($bundle['assets']['images'] ?? [] as $image) {
+            if (empty($image['bytes'])) {
+                continue;
+            }
+            $content[] = [
+                'type' => 'text',
+                'text' => "A real client photo — already embedded for you at assets/{$image['filename']} in the theme package. Use it where a relevant section exists (e.g. About/gallery) instead of describing generic imagery.",
+            ];
+            $content[] = [
+                'type' => 'image',
+                'source' => ['type' => 'base64', 'media_type' => $image['mime'], 'data' => base64_encode($image['bytes'])],
+            ];
+        }
+
         return $content;
+    }
+
+    /**
+     * Tells the AI exactly which real client asset files exist and the
+     * fixed path each will be embedded at (BundleExporterService writes the
+     * actual bytes to that same path regardless of what the AI does), so it
+     * references real files by a known-good path instead of inventing a
+     * placeholder logo or guessing at a filename that won't exist.
+     */
+    private function describeAssets(array $assets): string
+    {
+        $lines = [];
+
+        $logo = $assets['logo'] ?? null;
+        if (is_array($logo) && !empty($logo['filename'])) {
+            $lines[] = "- assets/{$logo['filename']} — the client's real logo (attached as an image above). Reference this exact path for the site logo.";
+        }
+
+        foreach ($assets['images'] ?? [] as $image) {
+            if (empty($image['filename'])) {
+                continue;
+            }
+            $lines[] = "- assets/{$image['filename']} — a real client photo (attached as an image above).";
+        }
+
+        if (!$lines) {
+            return "\nNo real client logo/photos were supplied for this project — do not fabricate a specific brand logo; use a simple text/wordmark treatment for the site name instead.\n";
+        }
+
+        $exampleFilename = is_array($logo) ? ($logo['filename'] ?? 'client-logo.png') : 'client-logo.png';
+
+        return "\nCLIENT ASSETS — these real files are already embedded in the theme package at the exact paths below (e.g. `<?php echo get_stylesheet_directory_uri(); ?>/assets/{$exampleFilename}`). Reference them by these exact paths; do not create your own placeholder logo/photo files:\n"
+            . implode("\n", $lines) . "\n";
     }
 
     private function friendlyError(string $message): string
@@ -89,6 +235,10 @@ class ClaudeWordPressBuilderService
             return 'Credential Claude tidak valid. Periksa ANTHROPIC_API_KEY lalu jalankan build ulang.';
         }
 
+        if (str_contains($lowerMessage, 'anthropic-workspace-id')) {
+            return 'ANTHROPIC_API_KEY yang dipakai adalah identity-linked key dan butuh ANTHROPIC_WORKSPACE_ID. Ambil workspace ID di console.anthropic.com > Settings > Workspaces, isi ke .env, lalu jalankan build ulang.';
+        }
+
         return 'Claude gagal membangun WordPress dari analisis GPT. Periksa konfigurasi Claude lalu coba lagi.';
     }
 
@@ -98,10 +248,12 @@ class ClaudeWordPressBuilderService
             'analysis' => $bundle['analysis'] ?? [],
             'template' => $bundle['template'] ?? [],
             'mockup_png' => ['path' => data_get($bundle, 'mockup.screenshot_path')],
+            'implementation_manifest' => $bundle['implementation_manifest'] ?? [],
             'brand' => $bundle['brand'] ?? [],
             'content' => $bundle['content'] ?? [],
-            'elementor' => $bundle['elementor'] ?? [],
         ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+        $assetsSection = $this->describeAssets($bundle['assets'] ?? []);
 
         return <<<PROMPT
 Build an install-ready WordPress package for this approved client project.
@@ -112,21 +264,26 @@ Client: {$project->client_name}
 The business analysis, approved GPT website blueprint, brand values, and final content are below:
 {$bundleJson}
 
+The `implementation_manifest` is the handoff produced by GPT after visually reading the approved PNG. Treat it as the source of truth for the build: reproduce its ordered sections and design system, map every declared asset slot, and use the supplied approved copy. The PNG is a visual reference for the same approved design, not optional inspiration.
+{$assetsSection}
+IMPORTANT — a separate, deterministic step (not you) already creates every WordPress Page in the blueprint (Home, About, Services, Contact, etc.) with its real content written as native Gutenberg blocks, so the client can visually edit it in WordPress's built-in Block Editor immediately after installing the theme and plugin — no extra plugin required. Because of that:
+- `front-page.php` and `page.php` MUST render the actual page content via the standard WordPress Loop and `the_content()` — do NOT hardcode the homepage's sections as static markup in `front-page.php`. If you hardcode the content there instead of calling `the_content()`, the client's block-editor edits will never show up on the live site, which defeats the whole point.
+- Still call `get_header()` and `get_footer()` around the Loop so your header/nav/branding and footer render normally.
+- `style.css` must still style the site chrome (header/nav/footer, colors, typography, buttons) AND give sensible default styling to plain content HTML rendered inside `the_content()` — real `<h1>`-`<h6>`, `<p>`, `<ul>`/`<li>`, `<a>` elements, plus these utility classes used by the plain-content fallback: `.exito-section`, `.exito-grid` (a responsive card grid), `.exito-card`, `.exito-button`. Do not assume there's no content inside `the_content()` — style it properly, matching the approved mockup's spacing/typography/color mood.
+
 Return ONLY this JSON shape:
-{"files":{"exito-client-theme/style.css":"...","exito-client-theme/functions.php":"...","exito-client-theme/index.php":"...","exito-client-theme/front-page.php":"...","exito-client-theme/page.php":"...","exito-client-theme/header.php":"...","exito-client-theme/footer.php":"...","exito-client-theme/assets/theme.json":"...","exito-core/exito-core.php":"...","elementor/home.json":"...","README.md":"..."}}
+{"files":{"exito-client-theme/style.css":"...","exito-client-theme/functions.php":"...","exito-client-theme/index.php":"...","exito-client-theme/front-page.php":"...","exito-client-theme/page.php":"...","exito-client-theme/header.php":"...","exito-client-theme/footer.php":"...","exito-client-theme/assets/theme.json":"...","exito-core/exito-core.php":"...","README.md":"..."}}
 
 Rules:
 - Generate valid WordPress PHP files with a safe unique prefix: exito_client_.
 - The theme must be installable as a normal WordPress theme and render the approved content without external build tools.
-- Recreate the approved mockup faithfully, not a generic landing page: preserve its section order, navigation, spacing rhythm, visual hierarchy, card/grid composition, typography mood, color palette, CTA placement, and footer structure.
-- The front page must render every meaningful Home section in the supplied blueprint: hero, value propositions, services/products, testimonials, newsletter/CTA, and footer. Do not stop after the hero.
-- Use the supplied pages blueprint to create usable About, Services, and Contact page templates or sections. The generated result must look like the mockup in a browser at desktop and mobile widths.
-- If this is an ecommerce project, include WooCommerce-friendly product grids and purchase CTAs, but do not invent products beyond the supplied content.
-- The plugin must have a valid WordPress plugin header and expose a small setup/admin notice explaining the generated bundle.
+- Recreate the approved mockup's visual language faithfully in header.php/footer.php and style.css: navigation, spacing rhythm, typography mood, color palette, and footer structure. The Home/About/Services/Contact section content itself comes from the_content() as explained above — don't duplicate it as static markup.
+- If this is an ecommerce project, include WooCommerce-friendly styling hooks, but do not invent products beyond the supplied content.
+- The plugin (exito-core) must have a valid WordPress plugin header and expose a small setup/admin notice explaining the generated bundle. Do not implement page-creation logic yourself — that is appended separately and automatically.
 - Use escaped output, wp_enqueue_style, wp_head, wp_footer, and standard WordPress APIs.
-- Use semantic HTML, responsive CSS, CSS variables for the supplied colors, real cards/grids, polished buttons, and accessible navigation. Do not use placeholder text or a bare unstyled page.
+- Use semantic HTML, responsive CSS, CSS variables for the supplied colors, polished buttons, and accessible navigation. Do not use placeholder text or a bare unstyled page.
 - Keep all text and colors grounded in the supplied approved content. Do not invent client facts.
-- Include a complete README with installation order: theme, plugin, Elementor templates.
+- Include a complete README explaining: install & activate the theme, then install & activate the plugin (it auto-creates the pages, already editable in the built-in WordPress Block Editor — no other plugin needed).
 - Every value in files must be a string. Do not include binary assets; reference them by filename in README.
 PROMPT;
     }
@@ -142,6 +299,11 @@ PROMPT;
 
             $normalized = str_replace('\\', '/', ltrim($path, '/'));
             if ($normalized === '' || str_contains($normalized, '..') || str_starts_with($normalized, '.')) {
+                continue;
+            }
+
+            if (str_ends_with($normalized, '.php') && !$this->isValidPhpSyntax($contents)) {
+                Log::warning('Claude WordPress build: PHP tidak valid dari AI, file dilewati.', ['path' => $normalized]);
                 continue;
             }
 

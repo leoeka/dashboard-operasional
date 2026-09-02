@@ -3,11 +3,16 @@
 namespace App\Services;
 
 use App\Models\Project;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class BundleBuilderService
 {
-    public function __construct(private ClaudeWordPressBuilderService $wordpressBuilder)
-    {
+    public function __construct(
+        private ClaudeWordPressBuilderService $claudeBuilder,
+        private ElementorPageBuilderService $elementorPageBuilder,
+        private SectionImageService $sectionImageService,
+    ) {
     }
 
     public function build(Project $project): array
@@ -22,19 +27,49 @@ class BundleBuilderService
         $brand = $this->resolveBrand($project, $proposalData['mockup'] ?? []);
         $content = $this->resolveContent($project, $analysis, $proposalData['mockup'] ?? []);
 
+        $mockup = $proposalData['mockup'] ?? [];
+        $mockupPages = $mockup['pages'] ?? [];
+
+        // A few real, on-topic photos (hero + some items) generated via
+        // OpenAI, bounded by services.openai.section_image_count. Wrapped in
+        // try/catch — this is an enhancement, not a blocker: if it fails
+        // (no key, rate limit, network), the build still succeeds with a
+        // text-and-buttons-only page instead of an error. See
+        // SectionImageService.
+        try {
+            $sectionImages = $this->sectionImageService->generateForPages($project, $mockupPages);
+        } catch (\Throwable $e) {
+            Log::warning('SectionImageService gagal, lanjut build tanpa gambar section.', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage(),
+            ]);
+            $sectionImages = ['map' => [], 'files' => []];
+        }
+
         $bundle = [
             'analysis' => $analysis,
-            'mockup' => $proposalData['mockup'] ?? [],
+            'mockup' => $mockup,
+            'implementation_manifest' => $proposalData['implementation_manifest'] ?? [],
             'template' => $template,
             'brand' => $brand,
             'content' => $content,
             'theme' => $this->buildThemePackage($template, $brand),
             'plugin' => $this->buildPluginPackage(),
             'elementor' => $this->buildElementorTemplates($template, $content),
+            // Real WordPress page content (Gutenberg blocks) built
+            // deterministically from the approved mockup, not by the AI
+            // builder, so every page is actually populated & editable in
+            // the built-in Block Editor after install — see
+            // ElementorPageBuilderService and BundleExporterService.
+            'elementor_pages' => $this->elementorPageBuilder->buildPages($mockupPages, $mockup['design'] ?? [], $sectionImages['map']),
+            // filename => raw PNG bytes, embedded into the plugin and
+            // uploaded to the Media Library at plugin-activation time.
+            'section_images' => $sectionImages['files'],
             'assets' => $this->collectAssets($project),
         ];
 
-        $bundle['wordpress'] = $this->wordpressBuilder->build($project, $bundle);
+        $bundle['wordpress'] = $this->claudeBuilder->build($project, $bundle);
+        $bundle['built_with'] = 'claude';
 
         return $bundle;
     }
@@ -118,7 +153,11 @@ class BundleBuilderService
     protected function buildThemePackage(array $template, array $brand): array
     {
         return [
-            'name' => 'exito-child',
+            // Must match the folder prefix the AI builder prompt is told to
+            // use for theme files (see ClaudeWordPressBuilderService) —
+            // BundleExporterService filters wordpress.files by this name,
+            // so a mismatch here means it always finds zero theme files.
+            'name' => 'exito-client-theme',
             'template_slug' => $template['slug'],
             'brand_name' => $brand['company_name'],
             'style_tokens' => [
@@ -155,12 +194,89 @@ class BundleBuilderService
         ];
     }
 
+    /**
+     * Gathers the client's real logo and any photos uploaded for this
+     * project (see ProjectFile::categoryLabels()), as actual binary image
+     * data — not just a path string. These get:
+     * - shown to Claude as vision input, so the builder knows what the
+     *   real logo/photos look like (see ClaudeWordPressBuilderService),
+     * - embedded verbatim into the generated theme's assets/ folder at a
+     *   fixed filename the AI is told to reference (see
+     *   BundleExporterService::embedThemeAssets()), so the shipped site
+     *   uses the client's actual files rather than an AI-invented
+     *   placeholder logo/photo.
+     *
+     * Bounded to a handful of images (1 logo + up to 4 photos) to keep the
+     * build prompt and ZIP a reasonable size. Reads that fail (missing
+     * file, non-image mime type) are just skipped rather than failing the
+     * whole build.
+     *
+     * @return array{logo: ?array{filename:string,mime:string,bytes:string}, images: array<int, array{filename:string,mime:string,bytes:string}>, files: array}
+     */
     protected function collectAssets(Project $project): array
     {
+        $disk = Storage::disk('public');
+        $logo = null;
+        $images = [];
+
+        $logoPath = $project->client?->logo_path;
+        if ($logoPath) {
+            $logo = $this->readImageAsset($disk, $logoPath, 'client-logo');
+        }
+
+        $photoIndex = 0;
+        foreach ($project->files as $file) {
+            if (!in_array($file->category, ['logo', 'foto'], true)) {
+                continue; // skip documents/company profile PDFs — not usable as visual site assets.
+            }
+
+            if ($file->category === 'logo' && !$logo) {
+                $logo = $this->readImageAsset($disk, $file->file_path, 'client-logo');
+                continue;
+            }
+
+            if (count($images) >= 4) {
+                continue;
+            }
+
+            $asset = $this->readImageAsset($disk, $file->file_path, 'client-photo-' . (++$photoIndex));
+            if ($asset) {
+                $images[] = $asset;
+            }
+        }
+
         return [
-            'logo' => null,
-            'images' => [],
+            'logo' => $logo,
+            'images' => $images,
             'files' => [],
+        ];
+    }
+
+    private function readImageAsset($disk, ?string $path, string $slot): ?array
+    {
+        if (!$path || !$disk->exists($path)) {
+            return null;
+        }
+
+        $mime = $disk->mimeType($path) ?: '';
+        if (!str_starts_with($mime, 'image/')) {
+            return null;
+        }
+
+        $bytes = $disk->get($path);
+        if (!is_string($bytes) || $bytes === '') {
+            return null;
+        }
+
+        $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION) ?: 'png');
+        if (!in_array($extension, ['png', 'jpg', 'jpeg', 'webp', 'gif'], true)) {
+            $extension = 'png';
+        }
+
+        return [
+            'filename' => $slot . '.' . $extension,
+            'mime' => $mime,
+            'bytes' => $bytes,
         ];
     }
 }

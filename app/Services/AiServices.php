@@ -391,7 +391,7 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
      * AI 2 — turn the completed business analysis into a website blueprint.
      * This intentionally has no ZipWP/WordPress template input.
      */
-    public function generateMockup(Project $project, array $analysis): array
+    public function generateMockup(Project $project, array $analysis, string $variantInstruction = ''): array
     {
         $apiKey = config('services.openai.key');
 
@@ -419,6 +419,9 @@ CLIENT DESIGN REFERENCE (use it only as inspiration; never copy branding, text, 
 Type: {$referenceType}
 Website URL: {$referenceUrl}
 Uploaded file: {$referenceFile}
+
+VISUAL VARIANT DIRECTION:
+{$variantInstruction}
 
 Return ONLY valid JSON with this exact shape:
 {
@@ -475,7 +478,33 @@ PROMPT;
         }
     }
 
-    public function generateMockupImage(Project $project, array $analysis, array $mockup): ?string
+    public function generateMockupCandidates(Project $project, array $analysis): array
+    {
+        $directions = [
+            'Option 1 - Editorial warmth: use an elegant editorial coffee-shop composition, warm neutral surfaces, expressive serif headings, generous whitespace, and a premium product-led hero.',
+            'Option 2 - Modern commerce: use a clean conversion-focused ecommerce composition, strong product grid, clear shopping CTAs, crisp sans-serif typography, and warm coffee accents.',
+            'Option 3 - Natural story: use a calm natural visual system, earthy colors, storytelling sections about origin and farmers, rounded cards, and a friendly approachable hierarchy.',
+        ];
+        $count = max(2, min(3, (int) config('services.openai.mockup_candidate_count', 3)));
+        $candidates = [];
+
+        for ($index = 0; $index < $count; $index++) {
+            $mockup = $this->generateMockup($project, $analysis, $directions[$index]);
+            $mockup['candidate_number'] = $index + 1;
+            $mockup['candidate_label'] = str_replace('Option ' . ($index + 1) . ' - ', '', $directions[$index]);
+            $mockup['client_logo_path'] = $project->client?->logo_path
+                ? Storage::disk('public')->path($project->client->logo_path)
+                : null;
+            $mockup['design_reference_type'] = $project->design_reference_type;
+            $mockup['design_reference_url'] = $project->design_reference_url;
+            $mockup['screenshot_path'] = $this->generateMockupImage($project, $analysis, $mockup, $index + 1);
+            $candidates[] = $mockup;
+        }
+
+        return $candidates;
+    }
+
+    public function generateMockupImage(Project $project, array $analysis, array $mockup, int $candidateNumber = 1): ?string
     {
         $apiKey = config('services.openai.key');
         if (!$apiKey) {
@@ -487,7 +516,7 @@ PROMPT;
             'mockup' => $mockup,
         ]), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT | JSON_INVALID_UTF8_SUBSTITUTE);
 
-        $prompt = "Create a polished desktop website design mockup as one complete PNG for the approved client project below. This image will be shown directly to the client in a proposal. Reproduce the supplied reference layout as closely as possible while adapting it to this client. Include a real navbar, hero with the exact headline and CTA, clear section hierarchy, product/service cards, testimonials or benefits, newsletter CTA, gallery if present, and footer. Use the exact client-specific copy supplied below wherever it is marked as approved content. Text must be large, sharp, spelled correctly, and readable. Use the client logo input as the actual navbar logo when provided. Do not show code, JSON, browser chrome, placeholder boxes, lorem ipsum, or a generic template.\n\nAPPROVED CLIENT DATA:\n{$design}";
+        $prompt = "Create one long, tall, full-page scrolling website mockup PNG — a single continuous screenshot of the whole homepage top to bottom, like a client scrolling the real site all the way down. NOT an above-the-fold screen.\n\nMANDATORY SECTION BUDGET — divide the canvas height into exactly these 4 bands, each roughly one quarter of the total height, top to bottom: (1) navbar + hero, (2) benefits/features row, (3) product/service cards in a grid, (4) footer. The footer is NOT optional: it MUST appear fully inside the bottom quarter of the canvas with visible footer content (links, contact, copyright line) — never end the image on the product grid. If content would overflow a band, shrink that band's cards/images rather than stealing height from the footer. Skip gallery and newsletter sections entirely so the footer always fits. Follow the supplied reference layout's visual style, adapted to this client. Use the client logo as the navbar logo when provided. No code, JSON, browser chrome, placeholder boxes, or lorem ipsum. Skip testimonials/quotes entirely — quoted sentences are the least legible text an image model can draw.\n\nCRITICAL TEXT RULE: image models cannot render long or small text legibly. Put almost no text on the canvas: nav links 1 word each, hero headline max 4 words, hero subheading max 5 words, card titles 2-3 words, card descriptions max 4 words, buttons 1-2 words, footer lines max 3 words. Never a sentence over 5 words, never a direct quotation. Compress the copy below into short fragments capturing its meaning, not verbatim quotes — brevity beats exact wording. When in doubt, cut it shorter.\n\nCLIENT DATA (meaning only, compress before drawing):\n{$design}";
         $prompt = $this->toSafeAscii($prompt);
 
         $imagePaths = $this->mockupImagePaths($project);
@@ -500,7 +529,7 @@ PROMPT;
             $response = $request->post('https://api.openai.com/v1/images/edits', [
                 'model' => config('services.openai.image_model', 'gpt-image-1'),
                 'prompt' => $prompt,
-                'size' => '1536x1024',
+                'size' => '1024x1536',
                 'quality' => 'medium',
                 'output_format' => 'png',
             ]);
@@ -508,7 +537,7 @@ PROMPT;
             $response = $request->asJson()->post('https://api.openai.com/v1/images/generations', [
                 'model' => config('services.openai.image_model', 'gpt-image-1'),
                 'prompt' => $prompt,
-                'size' => '1536x1024',
+                'size' => '1024x1536',
                 'quality' => 'medium',
                 'output_format' => 'png',
             ]);
@@ -523,10 +552,51 @@ PROMPT;
             throw new \RuntimeException('OpenAI tidak mengembalikan PNG mockup.');
         }
 
-        $path = 'mockups/' . $project->code . '-gpt.png';
+        $path = 'mockups/' . $project->code . '-gpt-option-' . $candidateNumber . '.png';
         Storage::disk('public')->put($path, base64_decode($base64, true));
 
         return $path;
+    }
+
+    public function decomposeApprovedMockup(Project $project, array $mockup): array
+    {
+        $apiKey = config('services.openai.key');
+        $path = $mockup['screenshot_path'] ?? null;
+        if (!$apiKey || !$path) {
+            throw new \RuntimeException('PNG mockup approved atau OPENAI_API_KEY belum tersedia.');
+        }
+
+        $fullPath = Storage::disk('public')->path($path);
+        if (!is_file($fullPath)) {
+            throw new \RuntimeException('File PNG mockup approved tidak ditemukan.');
+        }
+
+        $contentJson = json_encode($this->normalizeUtf8($mockup), JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+        $prompt = $this->toSafeAscii("Read this approved website mockup image and turn it into an implementation manifest for a WordPress developer. Preserve the exact visual intent and use the approved copy from the JSON. Do not invent facts. Return only valid JSON with these keys: design_system (colors, typography, spacing, layout), navigation, sections (ordered list with type, heading, copy, CTA, layout, asset_slots, items), assets (list with slot, purpose, required, source), pages, responsive_rules, content. The manifest must be detailed enough for Claude to rebuild the same website, not a generic theme. APPROVED MOCKUP JSON:\n{$contentJson}");
+
+        $mime = mime_content_type($fullPath) ?: 'image/png';
+        $response = Http::timeout(180)->withToken($apiKey)->asJson()->post('https://api.openai.com/v1/chat/completions', [
+            'model' => config('services.openai.mockup_model', 'gpt-5-mini'),
+            'messages' => [[
+                'role' => 'user',
+                'content' => [
+                    ['type' => 'text', 'text' => $prompt],
+                    ['type' => 'image_url', 'image_url' => ['url' => 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($fullPath)), 'detail' => 'high']],
+                ],
+            ]],
+            'response_format' => ['type' => 'json_object'],
+        ]);
+
+        if (!$response->successful()) {
+            throw new \RuntimeException('GPT mockup decomposition gagal: ' . $response->body());
+        }
+
+        $result = json_decode((string) $response->json('choices.0.message.content'), true);
+        if (!is_array($result) || empty($result['sections']) || empty($result['design_system'])) {
+            throw new \RuntimeException('GPT tidak mengembalikan manifest desain yang lengkap.');
+        }
+
+        return $result;
     }
 
     private function mockupImagePaths(Project $project): array

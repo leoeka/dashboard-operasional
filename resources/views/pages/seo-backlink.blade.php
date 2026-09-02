@@ -116,7 +116,12 @@
             tampil di dalam kartu ini begitu proposal ada, tanpa tombol/halaman
             preview terpisah lagi. --}}
             @if ($project->latestProposal)
-                @php $proposal = $project->latestProposal; @endphp
+                @php
+                    $proposal = $project->latestProposal;
+                    $proposalData = json_decode((string) $proposal->ai_reasoning, true) ?: [];
+                    $mockupCandidates = $proposalData['mockup_candidates'] ?? [];
+                    $selectedMockupIndex = (int) ($proposalData['selected_mockup_index'] ?? 0);
+                @endphp
                 <div class="pt-5 mt-5 border-t border-slate-100 space-y-4">
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-[650px] flex flex-col">
                         <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
@@ -174,6 +179,30 @@
                             <i class='bx bx-download'></i>
                             Download Proposal PDF
                         </a>
+                    @endif
+                    @if (count($mockupCandidates) > 1)
+                        <div class="mt-5 border-t border-slate-100 pt-5">
+                            <p class="text-sm font-bold text-slate-700">Pilih mockup untuk client</p>
+                            <p class="mt-1 text-xs text-slate-500">Hanya desain yang dipilih dan disetujui yang akan diteruskan ke Claude.</p>
+                            <div class="mt-4 grid gap-3 md:grid-cols-3">
+                                @foreach ($mockupCandidates as $index => $candidate)
+                                    @php $candidatePath = $candidate['screenshot_path'] ?? null; @endphp
+                                    <div class="rounded-xl border {{ $selectedMockupIndex === $index ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200' }} bg-white p-2">
+                                        @if ($candidatePath)
+                                            <img src="{{ Storage::url($candidatePath) }}" alt="Mockup option {{ $index + 1 }}" class="aspect-video w-full rounded-lg object-cover">
+                                        @endif
+                                        <p class="px-1 pt-2 text-xs font-semibold text-slate-700">Option {{ $index + 1 }}</p>
+                                        <form method="POST" action="{{ route('pages.projects.proposal.mockup.select', $project) }}" class="mt-2">
+                                            @csrf
+                                            <input type="hidden" name="mockup_index" value="{{ $index }}">
+                                            <button type="submit" class="w-full rounded-lg {{ $selectedMockupIndex === $index ? 'bg-blue-600 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50' }} px-3 py-2 text-xs font-semibold transition">
+                                                {{ $selectedMockupIndex === $index ? 'Terpilih' : 'Pilih Mockup Ini' }}
+                                            </button>
+                                        </form>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
                     @endif
                     @if ($project->latestProposal->status !== 'approved')
                         <form method="POST" action="{{ route('pages.projects.proposal.approve', $project) }}" class="mt-3">

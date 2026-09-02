@@ -39,11 +39,30 @@ return [
         'key' => env('OPENAI_API_KEY'),
         'mockup_model' => env('OPENAI_MOCKUP_MODEL', 'gpt-5-mini'),
         'image_model' => env('OPENAI_IMAGE_MODEL', 'gpt-image-1'),
+        'mockup_candidate_count' => env('OPENAI_MOCKUP_CANDIDATE_COUNT', 3),
+        // Dipakai SectionImageService — foto per section (hero + beberapa
+        // item) yang disisipkan ke halaman WordPress yang di-generate.
+        // Dibatasi section_image_count per project supaya biaya & waktu
+        // build tetap terkendali (tiap gambar = 1 panggilan API berbayar).
+        'section_image_model' => env('OPENAI_SECTION_IMAGE_MODEL', 'gpt-image-1'),
+        'section_image_quality' => env('OPENAI_SECTION_IMAGE_QUALITY', 'low'),
+        'section_image_count' => env('OPENAI_SECTION_IMAGE_COUNT', 6),
     ],
 
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY'),
         'builder_model' => env('ANTHROPIC_BUILDER_MODEL', 'claude-sonnet-4-5'),
+        // Generating a full theme+plugin (up to 50k output tokens) plus
+        // reading several images can take a few minutes; raise via
+        // ANTHROPIC_BUILD_TIMEOUT if your host's own PHP execution limit
+        // allows more (or needs less).
+        'build_timeout' => env('ANTHROPIC_BUILD_TIMEOUT', 480),
+        // Only needed if ANTHROPIC_API_KEY is an "identity-linked" key
+        // (tied to a personal Console login rather than a workspace-scoped
+        // API key) — Anthropic then requires the anthropic-workspace-id
+        // header on every request. Find it at console.anthropic.com under
+        // Settings > Workspaces (looks like "wrkspc_...").
+        'workspace_id' => env('ANTHROPIC_WORKSPACE_ID'),
     ],
 
     'proposal_ai_enabled' => env('PROPOSAL_AI_ENABLED', true),

@@ -6,7 +6,7 @@ use App\Models\Project;
 use App\Models\ProjectBundle;
 use App\Services\BundleBuilderService;
 use App\Services\BundleExporterService;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class BundleController extends Controller
 {
@@ -29,9 +29,14 @@ class BundleController extends Controller
         try {
             $zipPath = $exporter->export($bundle, $bundleDir);
         } catch (\Throwable $e) {
+            Log::error('WordPress bundle export gagal.', [
+                'project_id' => $project->id,
+                'error' => $e->getMessage(),
+            ]);
+
             return redirect()
                 ->route('pages.projects.bundle', $project)
-                ->with('error', 'ZIP WordPress gagal dibuat. Perbaiki hasil build Claude lalu coba lagi.');
+                ->with('error', "ZIP WordPress gagal dibuat. Perbaiki hasil build Claude lalu coba lagi. ({$e->getMessage()})");
         }
 
         ProjectBundle::updateOrCreate(
@@ -56,13 +61,17 @@ class BundleController extends Controller
 
     public function download(Project $project)
     {
-        $zipFile = storage_path('app/bundles/' . $project->id . '/theme-install.zip');
+        // bundle-export.zip is the full deliverable (theme + exito-core
+        // plugin + Elementor page data + content + README). Previously this
+        // served theme-install.zip (theme only), so the plugin that imports
+        // the Elementor-editable pages never actually reached the client.
+        $zipFile = storage_path('app/bundles/' . $project->id . '/bundle-export.zip');
 
         if (!file_exists($zipFile)) {
             return back()->with('error', 'Bundle belum dibuat.');
         }
 
-        return response()->download($zipFile, 'project-' . $project->id . '-wordpress-theme.zip');
+        return response()->download($zipFile, 'project-' . $project->id . '-wordpress-bundle.zip');
     }
 
 }

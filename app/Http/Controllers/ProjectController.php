@@ -382,7 +382,7 @@ class ProjectController extends Controller
         );
     }
 
-    public function approveProposal(Project $project): RedirectResponse
+    public function approveProposal(Project $project, AiServices $aiService): RedirectResponse
     {
         $proposal = $project->latestProposal;
 
@@ -390,10 +390,44 @@ class ProjectController extends Controller
             return back()->with('error', 'Proposal belum dibuat.');
         }
 
-        $proposal->update(['status' => 'approved']);
-        $project->update(['status' => 'mockup']);
+        $proposalData = json_decode((string) $proposal->ai_reasoning, true) ?: [];
+        $selectedIndex = (int) ($proposalData['selected_mockup_index'] ?? 0);
+        $selectedMockup = $proposalData['mockup_candidates'][$selectedIndex] ?? ($proposalData['mockup'] ?? []);
+        try {
+            $manifest = $aiService->decomposeApprovedMockup($project, $selectedMockup);
+        } catch (\Throwable $e) {
+            Log::error('Approved mockup decomposition failed.', ['project_id' => $project->id, 'error' => $e->getMessage()]);
+            return back()->with('error', 'GPT belum berhasil memecah PNG mockup menjadi data build. Coba setujui lagi setelah konfigurasi OpenAI diperbaiki.');
+        }
+
+        $proposalData['mockup'] = $selectedMockup;
+        $proposalData['implementation_manifest'] = $manifest;
+        $proposal->update([
+            'status' => 'approved',
+            'ai_reasoning' => json_encode($proposalData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
+        ]);
+        // projects.status only accepts request/in_progress/completed
+        // (normalized in 2026_08_22_000001_normalize_project_statuses.php)
+        // — 'mockup' is not a valid enum value.
+        $project->update(['status' => 'in_progress']);
 
         return back()->with('success', 'Mockup disetujui. Sekarang data desain siap dikirim ke Claude untuk build WordPress.');
+    }
+
+    public function selectMockup(Project $project, Request $request): RedirectResponse
+    {
+        $proposal = $project->latestProposal;
+        $proposalData = json_decode((string) ($proposal?->ai_reasoning ?? ''), true) ?: [];
+        $selectedIndex = (int) $request->validate(['mockup_index' => 'required|integer|min:0|max:2'])['mockup_index'];
+
+        if (!$proposal || !isset($proposalData['mockup_candidates'][$selectedIndex])) {
+            return back()->with('error', 'Pilihan mockup tidak ditemukan. Generate proposal ulang.');
+        }
+
+        $proposalData['selected_mockup_index'] = $selectedIndex;
+        $proposal->update(['ai_reasoning' => json_encode($proposalData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
+
+        return back()->with('success', 'Mockup pilihan ' . ($selectedIndex + 1) . ' tersimpan. Silakan lanjutkan persetujuan client.');
     }
 
 
@@ -411,7 +445,7 @@ class ProjectController extends Controller
         CompetitorDiscoveryService $competitorDiscovery,
         CompetitorContentFetcher $contentFetcher
     ): void {
-        @set_time_limit(180);
+        @set_time_limit(300);
 
         // 1. UPDATE PROGRESS: Load Data
         $this->reportProgress($project, 'processing', 10, 'Fetching project and client data...');
@@ -455,16 +489,9 @@ class ProjectController extends Controller
         $this->reportProgress($project, 'processing', 35, 'Analyzing business requirements with AI...');
         $analysis = $aiService->analyzeProject($project, $client, $competitorContents);
 
-        $this->reportProgress($project, 'processing', 60, 'Creating the full website mockup blueprint...');
-        $mockup = $aiService->generateMockup($project, $analysis);
-        $mockup['client_logo_path'] = $client->logo_path
-            ? Storage::disk('public')->path($client->logo_path)
-            : null;
-        $mockup['design_reference_type'] = $project->design_reference_type;
-        $mockup['design_reference_url'] = $project->design_reference_url;
-
-        $this->reportProgress($project, 'processing', 70, 'GPT is rendering the approved website mockup as a PNG image...');
-        $mockup['screenshot_path'] = $aiService->generateMockupImage($project, $analysis, $mockup);
+        $this->reportProgress($project, 'processing', 60, 'GPT is creating three website mockup options...');
+        $mockupCandidates = $aiService->generateMockupCandidates($project, $analysis);
+        $mockup = $mockupCandidates[0];
 
         $home = collect($mockup['pages'] ?? [])->first(fn ($page) => strtolower($page['name'] ?? '') === 'home');
         $homeSections = $home['sections'] ?? [];
@@ -485,7 +512,7 @@ class ProjectController extends Controller
         ];
 
         try {
-            $pdf = Pdf::loadView('pdf.proposal', compact('project', 'projectData', 'analysis', 'mockup'));
+            $pdf = Pdf::loadView('pdf.proposal', compact('project', 'projectData', 'analysis', 'mockup', 'mockupCandidates'));
             $fileName = 'proposals/Proposal-Mockup-' . Str::slug($project->client_name) . '-' . $project->code . '.pdf';
             Storage::disk('public')->put($fileName, $pdf->output());
 
@@ -493,7 +520,7 @@ class ProjectController extends Controller
                 'client_name' => $project->client_name,
                 'pdf_path' => $fileName,
                 'version' => 1,
-                'ai_reasoning' => json_encode(['analysis' => $analysis, 'mockup' => $mockup], JSON_UNESCAPED_UNICODE),
+                'ai_reasoning' => json_encode(['analysis' => $analysis, 'mockup' => $mockup, 'mockup_candidates' => $mockupCandidates, 'selected_mockup_index' => 0], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
                 'summary' => $mockup['website_concept'] ?? null,
             ]);
 
