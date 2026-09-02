@@ -134,6 +134,8 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.proposal.status');
     Route::post('/projects/{project}/proposal/approve', [ProjectController::class, 'approveProposal'])
         ->name('pages.projects.proposal.approve');
+    Route::post('/projects/{project}/proposal/mockup/select', [ProjectController::class, 'selectMockup'])
+        ->name('pages.projects.proposal.mockup.select');
 
     // WordPress bundle workflow
     Route::get('/projects/{project}/bundle', [\App\Http\Controllers\BundleController::class, 'index'])->name('pages.projects.bundle');

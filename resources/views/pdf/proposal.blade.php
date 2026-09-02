@@ -133,6 +133,11 @@
             border: 1px solid #e2e8f0;
         }
 
+        .mockup-candidate-grid { width: 100%; border-collapse: separate; border-spacing: 8px; table-layout: fixed; }
+        .mockup-candidate-grid td { width: 33.33%; text-align: center; vertical-align: top; }
+        .mockup-candidate-grid img { display: block; width: 100%; border: 1px solid #d6c7b8; }
+        .mockup-candidate-grid strong { display: block; margin-top: 5px; color: #6f4328; font-size: 9px; }
+
         .website-preview {
             border: 1px solid #cbd5e1;
             background: #fff;
@@ -362,13 +367,22 @@
             $home = collect($mockup['pages'] ?? [])->first(fn ($page) => strtolower($page['name'] ?? '') === 'home');
             $homeSections = $home['sections'] ?? [];
             $hero = collect($homeSections)->first(fn ($section) => strtolower($section['name'] ?? '') === 'hero') ?? ($homeSections[0] ?? []);
+            $mockupCandidates = $mockupCandidates ?? [$mockup];
         @endphp
 
         <p style="font-size:11px; text-align:center; color:#64748b;">
             {{ $mockup['website_concept'] ?? 'Website mockup blueprint generated from the client analysis.' }}
         </p>
 
-        @if (!empty($mockup['screenshot_path']) && file_exists(storage_path('app/public/' . $mockup['screenshot_path'])))
+        @if (count($mockupCandidates) > 1)
+            <table class="mockup-candidate-grid"><tr>
+                @foreach ($mockupCandidates as $candidate)
+                    @if (!empty($candidate['screenshot_path']) && file_exists(storage_path('app/public/' . $candidate['screenshot_path'])))
+                        <td><img src="{{ storage_path('app/public/' . $candidate['screenshot_path']) }}" alt="Mockup option {{ $candidate['candidate_number'] ?? $loop->iteration }}"><strong>Option {{ $candidate['candidate_number'] ?? $loop->iteration }}</strong></td>
+                    @endif
+                @endforeach
+            </tr></table>
+        @elseif (!empty($mockup['screenshot_path']) && file_exists(storage_path('app/public/' . $mockup['screenshot_path'])))
             <img src="{{ storage_path('app/public/' . $mockup['screenshot_path']) }}" class="mockup-section-img" style="max-width:100%;" alt="Website mockup {{ $project->name }}">
         @else
 
