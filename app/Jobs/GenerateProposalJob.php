@@ -18,7 +18,13 @@ class GenerateProposalJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public int $timeout = 300; // 5 menit max
+    // 8 menit — dinaikkan dari 5 menit. Catatan: di Windows ini sebenarnya
+    // simbolis (Laravel butuh extension pcntl buat "menyela" job yang
+    // melewati timeout secara graceful, dan pcntl tidak ada di build PHP
+    // Windows) — batas yang benar-benar berlaku di Windows adalah flag
+    // --timeout pada `queue:listen` di composer.json, yang juga sudah
+    // dinaikkan supaya sinkron dengan angka ini.
+    public int $timeout = 480;
     public int $tries = 1;      // Biar tidak auto-retry kalau API timeout
 
     public function __construct(public Project $project)

@@ -12,8 +12,7 @@ use Illuminate\Support\Facades\Process;
  * match the exact shape/validity a consumer needed; for a WordPress theme
  * specifically, one bad PHP file (e.g. header.php) is fatal for every
  * visitor, and WordPress's own template loader has no error boundary
- * around it (unlike the plugin's page-import logic, which is deliberately
- * wrapped in try/catch — see BundleExporterService::pluginBootstrap()).
+ * around it.
  *
  * Runs `php -l` via a subprocess; if that's unavailable in this
  * environment (exec/proc_open disabled), it fails open — treats the file

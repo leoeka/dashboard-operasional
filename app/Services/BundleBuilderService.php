@@ -30,6 +30,13 @@ class BundleBuilderService
         $mockup = $proposalData['mockup'] ?? [];
         $mockupPages = $mockup['pages'] ?? [];
 
+        // TEMPORARY, per explicit request: build only the Home page for now
+        // so the layout can be verified/matched against the approved
+        // mockup one page at a time, instead of every page (About/Services/
+        // Contact/...) at once. Remove this slice to build the full
+        // sitemap again once Home looks right.
+        $mockupPages = array_slice($mockupPages, 0, 1);
+
         // A few real, on-topic photos (hero + some items) generated via
         // OpenAI, bounded by services.openai.section_image_count. Wrapped in
         // try/catch — this is an enhancement, not a blocker: if it fails
@@ -54,7 +61,6 @@ class BundleBuilderService
             'brand' => $brand,
             'content' => $content,
             'theme' => $this->buildThemePackage($template, $brand),
-            'plugin' => $this->buildPluginPackage(),
             'elementor' => $this->buildElementorTemplates($template, $content),
             // Real WordPress page content (Gutenberg blocks) built
             // deterministically from the approved mockup, not by the AI
@@ -62,8 +68,9 @@ class BundleBuilderService
             // the built-in Block Editor after install — see
             // ElementorPageBuilderService and BundleExporterService.
             'elementor_pages' => $this->elementorPageBuilder->buildPages($mockupPages, $mockup['design'] ?? [], $sectionImages['map']),
-            // filename => raw PNG bytes, embedded into the plugin and
-            // uploaded to the Media Library at plugin-activation time.
+            // filename => raw JPEG bytes, embedded into the theme and
+            // uploaded to the Media Library the first time the theme is
+            // activated.
             'section_images' => $sectionImages['files'],
             'assets' => $this->collectAssets($project),
         ];
@@ -164,14 +171,6 @@ class BundleBuilderService
                 'primary_color' => $brand['primary_color'],
                 'secondary_color' => $brand['secondary_color'],
             ],
-        ];
-    }
-
-    protected function buildPluginPackage(): array
-    {
-        return [
-            'name' => 'exito-core',
-            'features' => ['custom-post-type', 'demo-importer', 'shortcodes'],
         ];
     }
 

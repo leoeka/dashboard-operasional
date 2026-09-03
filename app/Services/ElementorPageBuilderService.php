@@ -18,6 +18,13 @@ use Illuminate\Support\Str;
  *   widget tree (real `_elementor_data` shape), kept available in case a
  *   project wants Elementor editing too — it's simply unused if the Elementor
  *   plugin was never installed.
+ *
+ * Both now apply the approved mockup's design tokens (colors) and mirror the
+ * same Hero / icon-band / photo-card structure the client actually saw and
+ * approved in the PNG mockup (see resources/views/pdf/mockup-render.blade.php
+ * and AiServices::pickMockupSections()) — a plain, uncolored heading/paragraph
+ * loop was producing a WordPress page that looked nothing like what was
+ * approved, even though Claude's header/footer/style.css were on-brand.
  */
 class ElementorPageBuilderService
 {
@@ -44,12 +51,17 @@ class ElementorPageBuilderService
             }
 
             $slug = $index === 0 ? 'home' : (Str::slug($name) ?: 'page-' . ($index + 1));
-            $sections = is_array($page['sections'] ?? null) ? $page['sections'] : [];
+            // array_values(): a page's `sections` list must be sequentially
+            // indexed from 0 for the "index 0 = hero" convention below (and
+            // in AiServices::pickMockupSections(), which the PNG mockup
+            // renderer uses) to actually line up — GPT's JSON doesn't
+            // guarantee that on decode.
+            $sections = is_array($page['sections'] ?? null) ? array_values($page['sections']) : [];
 
             $pages[$slug] = [
                 'title' => $name,
                 'slug' => $slug,
-                'html' => $this->renderGutenbergBlocks($sections, $imageMap[$slug] ?? []),
+                'html' => $this->renderGutenbergBlocks($sections, $imageMap[$slug] ?? [], $design),
                 'elements' => $this->mapSectionsToElements($sections, $design),
             ];
         }
@@ -63,6 +75,17 @@ class ElementorPageBuilderService
      * wp-admin shows genuine, individually-editable heading/paragraph/
      * columns/button blocks (not one big "Custom HTML" blob).
      *
+     * Mirrors the approved PNG mockup's structure section-by-section:
+     * - section 0 is always rendered as a colored Hero band (design's
+     *   primary color), copy + optional side photo.
+     * - the first items-bearing section after that becomes a compact
+     *   "icon row" (numbered badges, no photos) — matches the mockup's
+     *   "why choose us" band.
+     * - the next items-bearing section becomes a bordered photo/card grid
+     *   — the one part of the page that actually gets AI photos.
+     * - every other section falls back to a plain heading/paragraph/grid,
+     *   alternating a light background band for visual rhythm.
+     *
      * Image blocks reference a `__EXITO_IMAGE:<filename>__` token instead of
      * a real URL, because the actual photo (from SectionImageService) is
      * only uploaded to the Media Library at plugin-activation time inside
@@ -70,11 +93,25 @@ class ElementorPageBuilderService
      * with the real attachment URL (or strips the block entirely if that
      * particular photo failed to generate/upload).
      */
-    private function renderGutenbergBlocks(array $sections, array $images = []): string
+    private function renderGutenbergBlocks(array $sections, array $images, array $design): string
     {
-        $blocks = '';
+        $primary = $this->colorOrDefault($design['primary_color'] ?? null, '#1F2937');
+        $accent = $this->colorOrDefault($design['accent_color'] ?? null, '#2563EB');
+        // A fixed soft neutral, NOT the mockup's own secondary_color — in the
+        // approved PNG (mockup-render.blade.php's `.section.alt`), the
+        // showcase band's background is always this same neutral regardless
+        // of brand palette. secondary_color there is only ever used for the
+        // page's overall body background, not as a full-bleed section band;
+        // reusing it here for a section background produced loud, ungrounded
+        // colors (e.g. a bright pink) that never appeared in what the client
+        // actually approved.
+        $altBandColor = '#F6F4F0';
+
         $heroFilename = $images['hero'] ?? null;
         $itemFilenames = $images['items'] ?? [];
+        $picked = $this->pickIconPhotoIndexes($sections);
+
+        $blocks = '';
         $itemImagesUsed = false;
 
         foreach ($sections as $sectionIndex => $section) {
@@ -87,62 +124,207 @@ class ElementorPageBuilderService
             $cta = $section['cta'] ?? null;
             $items = is_array($section['items'] ?? null) ? array_values($section['items']) : [];
 
-            if ($heading) {
-                $blocks .= $this->gbHeading((string) $heading, 2);
+            if ($sectionIndex === 0) {
+                $blocks .= $this->gbHero(
+                    $heading ? (string) $heading : '',
+                    $description ? (string) $description : '',
+                    $cta ? (string) $cta : null,
+                    $heroFilename,
+                    $primary,
+                    $accent
+                );
+                continue;
             }
-            if ($sectionIndex === 0 && $heroFilename) {
-                $blocks .= $this->gbImage($heroFilename, 'large');
+
+            $isIconSection = $sectionIndex === $picked['icon'];
+            $isPhotoSection = $sectionIndex === $picked['photo'];
+
+            // Every other section in the mockup blueprint (pricing,
+            // testimonials, instructor bios, FAQ, ...) is real content GPT
+            // wrote, but it was never part of what the client actually saw
+            // and approved — the PNG only ever showed Hero + this one icon
+            // section + this one photo section (see pickMockupSections() in
+            // AiServices, which built that same PNG). Rendering everything
+            // here made the live page several screens longer than, and
+            // structurally unrecognizable from, the approved design.
+            // Skipping anything that isn't one of those three keeps the
+            // real page an exact match for the approved PNG.
+            if (!$isIconSection && !$isPhotoSection) {
+                continue;
+            }
+
+            $inner = '';
+            if ($heading) {
+                $inner .= $this->gbHeading((string) $heading, 2, $primary);
             }
             if ($description) {
-                $blocks .= $this->gbParagraph((string) $description);
+                $inner .= $this->gbParagraph((string) $description);
             }
 
             if ($items) {
-                // Only the first items-bearing section on the page gets photos
-                // (matches the budget SectionImageService generated against).
-                $imagesForThisGrid = $itemImagesUsed ? [] : $itemFilenames;
-                $itemImagesUsed = $itemImagesUsed || (bool) $itemFilenames;
-
-                foreach (array_chunk(array_slice($items, 0, 12), 3, true) as $chunk) {
-                    $blocks .= $this->gbColumns($chunk, $imagesForThisGrid);
+                if ($isIconSection) {
+                    $inner .= $this->gbIconRow($items, $accent);
+                } else {
+                    // Only the designated photo section actually consumes the
+                    // generated photo budget — matches SectionImageService.
+                    $imagesForThisGrid = $itemImagesUsed ? [] : $itemFilenames;
+                    $itemImagesUsed = $itemImagesUsed || (bool) $itemFilenames;
+                    $inner .= $this->gbCardGrid($items, $imagesForThisGrid);
                 }
             }
 
             if ($cta) {
-                $blocks .= $this->gbButton((string) $cta);
+                $inner .= $this->gbButton((string) $cta, $accent);
             }
 
-            $blocks .= $this->gbSeparator();
+            // Only the designated photo/showcase section gets the neutral
+            // "alt" band, matching the PNG 1:1.
+            $blocks .= $isPhotoSection ? $this->gbSection($inner, $altBandColor) : $this->gbSection($inner);
         }
 
         return trim($blocks);
     }
 
-    private function gbHeading(string $text, int $level = 2): string
+    /**
+     * Same "index 0 is the hero, first items-bearing section after that is
+     * the icon row, the next one is the photo/card grid" heuristic as
+     * AiServices::pickMockupSections() — kept in sync so the real WordPress
+     * page matches the structure of the PNG the client actually approved.
+     *
+     * @return array{icon: ?int, photo: ?int}
+     */
+    private function pickIconPhotoIndexes(array $sections): array
     {
-        $text = e($text);
+        $itemSectionIndexes = [];
+        foreach ($sections as $index => $section) {
+            if ($index === 0 || !is_array($section)) {
+                continue;
+            }
+            if (!empty($section['items']) && is_array($section['items'])) {
+                $itemSectionIndexes[] = $index;
+            }
+        }
 
-        return "<!-- wp:heading {\"level\":{$level},\"textAlign\":\"center\"} -->\n"
-            . "<h{$level} class=\"wp-block-heading has-text-align-center\">{$text}</h{$level}>\n"
+        if (count($itemSectionIndexes) >= 2) {
+            return ['icon' => $itemSectionIndexes[0], 'photo' => $itemSectionIndexes[1]];
+        }
+
+        if (count($itemSectionIndexes) === 1) {
+            return ['icon' => null, 'photo' => $itemSectionIndexes[0]];
+        }
+
+        return ['icon' => null, 'photo' => null];
+    }
+
+    /**
+     * The page's opening band: colored background (design's primary color),
+     * headline/description/CTA, with the hero photo laid out beside the copy
+     * (two columns) when one was generated — mirrors .hero in
+     * mockup-render.blade.php instead of just stacking plain text.
+     */
+    private function gbHero(string $heading, string $description, ?string $cta, ?string $heroImage, string $primary, string $accent): string
+    {
+        $textColor = $this->isLightColor($primary) ? '#1c1a17' : '#ffffff';
+
+        $copy = '';
+        if ($heading !== '') {
+            $copy .= $this->gbHeading($heading, 1, $textColor);
+        }
+        if ($description !== '') {
+            $copy .= $this->gbParagraph($description, $textColor);
+        }
+        if ($cta) {
+            $copy .= $this->gbButton($cta, '#ffffff', $primary);
+        }
+
+        if ($copy === '') {
+            return '';
+        }
+
+        if ($heroImage) {
+            $imageBlock = $this->gbImage($heroImage, 'large');
+            $colWidths = json_encode(['width' => '55%'], JSON_UNESCAPED_SLASHES);
+            $colWidthsImg = json_encode(['width' => '45%'], JSON_UNESCAPED_SLASHES);
+            $inner = "<!-- wp:columns -->\n<div class=\"wp-block-columns\">\n"
+                . "<!-- wp:column {$colWidths} -->\n<div class=\"wp-block-column\" style=\"flex-basis:55%\">\n{$copy}</div>\n<!-- /wp:column -->\n\n"
+                . "<!-- wp:column {$colWidthsImg} -->\n<div class=\"wp-block-column\" style=\"flex-basis:45%\">\n{$imageBlock}</div>\n<!-- /wp:column -->\n\n"
+                . "</div>\n<!-- /wp:columns -->\n\n";
+        } else {
+            $inner = $copy;
+        }
+
+        return $this->gbSection($inner, $primary);
+    }
+
+    private function gbHeading(string $text, int $level = 2, ?string $color = null): string
+    {
+        $escaped = e($text);
+        $attrs = ['level' => $level, 'textAlign' => 'center'];
+        $class = 'wp-block-heading has-text-align-center';
+        $style = '';
+
+        if ($color) {
+            $attrs['style'] = ['color' => ['text' => $color]];
+            $class .= ' has-text-color';
+            $style = ' style="color:' . $color . '"';
+        }
+
+        $attrsJson = json_encode($attrs, JSON_UNESCAPED_SLASHES);
+
+        return "<!-- wp:heading {$attrsJson} -->\n"
+            . "<h{$level} class=\"{$class}\"{$style}>{$escaped}</h{$level}>\n"
             . "<!-- /wp:heading -->\n\n";
     }
 
-    private function gbParagraph(string $text): string
+    private function gbParagraph(string $text, ?string $color = null): string
     {
-        $text = e($text);
+        $escaped = e($text);
+        $attrs = ['align' => 'center'];
+        $class = 'has-text-align-center';
+        $style = '';
 
-        return "<!-- wp:paragraph {\"align\":\"center\"} -->\n"
-            . "<p class=\"has-text-align-center\">{$text}</p>\n"
+        if ($color) {
+            $attrs['style'] = ['color' => ['text' => $color]];
+            $class .= ' has-text-color';
+            $style = ' style="color:' . $color . '"';
+        }
+
+        $attrsJson = json_encode($attrs, JSON_UNESCAPED_SLASHES);
+
+        return "<!-- wp:paragraph {$attrsJson} -->\n"
+            . "<p class=\"{$class}\"{$style}>{$escaped}</p>\n"
             . "<!-- /wp:paragraph -->\n\n";
     }
 
-    private function gbButton(string $text): string
+    private function gbButton(string $text, ?string $bgColor = null, ?string $textColor = null): string
     {
-        $text = e($text);
+        $escaped = e($text);
+        if ($bgColor && !$textColor) {
+            $textColor = '#ffffff';
+        }
+
+        $style = [];
+        $classes = ['wp-block-button__link', 'wp-element-button'];
+        $inlineStyle = '';
+
+        if ($bgColor) {
+            $style['color']['background'] = $bgColor;
+            $classes[] = 'has-background';
+            $inlineStyle .= 'background-color:' . $bgColor . ';';
+        }
+        if ($textColor) {
+            $style['color']['text'] = $textColor;
+            $classes[] = 'has-text-color';
+            $inlineStyle .= 'color:' . $textColor . ';';
+        }
+
+        $innerAttrs = $style ? json_encode(['style' => $style], JSON_UNESCAPED_SLASHES) : '';
+        $styleAttr = $inlineStyle ? ' style="' . $inlineStyle . '"' : '';
+        $classAttr = implode(' ', $classes);
 
         return "<!-- wp:buttons {\"layout\":{\"type\":\"flex\",\"justifyContent\":\"center\"}} -->\n"
-            . "<div class=\"wp-block-buttons\"><!-- wp:button -->\n"
-            . "<div class=\"wp-block-button\"><a class=\"wp-block-button__link wp-element-button\" href=\"#\">{$text}</a></div>\n"
+            . "<div class=\"wp-block-buttons\"><!-- wp:button" . ($innerAttrs ? " {$innerAttrs}" : '') . " -->\n"
+            . "<div class=\"wp-block-button\"><a class=\"{$classAttr}\"{$styleAttr} href=\"#\">{$escaped}</a></div>\n"
             . "<!-- /wp:button --></div>\n"
             . "<!-- /wp:buttons -->\n\n";
     }
@@ -153,14 +335,72 @@ class ElementorPageBuilderService
     }
 
     /**
-     * @param array $items      up to 3 mockup section items (original item index as key), rendered as one Gutenberg columns row.
-     * @param array $itemImages original item index => generated photo filename (from SectionImageService).
+     * Wraps a block of inner content in a `wp:group`, optionally with a solid
+     * background band (and auto-picked readable text color) — the mechanism
+     * behind the hero band and the alternating light section backgrounds,
+     * using officially-supported group color attributes so the Block Editor
+     * doesn't flag it as "unexpected content" when the client opens it.
      */
-    private function gbColumns(array $items, array $itemImages = []): string
+    private function gbSection(string $inner, ?string $bgColor = null): string
+    {
+        if (trim($inner) === '') {
+            return '';
+        }
+
+        if (!$bgColor) {
+            return "<!-- wp:group -->\n<div class=\"wp-block-group\">\n{$inner}</div>\n<!-- /wp:group -->\n\n";
+        }
+
+        $textColor = $this->isLightColor($bgColor) ? '#1c1a17' : '#ffffff';
+        $attrs = ['style' => ['color' => ['background' => $bgColor, 'text' => $textColor]]];
+        $attrsJson = json_encode($attrs, JSON_UNESCAPED_SLASHES);
+
+        return "<!-- wp:group {$attrsJson} -->\n"
+            . "<div class=\"wp-block-group has-text-color has-background\" style=\"color:{$textColor};background-color:{$bgColor}\">\n{$inner}</div>\n"
+            . "<!-- /wp:group -->\n\n";
+    }
+
+    /**
+     * Compact "why choose us"-style row — a colored number "badge" (a small
+     * colored heading, not a hand-styled span, so it stays within the
+     * heading block's own supported color attribute) above a title/description,
+     * no photo needed. Mirrors .icon-row in mockup-render.blade.php.
+     */
+    private function gbIconRow(array $items, string $accent): string
     {
         $columnsHtml = '';
 
-        foreach ($items as $itemIndex => $item) {
+        foreach (array_slice($items, 0, 4) as $index => $item) {
+            $title = is_array($item) ? ($item['title'] ?? $item['name'] ?? null) : (string) $item;
+            $desc = is_array($item) ? ($item['description'] ?? null) : null;
+
+            $inner = $this->gbHeading((string) ($index + 1), 4, $accent);
+            if ($title) {
+                $inner .= $this->gbHeading((string) $title, 3);
+            }
+            if ($desc) {
+                $inner .= $this->gbParagraph((string) $desc);
+            }
+
+            $columnsHtml .= "<!-- wp:column -->\n<div class=\"wp-block-column\">\n{$inner}</div>\n<!-- /wp:column -->\n\n";
+        }
+
+        if ($columnsHtml === '') {
+            return '';
+        }
+
+        return "<!-- wp:columns -->\n<div class=\"wp-block-columns\">\n{$columnsHtml}</div>\n<!-- /wp:columns -->\n\n";
+    }
+
+    /**
+     * @param array $items      up to 4 mockup section items (original item index as key), rendered as a bordered card grid.
+     * @param array $itemImages original item index => generated photo filename (from SectionImageService).
+     */
+    private function gbCardGrid(array $items, array $itemImages = []): string
+    {
+        $columnsHtml = '';
+
+        foreach (array_slice($items, 0, 4, true) as $itemIndex => $item) {
             $title = is_array($item) ? ($item['title'] ?? $item['name'] ?? null) : (string) $item;
             $desc = is_array($item) ? ($item['description'] ?? null) : null;
 
@@ -178,7 +418,7 @@ class ElementorPageBuilderService
                 continue;
             }
 
-            $columnsHtml .= "<!-- wp:column -->\n<div class=\"wp-block-column\">\n{$inner}</div>\n<!-- /wp:column -->\n\n";
+            $columnsHtml .= "<!-- wp:column -->\n<div class=\"wp-block-column\">\n{$this->gbCard($inner)}</div>\n<!-- /wp:column -->\n\n";
         }
 
         if ($columnsHtml === '') {
@@ -186,6 +426,20 @@ class ElementorPageBuilderService
         }
 
         return "<!-- wp:columns -->\n<div class=\"wp-block-columns\">\n{$columnsHtml}</div>\n<!-- /wp:columns -->\n\n";
+    }
+
+    /**
+     * A bordered/rounded card wrapper (`wp:group` with the border support
+     * WordPress core has shipped since 6.1) — mirrors .card in
+     * mockup-render.blade.php.
+     */
+    private function gbCard(string $inner): string
+    {
+        $attrs = json_encode(['style' => ['border' => ['color' => '#eae5dd', 'width' => '1px', 'radius' => '14px'], 'spacing' => ['padding' => ['top' => '16px', 'bottom' => '16px', 'left' => '16px', 'right' => '16px']]]], JSON_UNESCAPED_SLASHES);
+
+        return "<!-- wp:group {$attrs} -->\n"
+            . "<div class=\"wp-block-group has-border-color\" style=\"border-color:#eae5dd;border-width:1px;border-radius:14px;overflow:hidden;padding:16px\">\n{$inner}</div>\n"
+            . "<!-- /wp:group -->\n\n";
     }
 
     /**
@@ -208,6 +462,33 @@ class ElementorPageBuilderService
             . "<!--EXITO_IMG_END:{$filename}-->\n\n";
     }
 
+    /** Validates a hex color string, falling back to a safe default if GPT sent something unusable. */
+    private function colorOrDefault(?string $value, string $default): string
+    {
+        $value = trim((string) $value);
+
+        return preg_match('/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/', $value) ? $value : $default;
+    }
+
+    /** Simple relative-luminance check so text placed on a colored band stays readable. */
+    private function isLightColor(string $hex): bool
+    {
+        $hex = ltrim($hex, '#');
+        if (strlen($hex) === 3) {
+            $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
+        }
+        if (strlen($hex) !== 6 || !ctype_xdigit($hex)) {
+            return false;
+        }
+
+        $r = hexdec(substr($hex, 0, 2));
+        $g = hexdec(substr($hex, 2, 2));
+        $b = hexdec(substr($hex, 4, 2));
+        $luminance = (0.299 * $r + 0.587 * $g + 0.114 * $b) / 255;
+
+        return $luminance > 0.6;
+    }
+
     /**
      * Optional: Elementor's "classic" section > column > widget tree (real
      * `_elementor_data` shape) — not used unless the Elementor plugin is
@@ -216,9 +497,18 @@ class ElementorPageBuilderService
     private function mapSectionsToElements(array $sections, array $design): array
     {
         $elements = [];
+        // Same restriction as renderGutenbergBlocks(): only the sections
+        // actually shown in the approved PNG (hero + the picked icon/photo
+        // sections), so switching a page to Elementor shows the same
+        // approved-looking page instead of a much longer one with every
+        // section from the mockup blueprint.
+        $picked = $this->pickIconPhotoIndexes($sections);
 
-        foreach ($sections as $section) {
+        foreach ($sections as $index => $section) {
             if (!is_array($section)) {
+                continue;
+            }
+            if ($index !== 0 && $index !== $picked['icon'] && $index !== $picked['photo']) {
                 continue;
             }
 

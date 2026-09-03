@@ -133,10 +133,8 @@
             border: 1px solid #e2e8f0;
         }
 
-        .mockup-candidate-grid { width: 100%; border-collapse: separate; border-spacing: 8px; table-layout: fixed; }
-        .mockup-candidate-grid td { width: 33.33%; text-align: center; vertical-align: top; }
-        .mockup-candidate-grid img { display: block; width: 100%; border: 1px solid #d6c7b8; }
-        .mockup-candidate-grid strong { display: block; margin-top: 5px; color: #6f4328; font-size: 9px; }
+        .mockup-option-img { display: block; margin: 0 auto; max-width: 100%; max-height: 640px; width: auto; height: auto; border: 1px solid #d6c7b8; }
+        .mockup-option-label { text-align: center; margin: 10px 0 0; color: #6f4328; font-size: 13px; font-weight: bold; }
 
         .website-preview {
             border: 1px solid #cbd5e1;
@@ -353,94 +351,121 @@
         <span class="page-number">1</span>
     </div>
 
-    {{-- ===== PAGE: DESIGN MOCK UP ===== --}}
-    <div class="content-page">
-        <div class="header-band">
-            <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
-            <span class="date">{{ now()->format('n/j/Y') }}</span>
-        </div>
+    {{-- ===== PAGE(S): DESIGN MOCK UP =====
+         Each candidate gets its OWN full page rather than being squeezed
+         3-across into one narrow table row — the tall full-page mockup
+         PNG (see AiServices::generateMockupImage) was getting scaled down
+         to a 33%-width column and cut off at the page boundary, which
+         looked like a broken/cropped image even though the source PNG
+         itself was complete. One full-width image per page shows the
+         whole design clearly. --}}
+    @php
+        $design = $mockup['design'] ?? [];
+        $home = collect($mockup['pages'] ?? [])->first(fn ($page) => strtolower($page['name'] ?? '') === 'home');
+        $homeSections = $home['sections'] ?? [];
+        $hero = collect($homeSections)->first(fn ($section) => strtolower($section['name'] ?? '') === 'hero') ?? ($homeSections[0] ?? []);
+        $mockupCandidates = $mockupCandidates ?? [$mockup];
+        $mockupPageCount = count($mockupCandidates) > 1 ? count($mockupCandidates) : 1;
+    @endphp
 
-        <h2 class="section-title">Design Mock Up</h2>
+    @if (count($mockupCandidates) > 1)
+        @foreach ($mockupCandidates as $candidate)
+            <div class="content-page">
+                <div class="header-band">
+                    <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
+                    <span class="date">{{ now()->format('n/j/Y') }}</span>
+                </div>
 
-        @php
-            $design = $mockup['design'] ?? [];
-            $home = collect($mockup['pages'] ?? [])->first(fn ($page) => strtolower($page['name'] ?? '') === 'home');
-            $homeSections = $home['sections'] ?? [];
-            $hero = collect($homeSections)->first(fn ($section) => strtolower($section['name'] ?? '') === 'hero') ?? ($homeSections[0] ?? []);
-            $mockupCandidates = $mockupCandidates ?? [$mockup];
-        @endphp
+                <h2 class="section-title">Design Mock Up — Option {{ $candidate['candidate_number'] ?? $loop->iteration }}</h2>
 
-        <p style="font-size:11px; text-align:center; color:#64748b;">
-            {{ $mockup['website_concept'] ?? 'Website mockup blueprint generated from the client analysis.' }}
-        </p>
+                <p style="font-size:11px; text-align:center; color:#64748b;">
+                    {{ $candidate['candidate_label'] ?? ($candidate['website_concept'] ?? 'Website mockup blueprint generated from the client analysis.') }}
+                </p>
 
-        @if (count($mockupCandidates) > 1)
-            <table class="mockup-candidate-grid"><tr>
-                @foreach ($mockupCandidates as $candidate)
-                    @if (!empty($candidate['screenshot_path']) && file_exists(storage_path('app/public/' . $candidate['screenshot_path'])))
-                        <td><img src="{{ storage_path('app/public/' . $candidate['screenshot_path']) }}" alt="Mockup option {{ $candidate['candidate_number'] ?? $loop->iteration }}"><strong>Option {{ $candidate['candidate_number'] ?? $loop->iteration }}</strong></td>
+                @if (!empty($candidate['screenshot_path']) && file_exists(storage_path('app/public/' . $candidate['screenshot_path'])))
+                    <img src="{{ storage_path('app/public/' . $candidate['screenshot_path']) }}" class="mockup-option-img" alt="Mockup option {{ $candidate['candidate_number'] ?? $loop->iteration }} for {{ $project->name }}">
+                @endif
+
+                <p style="margin-top:12px; font-size:10px; text-align:center; color:#64748b;">
+                    Style: {{ $candidate['design']['style'] ?? '-' }} &nbsp;|&nbsp; Fonts: {{ $candidate['design']['font_heading'] ?? '-' }} / {{ $candidate['design']['font_body'] ?? '-' }}
+                </p>
+
+                <span class="page-number">{{ 1 + $loop->iteration }}</span>
+            </div>
+        @endforeach
+    @else
+        <div class="content-page">
+            <div class="header-band">
+                <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
+                <span class="date">{{ now()->format('n/j/Y') }}</span>
+            </div>
+
+            <h2 class="section-title">Design Mock Up</h2>
+
+            <p style="font-size:11px; text-align:center; color:#64748b;">
+                {{ $mockup['website_concept'] ?? 'Website mockup blueprint generated from the client analysis.' }}
+            </p>
+
+            @if (!empty($mockup['screenshot_path']) && file_exists(storage_path('app/public/' . $mockup['screenshot_path'])))
+                <img src="{{ storage_path('app/public/' . $mockup['screenshot_path']) }}" class="mockup-section-img" style="max-width:100%;" alt="Website mockup {{ $project->name }}">
+            @else
+
+            <div class="website-preview-visual">
+                <div class="visual-nav" style="background:{{ $design['primary_color'] ?? '#6f4328' }};">
+                    @if (!empty($mockup['client_logo_path']) && file_exists($mockup['client_logo_path']))
+                        <img src="{{ $mockup['client_logo_path'] }}" class="website-preview-logo" alt="{{ $project->client_name }} logo">
+                    @else
+                        {{ strtoupper($project->name) }}
                     @endif
-                @endforeach
-            </tr></table>
-        @elseif (!empty($mockup['screenshot_path']) && file_exists(storage_path('app/public/' . $mockup['screenshot_path'])))
-            <img src="{{ storage_path('app/public/' . $mockup['screenshot_path']) }}" class="mockup-section-img" style="max-width:100%;" alt="Website mockup {{ $project->name }}">
-        @else
-
-        <div class="website-preview-visual">
-            <div class="visual-nav" style="background:{{ $design['primary_color'] ?? '#6f4328' }};">
-                @if (!empty($mockup['client_logo_path']) && file_exists($mockup['client_logo_path']))
-                    <img src="{{ $mockup['client_logo_path'] }}" class="website-preview-logo" alt="{{ $project->client_name }} logo">
-                @else
-                    {{ strtoupper($project->name) }}
-                @endif
-                <span class="visual-nav-links">HOME &nbsp;&nbsp; ABOUT &nbsp;&nbsp; SERVICES &nbsp;&nbsp; CONTACT</span>
-            </div>
-            <div class="visual-hero" style="background:{{ $design['primary_color'] ?? '#6f4328' }};">
-                <h3>{{ $hero['headline'] ?? $project->name }}</h3>
-                <p>{{ $hero['description'] ?? '' }}</p>
-                @if (!empty($hero['cta'] ?? $mockup['global_cta'] ?? null))
-                    <span class="visual-button" style="color:{{ $design['primary_color'] ?? '#6f4328' }};">{{ $hero['cta'] ?? $mockup['global_cta'] }}</span>
-                @endif
-            </div>
-            @foreach (array_slice($homeSections, 1, 4) as $section)
-                @php $sectionType = strtolower((string) ($section['type'] ?? $section['name'] ?? '')); @endphp
-                <div class="visual-content">
-                    <h4 class="visual-heading">{{ $section['headline'] ?? $section['name'] ?? 'Website Section' }}</h4>
-                    <p class="visual-copy">{{ $section['description'] ?? '' }}</p>
-                    @if (!empty($section['items']) && is_array($section['items']))
-                        <table class="visual-grid"><tr>
-                            @foreach (array_slice($section['items'], 0, 3) as $item)
-                                <td class="visual-card">
-                                    <strong>{{ is_array($item) ? ($item['title'] ?? $item['name'] ?? 'Item') : $item }}</strong>
-                                    @if (is_array($item) && !empty($item['description']))<span>{{ $item['description'] }}</span>@endif
-                                    @if (is_array($item) && !empty($item['price']))<span class="visual-card-price">{{ $item['price'] }}</span>@endif
-                                </td>
-                            @endforeach
-                        </tr></table>
+                    <span class="visual-nav-links">HOME &nbsp;&nbsp; ABOUT &nbsp;&nbsp; SERVICES &nbsp;&nbsp; CONTACT</span>
+                </div>
+                <div class="visual-hero" style="background:{{ $design['primary_color'] ?? '#6f4328' }};">
+                    <h3>{{ $hero['headline'] ?? $project->name }}</h3>
+                    <p>{{ $hero['description'] ?? '' }}</p>
+                    @if (!empty($hero['cta'] ?? $mockup['global_cta'] ?? null))
+                        <span class="visual-button" style="color:{{ $design['primary_color'] ?? '#6f4328' }};">{{ $hero['cta'] ?? $mockup['global_cta'] }}</span>
                     @endif
                 </div>
-            @endforeach
-            @php
-                $newsletter = collect($homeSections)->first(fn ($section) => str_contains(strtolower((string) ($section['name'] ?? $section['type'] ?? '')), 'newsletter'));
-            @endphp
-            @if ($newsletter)
-                <div class="visual-newsletter"><strong>{{ $newsletter['headline'] ?? $newsletter['name'] }}</strong><span>{{ $newsletter['description'] ?? '' }}</span></div>
+                @foreach (array_slice($homeSections, 1, 4) as $section)
+                    @php $sectionType = strtolower((string) ($section['type'] ?? $section['name'] ?? '')); @endphp
+                    <div class="visual-content">
+                        <h4 class="visual-heading">{{ $section['headline'] ?? $section['name'] ?? 'Website Section' }}</h4>
+                        <p class="visual-copy">{{ $section['description'] ?? '' }}</p>
+                        @if (!empty($section['items']) && is_array($section['items']))
+                            <table class="visual-grid"><tr>
+                                @foreach (array_slice($section['items'], 0, 3) as $item)
+                                    <td class="visual-card">
+                                        <strong>{{ is_array($item) ? ($item['title'] ?? $item['name'] ?? 'Item') : $item }}</strong>
+                                        @if (is_array($item) && !empty($item['description']))<span>{{ $item['description'] }}</span>@endif
+                                        @if (is_array($item) && !empty($item['price']))<span class="visual-card-price">{{ $item['price'] }}</span>@endif
+                                    </td>
+                                @endforeach
+                            </tr></table>
+                        @endif
+                    </div>
+                @endforeach
+                @php
+                    $newsletter = collect($homeSections)->first(fn ($section) => str_contains(strtolower((string) ($section['name'] ?? $section['type'] ?? '')), 'newsletter'));
+                @endphp
+                @if ($newsletter)
+                    <div class="visual-newsletter"><strong>{{ $newsletter['headline'] ?? $newsletter['name'] }}</strong><span>{{ $newsletter['description'] ?? '' }}</span></div>
+                @endif
+                <div class="visual-footer">{{ $mockup['footer']['text'] ?? 'Kopi Nusa · Produk · Berlangganan · Kontak' }}</div>
+            </div>
             @endif
-            <div class="visual-footer">{{ $mockup['footer']['text'] ?? 'Kopi Nusa · Produk · Berlangganan · Kontak' }}</div>
-        </div>
-        @endif
 
-        <p style="margin-top:12px; font-size:10px; text-align:center; color:#64748b;">
-            Style: {{ $design['style'] ?? '-' }} &nbsp;|&nbsp; Fonts: {{ $design['font_heading'] ?? '-' }} / {{ $design['font_body'] ?? '-' }}
-        </p>
-        @if (!empty($mockup['design_reference_type']) && $mockup['design_reference_type'] !== 'none')
-            <p style="font-size:9px; text-align:center; color:#64748b;">
-                Design reference supplied by client: {{ ucfirst($mockup['design_reference_type']) }}
-                @if (!empty($mockup['design_reference_url'])) — {{ $mockup['design_reference_url'] }} @endif
+            <p style="margin-top:12px; font-size:10px; text-align:center; color:#64748b;">
+                Style: {{ $design['style'] ?? '-' }} &nbsp;|&nbsp; Fonts: {{ $design['font_heading'] ?? '-' }} / {{ $design['font_body'] ?? '-' }}
             </p>
-        @endif
-        <span class="page-number">2</span>
-    </div>
+            @if (!empty($mockup['design_reference_type']) && $mockup['design_reference_type'] !== 'none')
+                <p style="font-size:9px; text-align:center; color:#64748b;">
+                    Design reference supplied by client: {{ ucfirst($mockup['design_reference_type']) }}
+                    @if (!empty($mockup['design_reference_url'])) — {{ $mockup['design_reference_url'] }} @endif
+                </p>
+            @endif
+            <span class="page-number">2</span>
+        </div>
+    @endif
 
     {{-- ===== PAGE: WEBSITE BLUEPRINT ===== --}}
     <div class="content-page">
@@ -462,7 +487,7 @@
                 @endforeach
             </div>
         @endforeach
-        <span class="page-number">3</span>
+        <span class="page-number">{{ 1 + $mockupPageCount + 1 }}</span>
     </div>
 
     @include('pdf.proposal-pages')

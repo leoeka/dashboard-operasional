@@ -14,7 +14,7 @@
             <i class='bx bx-info-circle mt-0.5 text-xl'></i>
             <div>
                 <p class="font-bold">Anda sudah berada di langkah terakhir.</p>
-                <p class="mt-1 leading-6">Proposal dan mockup dibuat oleh Gemini + GPT. Sekarang klik tombol build untuk meminta Claude membuat theme dan plugin WordPress siap install.</p>
+                <p class="mt-1 leading-6">Proposal dan mockup dibuat oleh Gemini + GPT. Sekarang klik tombol build untuk meminta Claude membuat 1 theme WordPress siap install — halaman, isi konten, dan foto sudah otomatis jadi begitu theme diaktifkan, tidak perlu plugin tambahan.</p>
             </div>
         </div>
     </div>

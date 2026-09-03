@@ -61,17 +61,23 @@ class BundleController extends Controller
 
     public function download(Project $project)
     {
-        // bundle-export.zip is the full deliverable (theme + exito-core
-        // plugin + Elementor page data + content + README). Previously this
-        // served theme-install.zip (theme only), so the plugin that imports
-        // the Elementor-editable pages never actually reached the client.
-        $zipFile = storage_path('app/bundles/' . $project->id . '/bundle-export.zip');
+        // theme-install.zip is the real deliverable: a single, self-
+        // sufficient WordPress theme with the approved pages, content, and
+        // generated photos already baked in (see BundleExporterService::
+        // injectPageImporterIntoTheme()) — install & activate this one
+        // file, nothing else to upload, no separate plugin step. It used
+        // to be bundle-export.zip (theme + a required "exito-core" plugin
+        // as two separate uploads), which was both an extra step for the
+        // client and an extra upload that could hit a host's upload-size
+        // limit and fail with WordPress's misleading "The plugin does not
+        // have a valid header".
+        $zipFile = storage_path('app/bundles/' . $project->id . '/theme-install.zip');
 
         if (!file_exists($zipFile)) {
             return back()->with('error', 'Bundle belum dibuat.');
         }
 
-        return response()->download($zipFile, 'project-' . $project->id . '-wordpress-bundle.zip');
+        return response()->download($zipFile, 'project-' . $project->id . '-wordpress-theme.zip');
     }
 
 }

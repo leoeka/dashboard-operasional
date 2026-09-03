@@ -19,6 +19,7 @@ use App\Services\CompetitorDiscoveryService;
 use App\Services\CompetitorContentFetcher;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Validation\Rule;
 
 class ProjectController extends Controller
@@ -414,20 +415,33 @@ class ProjectController extends Controller
         return back()->with('success', 'Mockup disetujui. Sekarang data desain siap dikirim ke Claude untuk build WordPress.');
     }
 
-    public function selectMockup(Project $project, Request $request): RedirectResponse
+    public function selectMockup(Project $project, Request $request): RedirectResponse|JsonResponse
     {
         $proposal = $project->latestProposal;
         $proposalData = json_decode((string) ($proposal?->ai_reasoning ?? ''), true) ?: [];
         $selectedIndex = (int) $request->validate(['mockup_index' => 'required|integer|min:0|max:2'])['mockup_index'];
 
+        // Dipanggil lewat fetch() dari kartu pilihan mockup (lihat
+        // seo-backlink.blade.php) supaya milih opsi tidak me-reload seluruh
+        // halaman lagi — form biasa (tanpa JS) tetap jalan via redirect di
+        // bawah, ini cuma jalur cepatnya.
+        $wantsJson = $request->ajax() || $request->wantsJson();
+
         if (!$proposal || !isset($proposalData['mockup_candidates'][$selectedIndex])) {
-            return back()->with('error', 'Pilihan mockup tidak ditemukan. Generate proposal ulang.');
+            $message = 'Pilihan mockup tidak ditemukan. Generate proposal ulang.';
+            return $wantsJson
+                ? response()->json(['success' => false, 'message' => $message], 422)
+                : back()->with('error', $message);
         }
 
         $proposalData['selected_mockup_index'] = $selectedIndex;
         $proposal->update(['ai_reasoning' => json_encode($proposalData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
 
-        return back()->with('success', 'Mockup pilihan ' . ($selectedIndex + 1) . ' tersimpan. Silakan lanjutkan persetujuan client.');
+        $message = 'Mockup pilihan ' . ($selectedIndex + 1) . ' tersimpan. Silakan lanjutkan persetujuan client.';
+
+        return $wantsJson
+            ? response()->json(['success' => true, 'message' => $message, 'selected_index' => $selectedIndex])
+            : back()->with('success', $message);
     }
 
 
@@ -490,7 +504,7 @@ class ProjectController extends Controller
         $analysis = $aiService->analyzeProject($project, $client, $competitorContents);
 
         $this->reportProgress($project, 'processing', 60, 'GPT is creating three website mockup options...');
-        $mockupCandidates = $aiService->generateMockupCandidates($project, $analysis);
+        $mockupCandidates = $aiService->generateMockupCandidates($project, $analysis, $competitorContents);
         $mockup = $mockupCandidates[0];
 
         $home = collect($mockup['pages'] ?? [])->first(fn ($page) => strtolower($page['name'] ?? '') === 'home');

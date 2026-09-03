@@ -12,9 +12,28 @@ class BundleExporterService
             throw new \RuntimeException('Folder export bundle tidak dapat dibuat.');
         }
 
-        $themeInstallPath = $outputDir . DIRECTORY_SEPARATOR . 'theme-install.zip';
-        $this->createThemeInstallArchive($bundle, $themeInstallPath);
+        $themeRoot = trim((string) ($bundle['theme']['name'] ?? 'exito-client-theme'), '/');
+        $themeFiles = $this->buildCompleteThemeFiles($bundle, $themeRoot);
 
+        // theme-install.zip is now the ONLY file that actually needs to be
+        // uploaded to WordPress: the approved pages, their content, and
+        // every generated photo are already baked into it (see
+        // injectPageImporterIntoTheme()) — install this one theme,
+        // activate it, done. No separate plugin.
+        $themeInstallPath = $outputDir . DIRECTORY_SEPARATOR . 'theme-install.zip';
+        $themeZip = new ZipArchive();
+        if ($themeZip->open($themeInstallPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
+            throw new \RuntimeException('ZIP theme WordPress tidak dapat dibuat.');
+        }
+        foreach ($themeFiles as $relativePath => $contents) {
+            $themeZip->addFromString($relativePath, $contents);
+        }
+        $themeZip->close();
+
+        // bundle-export.zip wraps that same theme zip together with a
+        // README and text/JSON copies of the content & client assets for
+        // reference — nice to have, but nothing inside it besides the
+        // theme zip is ever uploaded anywhere.
         $zipPath = $outputDir . DIRECTORY_SEPARATOR . 'bundle-export.zip';
 
         $zip = new ZipArchive();
@@ -22,53 +41,7 @@ class BundleExporterService
             throw new \RuntimeException('File ZIP bundle tidak dapat dibuat.');
         }
 
-        $wordpressFiles = $bundle['wordpress']['files'] ?? [];
-        $themeRoot = trim((string) ($bundle['theme']['name'] ?? 'exito-client-theme'), '/');
-        $pluginRoot = trim((string) ($bundle['plugin']['name'] ?? 'exito-core'), '/');
-        $themeFiles = [];
-        $pluginFiles = [];
-        $elementorFiles = [];
-
-        foreach ($wordpressFiles as $relativePath => $contents) {
-            if (!is_string($relativePath) || !is_string($contents)) {
-                continue;
-            }
-
-            $relativePath = str_replace('\\', '/', ltrim($relativePath, '/'));
-            if (str_starts_with($relativePath, $themeRoot . '/')) {
-                $themeFiles[$relativePath] = $contents;
-            } elseif (str_starts_with($relativePath, $pluginRoot . '/')) {
-                $pluginFiles[$relativePath] = $contents;
-            } elseif (str_starts_with($relativePath, 'elementor/')) {
-                $elementorFiles[substr($relativePath, strlen('elementor/'))] = $contents;
-            }
-        }
-
-        // Deterministic (non-AI) page importer, appended to the plugin so
-        // every generated bundle is actually editable in WordPress's
-        // built-in Block Editor with no extra plugin — see
-        // ElementorPageBuilderService for why this isn't left to the AI
-        // builder to hand-write itself.
-        $this->injectPageImporter($bundle, $pluginFiles, $pluginRoot);
-
-        // The client's real logo/photos (BundleBuilderService::collectAssets),
-        // written into the theme at the exact same fixed paths the AI
-        // builder prompts were told to reference — guarantees the real
-        // files exist regardless of what the AI actually did with them.
-        $this->embedThemeAssets($bundle, $themeFiles, $themeRoot);
-        $this->bustThemeStyleVersion($themeFiles, $themeRoot);
-
-        $temporaryArchives = [];
-        if ($themeFiles) {
-            $temporaryArchives[] = $this->addComponentArchive($zip, '01-theme/' . $themeRoot . '.zip', $themeFiles);
-        }
-        if ($pluginFiles) {
-            $temporaryArchives[] = $this->addComponentArchive($zip, '02-plugin/' . $pluginRoot . '.zip', $pluginFiles);
-        }
-
-        foreach ($elementorFiles as $relativePath => $contents) {
-            $zip->addFromString('03-elementor/' . $relativePath, $contents);
-        }
+        $zip->addFile($themeInstallPath, '01-theme/' . $themeRoot . '.zip');
 
         $files = [
             'content' => $bundle['content'] ?? [],
@@ -76,7 +49,7 @@ class BundleExporterService
         ];
 
         foreach ($files as $folder => $payload) {
-            $targetFolder = $folder === 'assets' ? '05-assets' : '04-content';
+            $targetFolder = $folder === 'assets' ? '03-assets' : '02-content';
             $zip->addFromString($targetFolder . '/README.txt', "Bundle component: {$folder}\n");
             if (is_array($payload)) {
                 foreach ($payload as $key => $value) {
@@ -90,24 +63,28 @@ class BundleExporterService
             }
         }
 
-        $zip->addFromString('05-assets/README.txt', "Copy client assets to the WordPress media library during setup.\n");
-        $zip->addFromString('README.md', $this->buildReadme($themeRoot, $pluginRoot));
+        $zip->addFromString('03-assets/README.txt', "Copy client assets to the WordPress media library during setup.\n");
+        $zip->addFromString('README.md', $this->buildReadme($themeRoot));
         $zip->close();
 
-        foreach ($temporaryArchives as $temporaryArchive) {
-            @unlink($temporaryArchive);
-        }
-
-        // bundle-export.zip is the real deliverable (theme + plugin +
-        // Elementor content + assets + README). theme-install.zip is kept
-        // alongside it only as a quick theme-only convenience copy.
-        return $zipPath;
+        // theme-install.zip is the real deliverable — the one file that
+        // gets uploaded to WordPress. bundle-export.zip (built above) just
+        // wraps it with reference material for anyone who wants that too.
+        return $themeInstallPath;
     }
 
-    private function createThemeInstallArchive(array $bundle, string $archivePath): void
+    /**
+     * Assembles the final theme file set: the AI builder's chrome
+     * (style.css/header.php/footer.php/etc.), a generated screenshot, the
+     * deterministic page/photo importer (injectPageImporterIntoTheme —
+     * this is what makes the theme self-sufficient, no separate plugin),
+     * the client's real logo/photos, and a fresh style.css cache-busting
+     * version. Used for both theme-install.zip and the copy embedded in
+     * bundle-export.zip, so they're never able to drift apart.
+     */
+    private function buildCompleteThemeFiles(array $bundle, string $themeRoot): array
     {
         $wordpressFiles = $bundle['wordpress']['files'] ?? [];
-        $themeRoot = trim((string) ($bundle['theme']['name'] ?? 'exito-client-theme'), '/');
         $themeFiles = [];
 
         foreach ($wordpressFiles as $relativePath => $contents) {
@@ -123,58 +100,65 @@ class BundleExporterService
             throw new \RuntimeException('File theme WordPress tidak ditemukan dalam hasil build.');
         }
 
-        $functionsPath = $themeRoot . '/functions.php';
-        $themeFiles[$functionsPath] = ($themeFiles[$functionsPath] ?? "<?php\n") . $this->themeSetupCode($bundle);
+        // This theme is now the ONLY file the client installs — there is
+        // no separate plugin left as a fallback. WordPress refuses to
+        // install a theme whose style.css has no `Theme Name:` header, the
+        // exact same class of failure ("invalid header") this project has
+        // already hit once for the old plugin — guarantee it deterministically
+        // instead of trusting the AI remembered to include one.
+        $this->ensureThemeHeader($themeFiles, $themeRoot, $bundle);
+
         $themeFiles[$themeRoot . '/screenshot.png'] = $this->themeScreenshot($bundle);
+
+        // The client's real logo/photos (BundleBuilderService::collectAssets),
+        // written into the theme at the exact same fixed paths the AI
+        // builder prompts were told to reference — guarantees the real
+        // files exist regardless of what the AI actually did with them.
         $this->embedThemeAssets($bundle, $themeFiles, $themeRoot);
+
+        // Deterministic (non-AI) page + photo importer, appended straight
+        // into functions.php — see injectPageImporterIntoTheme()'s
+        // docblock for why this lives in the theme instead of a plugin.
+        $this->injectPageImporterIntoTheme($bundle, $themeFiles, $themeRoot);
+
         $this->bustThemeStyleVersion($themeFiles, $themeRoot);
 
-        $themeZip = new ZipArchive();
-        if ($themeZip->open($archivePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            throw new \RuntimeException('ZIP theme WordPress tidak dapat dibuat.');
-        }
-
-        foreach ($themeFiles as $relativePath => $contents) {
-            $themeZip->addFromString($relativePath, $contents);
-        }
-
-        $themeZip->close();
+        return $themeFiles;
     }
 
-    private function themeSetupCode(array $bundle): string
+    /**
+     * WordPress reads a theme's identity from a `Theme Name:` header inside
+     * the first ~8KB of style.css (get_file_data(), the same mechanism a
+     * plugin's `Plugin Name:` header uses) — install fails with a generic
+     * "invalid header"-style error if it's missing. Checked with the same
+     * regex WordPress itself uses; if genuinely absent, a valid header is
+     * prepended without touching whatever CSS rules the AI already wrote.
+     */
+    private function ensureThemeHeader(array &$themeFiles, string $themeRoot, array $bundle): void
     {
-        $content = $bundle['content'] ?? [];
-        $brand = $bundle['brand'] ?? [];
-        $homeTitle = (string) data_get($content, 'hero.title', $brand['company_name'] ?? 'Welcome');
-        $homeDescription = (string) data_get($content, 'hero.subtitle', data_get($content, 'about.content', ''));
-        $homeTitleCode = var_export($homeTitle, true);
-        $homeDescriptionCode = var_export($homeDescription, true);
+        $styleKey = $themeRoot . '/style.css';
+        $existing = is_string($themeFiles[$styleKey] ?? null) ? $themeFiles[$styleKey] : '';
 
-        $setup = <<<'WORDPRESS_SETUP'
+        if (preg_match('/^[ \t\/*#@]*Theme Name:(.*)$/mi', substr($existing, 0, 8192))) {
+            return;
+        }
 
-add_action('after_switch_theme', function () {
-    $page_id = get_page_by_path('home');
-    if (!$page_id) {
-        $page_id = wp_insert_post([
-            'post_title' => __HOME_TITLE__,
-            'post_name' => 'home',
-            'post_content' => '<p>' . esc_html(__HOME_DESCRIPTION__) . '</p>',
-            'post_status' => 'publish',
-            'post_type' => 'page',
-        ]);
-    }
-    if ($page_id && !is_wp_error($page_id)) {
-        update_option('show_on_front', 'page');
-        update_option('page_on_front', $page_id);
-    }
-});
-WORDPRESS_SETUP;
+        $name = (string) data_get($bundle, 'brand.company_name', '');
+        $name = str_replace('*/', '', trim($name));
+        $name = $name !== '' ? $name . ' — Exito Client Theme' : ucwords(str_replace('-', ' ', $themeRoot));
 
-        return str_replace(
-            ['__HOME_TITLE__', '__HOME_DESCRIPTION__'],
-            [$homeTitleCode, $homeDescriptionCode],
-            $setup
-        );
+        $header = <<<CSS
+/*
+Theme Name: {$name}
+Description: Approved client website, generated by Exito.
+Version: 1.0.0
+Requires at least: 5.9
+Requires PHP: 7.4
+*/
+
+CSS;
+
+        $themeFiles[$styleKey] = $header . $existing;
     }
 
     private function themeScreenshot(array $bundle): string
@@ -220,41 +204,38 @@ WORDPRESS_SETUP;
 
     /**
      * Step-by-step install guide in Bahasa Indonesia, written for someone
-     * installing this for the first time — exact WP Admin menu paths and
-     * the exact filename to pick at each upload step (using the theme/
-     * plugin's real folder names, so it matches what's actually in the ZIP
-     * rather than a generic placeholder).
+     * installing this for the first time — a single theme upload, nothing
+     * else. There used to be a second "install & activate the plugin" step
+     * here; that logic now lives inside the theme itself (see
+     * injectPageImporterIntoTheme()), so there's one fewer upload for the
+     * client to get right, and one fewer thing that can fail with a
+     * misleading "invalid header" error from a separate plugin zip.
      */
-    private function buildReadme(string $themeRoot, string $pluginRoot): string
+    private function buildReadme(string $themeRoot): string
     {
         $themeZip = $themeRoot . '.zip';
-        $pluginZip = $pluginRoot . '.zip';
 
         return <<<MD
 # Cara Install Website WordPress Ini
 
-File ini kamu dapat sebagai satu ZIP besar (`bundle-export.zip`). Di dalamnya
-ada beberapa folder — yang benar-benar kamu upload ke WordPress cuma 2 file
-ZIP kecil di dalam folder `01-theme/` dan `02-plugin/`, BUKAN ZIP besar ini.
+Cuma ada **1 file** yang perlu kamu upload ke WordPress: file theme di dalam
+folder `01-theme/`. Folder `02-content/` dan `03-assets/` isinya cuma salinan
+teks/aset untuk referensi — tidak perlu diupload kemana pun.
 
 ```
 bundle-export.zip           <- ZIP besar yang kamu download, extract dulu
 ├─ 01-theme/
-│  └─ {$themeZip}       <- upload ini di langkah 2 (Theme)
-├─ 02-plugin/
-│  └─ {$pluginZip}             <- upload ini di langkah 3 (Plugin)
-├─ 04-content/                <- referensi teks isi web (tidak perlu diupload)
-├─ 05-assets/                 <- referensi aset client (tidak perlu diupload)
+│  └─ {$themeZip}       <- SATU-SATUNYA file yang diupload ke WordPress
+├─ 02-content/                <- referensi teks isi web (tidak perlu diupload)
+├─ 03-assets/                 <- referensi aset client (tidak perlu diupload)
 └─ README.md                  <- file ini
 ```
 
 ## Langkah 1 — Extract dulu
-Klik kanan `bundle-export.zip` (atau file `project-...-wordpress-bundle.zip`
-yang kamu download dari dashboard) → **Extract Here / Extract All**. Jangan
-upload file ZIP besar ini langsung ke WordPress, dia bukan theme atau plugin
-— cuma folder pembungkus.
+Klik kanan `bundle-export.zip` (atau file `project-...-wordpress-theme.zip`
+yang kamu download dari dashboard) → **Extract Here / Extract All**.
 
-## Langkah 2 — Pasang Theme
+## Langkah 2 — Pasang Theme (satu-satunya langkah install)
 1. Login ke **WordPress Admin** (`namadomain.com/wp-admin`).
 2. Buka menu **Appearance > Themes**.
 3. Klik **Add New Theme** (di bagian atas halaman) → **Upload Theme**.
@@ -262,18 +243,10 @@ upload file ZIP besar ini langsung ke WordPress, dia bukan theme atau plugin
    `01-theme/`, pilih file **`{$themeZip}`**.
 5. Klik **Install Now**, tunggu sampai selesai, lalu klik **Activate**.
 
-## Langkah 3 — Pasang Plugin
-1. Masih di WordPress Admin, buka menu **Plugins > Installed Plugins**.
-2. Klik **Add New Plugin** (di bagian atas halaman) → **Upload Plugin**.
-3. Klik **Choose File**, masuk ke folder `02-plugin/`, pilih file
-   **`{$pluginZip}`**.
-4. Klik **Install Now**, tunggu sampai selesai, lalu klik **Activate**.
+Tidak ada langkah plugin. Tidak ada langkah lain.
 
-**Penting:** Theme harus lebih dulu terpasang & aktif SEBELUM plugin
-diaktifkan — urutannya theme dulu (Langkah 2), baru plugin (Langkah 3).
-
-## Langkah 4 — Selesai, halaman sudah otomatis jadi
-Begitu plugin aktif, semua halaman (Home, About, Services, Contact, dst)
+## Langkah 3 — Selesai, halaman sudah otomatis jadi
+Begitu theme aktif, semua halaman (Home, About, Services, Contact, dst)
 otomatis dibuat lengkap dengan isi teks & foto, dan Home otomatis dijadikan
 halaman depan website. Tidak ada langkah import manual, tidak perlu plugin
 tambahan apa pun (termasuk tidak perlu Elementor).
@@ -286,12 +259,14 @@ Untuk memastikan:
   otomatis terset ke **A static page**, dengan Homepage = **Home**.
 - Kunjungi alamat website-nya langsung untuk lihat hasilnya.
 
-Kalau setelah plugin diaktifkan halaman-halaman itu belum muncul, buka
-sembarang halaman lain di WordPress Admin (misalnya klik menu Dashboard)
-lalu cek lagi menu Pages — proses pembuatan halaman jalan otomatis begitu
-ada admin yang membuka wp-admin setelah plugin aktif.
+Kalau setelah theme aktif halaman-halaman itu belum muncul, buka sembarang
+halaman lain di WordPress Admin (misalnya klik menu Dashboard) lalu cek lagi
+menu Pages — proses pembuatan halaman jalan otomatis begitu ada admin yang
+membuka wp-admin setelah theme aktif. Ada juga notifikasi kuning di atas
+wp-admin dengan tombol "Buat/perbarui halaman sekarang" kalau perlu dipicu
+manual.
 
-## Langkah 5 — Edit isi halaman
+## Langkah 4 — Edit isi halaman
 Untuk mengubah teks, foto, atau urutan section:
 1. Buka menu **Pages**, klik halaman yang mau diedit (misalnya "Home").
 2. Klik **Edit** — akan terbuka **Block Editor** bawaan WordPress.
@@ -307,74 +282,46 @@ sudah/nanti terpasang, halaman yang sama juga bisa dibuka lewat
 kosong.
 
 ## Referensi tambahan
-- `04-content/` — salinan teks isi website dalam format JSON/teks, buat
+- `02-content/` — salinan teks isi website dalam format JSON/teks, buat
   referensi kalau butuh copy-paste ulang.
-- `05-assets/` — catatan aset milik client (logo, dll).
+- `03-assets/` — catatan aset milik client (logo, dll).
 
 ## Kalau ada masalah
-- **Upload theme/plugin gagal "The uploaded file exceeds..."** — biasanya
-  batas ukuran upload hosting terlalu kecil; hubungi provider hosting untuk
-  menaikkan `upload_max_filesize`, atau upload manual lewat FTP/File
-  Manager ke folder `wp-content/themes/` (untuk theme) dan
-  `wp-content/plugins/` (untuk plugin), lalu extract ZIP-nya di sana, baru
-  aktifkan lewat halaman Themes/Plugins seperti biasa.
+- **Upload theme gagal "The uploaded file exceeds..."** — biasanya batas
+  ukuran upload hosting terlalu kecil; hubungi provider hosting untuk
+  menaikkan `upload_max_filesize`/`post_max_size`, atau upload manual lewat
+  FTP/File Manager: extract `{$themeZip}` di komputer, lalu upload folder
+  hasil extract-nya langsung ke `wp-content/themes/` di server, baru
+  aktifkan lewat menu **Appearance > Themes** seperti biasa.
 - **Halaman kosong / foto tidak muncul** — buka halamannya di Block Editor,
-  foto biasanya butuh beberapa detik untuk ter-upload otomatis saat plugin
-  pertama kali aktif; refresh halaman **Pages** sekali lagi.
-- **Salah upload** (misalnya file plugin di-upload ke menu Themes) — WordPress
-  akan menolak dengan pesan error "not a valid ZIP" atau "missing style
-  sheet"; ulangi dari Langkah 2/3 dengan file yang benar.
+  foto biasanya butuh beberapa detik untuk ter-upload otomatis saat theme
+  pertama kali aktif; refresh halaman **Pages** sekali lagi, atau pakai
+  tombol "Buat/perbarui halaman sekarang" di notifikasi admin.
 MD;
     }
 
-    private function addComponentArchive(ZipArchive $bundleZip, string $archivePath, array $files): string
-    {
-        $temporaryPath = tempnam(sys_get_temp_dir(), 'wp-component-');
-        if ($temporaryPath === false) {
-            throw new \RuntimeException('File sementara untuk ZIP component tidak dapat dibuat.');
-        }
-
-        $componentZip = new ZipArchive();
-        if ($componentZip->open($temporaryPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            @unlink($temporaryPath);
-            throw new \RuntimeException('ZIP component tidak dapat dibuat.');
-        }
-
-        foreach ($files as $relativePath => $contents) {
-            $componentZip->addFromString($relativePath, $contents);
-        }
-
-        $componentZip->close();
-        $bundleZip->addFile($temporaryPath, $archivePath);
-
-        return $temporaryPath;
-    }
-
     /**
-     * Appends a deterministic, hand-written importer to the plugin (not
-     * AI-generated, so it's never subject to the AI builder getting the
-     * WordPress page-creation APIs slightly wrong): on first admin page load
-     * after activation it creates a real WP Page for every page in the
-     * approved mockup, with its content already written as native Gutenberg
-     * blocks — so every page opens ready to edit in WordPress's built-in
-     * Block Editor — no extra plugin required. Each page's real Elementor
-     * data is also set (see ElementorPageBuilderService), inert unless the
-     * Elementor plugin happens to be installed, in which case "Edit with
-     * Elementor" opens the real page too instead of a blank draft.
+     * Appends a deterministic, hand-written page/photo importer directly
+     * into the theme's functions.php — NOT a separate plugin. Runs the
+     * first time an admin opens wp-admin after the THEME is activated: it
+     * creates a real WP Page for every page in the approved mockup, with
+     * its content already written as native Gutenberg blocks — so every
+     * page opens ready to edit in WordPress's built-in Block Editor — no
+     * plugin install step at all. Each page's real Elementor data is also
+     * set (see ElementorPageBuilderService), inert unless the Elementor
+     * plugin happens to be installed, in which case "Edit with Elementor"
+     * opens the real page too instead of a blank draft.
+     *
+     * This used to live in a separate "exito-core" plugin the client had to
+     * install and activate as a second step after the theme. That was both
+     * an extra step or the client to get wrong/forget, and one more upload
+     * that could hit a host's upload-size limit and fail with WordPress's
+     * misleading "The plugin does not have a valid header" — folding it
+     * into the theme means installing/activating the theme is the ONLY
+     * step; there is nothing else to upload.
      */
-    private function injectPageImporter(array $bundle, array &$pluginFiles, string $pluginRoot): void
+    private function injectPageImporterIntoTheme(array $bundle, array &$themeFiles, string $themeRoot): void
     {
-        // Always make our own code the plugin's real entry point (the file
-        // WordPress reads the "Plugin Name:" header from), moving whatever
-        // the AI wrote into a secondary include loaded defensively. This
-        // project has repeatedly hit AI-generated PHP that doesn't match
-        // the exact shape/validity expected — if the AI's file has a bug
-        // and stays the entry point, page creation (appended to the end of
-        // its content) may simply never run because PHP never reaches that
-        // line. Making our deterministic code the entry point means page
-        // creation runs regardless of what the AI wrote.
-        $this->stabilizePluginMainFile($pluginFiles, $pluginRoot);
-
         $pages = $bundle['elementor_pages'] ?? [];
         if (!$pages || !is_array($pages)) {
             return;
@@ -403,8 +350,8 @@ MD;
             return;
         }
 
-        // SectionImageService's generated photos (filename => raw PNG
-        // bytes). Embedded as real binary files in the plugin and uploaded
+        // SectionImageService's generated photos (filename => raw JPEG
+        // bytes). Embedded as real binary files in the theme and uploaded
         // to the Media Library at import time — see
         // exito_client_import_images() below.
         $images = $bundle['section_images'] ?? [];
@@ -415,24 +362,47 @@ MD;
                     continue;
                 }
                 $safeFilename = preg_replace('/[^A-Za-z0-9._-]/', '-', $filename) ?: 'image.png';
-                $pluginFiles[$pluginRoot . '/images/' . $safeFilename] = $bytes;
-                $imagesForExport[$safeFilename] = 'images/' . $safeFilename;
+                $themeFiles[$themeRoot . '/generated-images/' . $safeFilename] = $bytes;
+                $imagesForExport[$safeFilename] = 'generated-images/' . $safeFilename;
             }
         }
 
         $exportedPages = var_export($pagesForExport, true);
         $exportedImages = var_export($imagesForExport, true);
+        // Identifies THIS build's content — changes any time the approved
+        // mockup/photos are rebuilt. Lets the importer below tell "never
+        // imported yet" apart from "imported an OLDER version of this
+        // content", so re-uploading a rebuilt theme (e.g. a fixed layout)
+        // actually refreshes the live pages instead of leaving whatever an
+        // earlier build already created untouched forever.
+        $contentVersion = var_export(md5($exportedPages . $exportedImages), true);
 
-        $pluginFiles[$pluginRoot . '/includes/page-import.php'] = <<<PHP
-<?php
-if (!defined('ABSPATH')) { exit; }
+        // A trailing PHP closing tag in whatever functions.php content
+        // already exists (the AI builder's, or a prior call's) would turn
+        // everything we append after it into literal HTML output instead
+        // of PHP — strip it defensively before appending, same as
+        // WordPress core itself recommends omitting the closing tag
+        // entirely.
+        $existingFunctions = rtrim($themeFiles[$themeRoot . '/functions.php'] ?? "<?php\n");
+        $existingFunctions = preg_replace('/\?>\s*$/', '', $existingFunctions);
 
+        $importerCode = <<<PHP
+
+
+// ---------------------------------------------------------------------
+// Automatic page & photo import — added at build time (not AI-written).
+// Runs the first time an admin opens wp-admin after this theme is active.
+// ---------------------------------------------------------------------
 function exito_client_pages() {
     return {$exportedPages};
 }
 
 function exito_client_images() {
     return {$exportedImages};
+}
+
+function exito_client_content_version() {
+    return {$contentVersion};
 }
 
 // Uploads every generated photo into the Media Library and returns a
@@ -452,7 +422,7 @@ function exito_client_import_images() {
     }
 
     foreach (exito_client_images() as \$filename => \$relative_path) {
-        \$full_path = plugin_dir_path(__FILE__) . '../' . \$relative_path;
+        \$full_path = get_stylesheet_directory() . '/' . \$relative_path;
         if (!file_exists(\$full_path)) {
             continue;
         }
@@ -505,8 +475,9 @@ function exito_client_apply_images(\$html, \$image_urls) {
 
 // Returns how many pages were actually created/updated, so the caller can
 // tell a real success from a silent no-op (e.g. every wp_insert_post call
-// failing) — the "already imported" flag below is only set on real success,
-// so a failed run can always be retried instead of getting stuck forever.
+// failing) — the stored content-version option below is only advanced on
+// real success, so a failed run can always be retried instead of getting
+// stuck forever.
 function exito_client_import_pages() {
     if (!function_exists('wp_insert_post')) {
         return 0;
@@ -562,24 +533,29 @@ function exito_client_import_pages() {
     }
 
     if (\$created > 0) {
-        update_option('exito_client_pages_imported', true);
+        update_option('exito_client_pages_imported', exito_client_content_version());
     }
 
     return \$created;
 }
 
-// Runs once automatically the first time an admin opens wp-admin after the
-// plugin is activated (the option flag stops it re-running once it has
-// actually succeeded — see the \$created check above).
+// Runs automatically the first time an admin opens wp-admin after this
+// theme is activated, AND again any time a rebuilt theme with different
+// content (a fixed layout, updated copy, new photos, ...) is uploaded and
+// activated — compares the stored option against this build's content
+// version instead of a plain yes/no flag, so re-uploading a newer theme
+// always refreshes the live pages instead of leaving an older build's
+// content stuck forever (see the \$created check above for when the stored
+// version actually advances).
 add_action('admin_init', function () {
-    if (!get_option('exito_client_pages_imported')) {
+    if (get_option('exito_client_pages_imported') !== exito_client_content_version()) {
         exito_client_import_pages();
     }
 
     // Manual escape hatch: ?exito_client_reimport=1 (with a valid nonce,
     // added by the admin notice below) force-runs the import again even if
     // the flag above is already set — for a site that was tested with an
-    // earlier/broken version of this plugin and got the flag stuck without
+    // earlier/broken version of this theme and got the flag stuck without
     // ever actually having pages, or if pages were deleted since.
     if (
         isset(\$_GET['exito_client_reimport'])
@@ -589,8 +565,8 @@ add_action('admin_init', function () {
         \$count = exito_client_import_pages();
         add_action('admin_notices', function () use (\$count) {
             \$message = \$count > 0
-                ? sprintf('Exito Core: %d halaman berhasil dibuat/diperbarui.', \$count)
-                : 'Exito Core: tidak ada halaman yang berhasil dibuat. Cek error log server untuk detail.';
+                ? sprintf('Exito: %d halaman berhasil dibuat/diperbarui.', \$count)
+                : 'Exito: tidak ada halaman yang berhasil dibuat. Cek error log server untuk detail.';
             echo '<div class="notice notice-' . (\$count > 0 ? 'success' : 'error') . ' is-dismissible"><p>' . esc_html(\$message) . '</p></div>';
         });
     }
@@ -598,104 +574,37 @@ add_action('admin_init', function () {
 
 // Always-available manual trigger, in case the automatic run above never
 // succeeded (e.g. a stuck flag left over from testing an earlier version of
-// this plugin on the same site).
+// this theme on the same site).
 add_action('admin_notices', function () {
     if (!current_user_can('manage_options')) {
         return;
     }
 
     \$url = wp_nonce_url(add_query_arg('exito_client_reimport', '1'), 'exito_client_reimport');
-    echo '<div class="notice notice-info"><p><strong>Exito Core</strong> — kalau halaman Home/About/Services/Contact belum muncul di menu Pages, klik: <a href="' . esc_url(\$url) . '">Buat/perbarui halaman sekarang</a>. Halaman-halaman itu langsung bisa diedit lewat Block Editor bawaan WordPress, dan lewat Elementor juga kalau plugin Elementor aktif.</p></div>';
+    echo '<div class="notice notice-info"><p><strong>Exito</strong> — kalau halaman Home/About/Services/Contact belum muncul di menu Pages, klik: <a href="' . esc_url(\$url) . '">Buat/perbarui halaman sekarang</a>. Halaman-halaman itu langsung bisa diedit lewat Block Editor bawaan WordPress, dan lewat Elementor juga kalau plugin Elementor aktif.</p></div>';
 });
 
 // Baseline styling for the native Gutenberg block content these pages are
 // built from (headings, paragraphs, columns, buttons), using the approved
 // brand colors — makes the block editor's default output look intentional
-// without needing any additional plugin or theme.
+// without needing any additional plugin.
 add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('exito-client-blocks', plugin_dir_url(__FILE__) . '../assets/block-content.css', [], '1.0.0');
+    wp_enqueue_style('exito-client-blocks', get_stylesheet_directory_uri() . '/assets/block-content.css', [], '1.0.0');
 });
 
 // Load the same stylesheet inside the Block Editor's own preview (not just
 // the live site) — without this, WordPress shows plain/unstyled text while
 // editing a page even though the real front-end page is styled fine, which
-// reads as "the theme disappeared" the moment you click Edit. Registered
-// from the plugin (not left to the AI-written theme) so this always works
-// no matter what functions.php does or doesn't do.
+// reads as "the theme disappeared" the moment you click Edit.
 add_action('after_setup_theme', function () {
     add_theme_support('editor-styles');
-    add_editor_style(plugin_dir_url(__FILE__) . '../assets/block-content.css');
+    add_editor_style('assets/block-content.css');
 });
+
 PHP;
 
-        $pluginFiles[$pluginRoot . '/assets/block-content.css'] = $this->blockContentCss($bundle['brand'] ?? []);
-    }
-
-    /**
-     * Makes `{$pluginRoot}/{$pluginRoot}.php` (the file WordPress reads the
-     * plugin header from) our own deterministic bootstrap: it always
-     * requires `includes/page-import.php` first — unconditionally, nothing
-     * can skip it — then, only if the AI produced a main-file of its own,
-     * loads that as `includes/ai-plugin-extra.php` wrapped in a try/catch.
-     * A runtime error thrown from the AI's code is caught and ignored,
-     * so it can never stop the page-creation logic above it from running.
-     * (A hard PHP *parse* error in the AI file would still be fatal if that
-     * file is ever required directly — but `require`d files are compiled
-     * lazily, so PHP raises that as a catchable \ParseError right here,
-     * not at the top of this file, which is exactly what the try/catch
-     * below is for.)
-     */
-    private function stabilizePluginMainFile(array &$pluginFiles, string $pluginRoot): void
-    {
-        $mainFileKey = $pluginRoot . '/' . $pluginRoot . '.php';
-        $aiMainFile = $pluginFiles[$mainFileKey] ?? null;
-        unset($pluginFiles[$mainFileKey]);
-
-        if (is_string($aiMainFile) && trim($aiMainFile) !== '') {
-            $pluginFiles[$pluginRoot . '/includes/ai-plugin-extra.php'] = $aiMainFile;
-        }
-
-        $pluginFiles[$mainFileKey] = $this->pluginBootstrap($pluginRoot, isset($pluginFiles[$pluginRoot . '/includes/ai-plugin-extra.php']));
-    }
-
-    private function pluginBootstrap(string $pluginRoot, bool $hasAiExtra): string
-    {
-        $name = ucwords(str_replace('-', ' ', $pluginRoot));
-
-        $extraInclude = $hasAiExtra
-            ? <<<'PHP'
-
-
-// Optional extra behaviour the AI builder generated for this plugin. Loaded
-// defensively — a runtime error here is caught and ignored, so it can never
-// stop the page creation above from having already run.
-if (file_exists(__DIR__ . '/includes/ai-plugin-extra.php')) {
-    try {
-        require_once __DIR__ . '/includes/ai-plugin-extra.php';
-    } catch (\Throwable $exito_client_extra_error) {
-        // Intentionally ignored — see comment above.
-    }
-}
-PHP
-            : '';
-
-        return <<<PHP
-<?php
-/**
- * Plugin Name: {$name}
- * Description: Creates this project's approved pages, ready to edit in the WordPress block editor. No other plugin required.
- * Version: 1.0.0
- */
-
-if (!defined('ABSPATH')) { exit; }
-
-// Deterministic and always valid: runs first, unconditionally, so page
-// creation never depends on anything else in this plugin working.
-if (file_exists(__DIR__ . '/includes/page-import.php')) {
-    require_once __DIR__ . '/includes/page-import.php';
-}
-{$extraInclude}
-PHP;
+        $themeFiles[$themeRoot . '/functions.php'] = $existingFunctions . $importerCode;
+        $themeFiles[$themeRoot . '/assets/block-content.css'] = $this->blockContentCss($bundle['brand'] ?? []);
     }
 
     /**
@@ -759,7 +668,7 @@ PHP;
 .wp-block-heading { color: {$primary}; }
 .wp-block-button__link, .wp-element-button { background-color: {$accent}; color: #fff; border-radius: 8px; padding: 12px 22px; font-weight: 600; }
 .wp-block-columns { gap: 24px; margin: 24px 0; }
-.wp-block-column { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; }
+.wp-block-column { padding: 8px; }
 .wp-block-separator { border-color: #e5e7eb; margin: 40px auto; max-width: 1100px; }
 .wp-block-image img { border-radius: 12px; object-fit: cover; width: 100%; height: auto; }
 .wp-block-column .wp-block-image { margin-bottom: 12px; }

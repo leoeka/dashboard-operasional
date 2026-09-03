@@ -266,24 +266,25 @@ The business analysis, approved GPT website blueprint, brand values, and final c
 
 The `implementation_manifest` is the handoff produced by GPT after visually reading the approved PNG. Treat it as the source of truth for the build: reproduce its ordered sections and design system, map every declared asset slot, and use the supplied approved copy. The PNG is a visual reference for the same approved design, not optional inspiration.
 {$assetsSection}
-IMPORTANT — a separate, deterministic step (not you) already creates every WordPress Page in the blueprint (Home, About, Services, Contact, etc.) with its real content written as native Gutenberg blocks, so the client can visually edit it in WordPress's built-in Block Editor immediately after installing the theme and plugin — no extra plugin required. Because of that:
+IMPORTANT — a separate, deterministic step (not you) already appends page-creation code straight into functions.php, and that code creates every WordPress Page in the blueprint (Home, About, Services, Contact, etc.) with its real content written as native Gutenberg blocks — so the client can visually edit it in WordPress's built-in Block Editor immediately after installing this ONE theme. There is no separate plugin; installing and activating this theme is the client's only step. Because of that:
 - `front-page.php` and `page.php` MUST render the actual page content via the standard WordPress Loop and `the_content()` — do NOT hardcode the homepage's sections as static markup in `front-page.php`. If you hardcode the content there instead of calling `the_content()`, the client's block-editor edits will never show up on the live site, which defeats the whole point.
 - Still call `get_header()` and `get_footer()` around the Loop so your header/nav/branding and footer render normally.
+- Nothing in this build creates or assigns a WordPress navigation menu (Appearance > Menus) — do NOT call `wp_nav_menu()` in header.php or footer.php, it can silently render an unrelated leftover menu from a previous site setup instead of this project's own pages. Build the nav from the real pages directly instead, e.g. `wp_list_pages(['title_li' => '', 'sort_column' => 'menu_order'])` inside a `<ul>`, so it always reflects exactly the pages this build actually created.
 - `style.css` must still style the site chrome (header/nav/footer, colors, typography, buttons) AND give sensible default styling to plain content HTML rendered inside `the_content()` — real `<h1>`-`<h6>`, `<p>`, `<ul>`/`<li>`, `<a>` elements, plus these utility classes used by the plain-content fallback: `.exito-section`, `.exito-grid` (a responsive card grid), `.exito-card`, `.exito-button`. Do not assume there's no content inside `the_content()` — style it properly, matching the approved mockup's spacing/typography/color mood.
+- Do NOT write any page-creation, `wp_insert_post`, or activation-import logic yourself in functions.php — that is appended separately and automatically after your functions.php, and would only risk duplicating or conflicting with it.
 
-Return ONLY this JSON shape:
-{"files":{"exito-client-theme/style.css":"...","exito-client-theme/functions.php":"...","exito-client-theme/index.php":"...","exito-client-theme/front-page.php":"...","exito-client-theme/page.php":"...","exito-client-theme/header.php":"...","exito-client-theme/footer.php":"...","exito-client-theme/assets/theme.json":"...","exito-core/exito-core.php":"...","README.md":"..."}}
+Return ONLY this JSON shape (theme files only — there is no plugin):
+{"files":{"exito-client-theme/style.css":"...","exito-client-theme/functions.php":"...","exito-client-theme/index.php":"...","exito-client-theme/front-page.php":"...","exito-client-theme/page.php":"...","exito-client-theme/header.php":"...","exito-client-theme/footer.php":"...","exito-client-theme/assets/theme.json":"...","README.md":"..."}}
 
 Rules:
 - Generate valid WordPress PHP files with a safe unique prefix: exito_client_.
 - The theme must be installable as a normal WordPress theme and render the approved content without external build tools.
 - Recreate the approved mockup's visual language faithfully in header.php/footer.php and style.css: navigation, spacing rhythm, typography mood, color palette, and footer structure. The Home/About/Services/Contact section content itself comes from the_content() as explained above — don't duplicate it as static markup.
 - If this is an ecommerce project, include WooCommerce-friendly styling hooks, but do not invent products beyond the supplied content.
-- The plugin (exito-core) must have a valid WordPress plugin header and expose a small setup/admin notice explaining the generated bundle. Do not implement page-creation logic yourself — that is appended separately and automatically.
 - Use escaped output, wp_enqueue_style, wp_head, wp_footer, and standard WordPress APIs.
 - Use semantic HTML, responsive CSS, CSS variables for the supplied colors, polished buttons, and accessible navigation. Do not use placeholder text or a bare unstyled page.
 - Keep all text and colors grounded in the supplied approved content. Do not invent client facts.
-- Include a complete README explaining: install & activate the theme, then install & activate the plugin (it auto-creates the pages, already editable in the built-in WordPress Block Editor — no other plugin needed).
+- Include a complete README explaining: install & activate this one theme — pages, content, and photos appear automatically, no other plugin needed.
 - Every value in files must be a string. Do not include binary assets; reference them by filename in README.
 PROMPT;
     }

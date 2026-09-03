@@ -184,18 +184,20 @@
                         <div class="mt-5 border-t border-slate-100 pt-5">
                             <p class="text-sm font-bold text-slate-700">Pilih mockup untuk client</p>
                             <p class="mt-1 text-xs text-slate-500">Hanya desain yang dipilih dan disetujui yang akan diteruskan ke Claude.</p>
-                            <div class="mt-4 grid gap-3 md:grid-cols-3">
+                            <div class="mt-4 grid gap-3 md:grid-cols-3" id="mockup-candidate-grid">
                                 @foreach ($mockupCandidates as $index => $candidate)
                                     @php $candidatePath = $candidate['screenshot_path'] ?? null; @endphp
-                                    <div class="rounded-xl border {{ $selectedMockupIndex === $index ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200' }} bg-white p-2">
+                                    <div data-mockup-card data-index="{{ $index }}" class="rounded-xl border {{ $selectedMockupIndex === $index ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200' }} bg-white p-2 transition">
                                         @if ($candidatePath)
-                                            <img src="{{ Storage::url($candidatePath) }}" alt="Mockup option {{ $index + 1 }}" class="aspect-video w-full rounded-lg object-cover">
+                                            <a href="{{ Storage::url($candidatePath) }}" target="_blank" rel="noopener" class="block rounded-lg bg-slate-50 max-h-[280px] overflow-hidden" title="Buka ukuran penuh di tab baru">
+                                                <img src="{{ Storage::url($candidatePath) }}" alt="Mockup option {{ $index + 1 }}" class="w-full h-full max-h-[280px] object-contain object-top">
+                                            </a>
                                         @endif
                                         <p class="px-1 pt-2 text-xs font-semibold text-slate-700">Option {{ $index + 1 }}</p>
-                                        <form method="POST" action="{{ route('pages.projects.proposal.mockup.select', $project) }}" class="mt-2">
+                                        <form method="POST" action="{{ route('pages.projects.proposal.mockup.select', $project) }}" class="mt-2 js-mockup-select-form">
                                             @csrf
                                             <input type="hidden" name="mockup_index" value="{{ $index }}">
-                                            <button type="submit" class="w-full rounded-lg {{ $selectedMockupIndex === $index ? 'bg-blue-600 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50' }} px-3 py-2 text-xs font-semibold transition">
+                                            <button type="submit" data-select-btn class="w-full rounded-lg {{ $selectedMockupIndex === $index ? 'bg-blue-600 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50' }} px-3 py-2 text-xs font-semibold transition">
                                                 {{ $selectedMockupIndex === $index ? 'Terpilih' : 'Pilih Mockup Ini' }}
                                             </button>
                                         </form>
@@ -203,6 +205,65 @@
                                 @endforeach
                             </div>
                         </div>
+                        <script>
+                            // Pilih mockup lewat AJAX — sebelumnya <form> submit biasa,
+                            // jadi tiap klik "Pilih Mockup Ini" reload seluruh halaman
+                            // (termasuk iframe PDF viewer di atasnya, jadi kerasa lambat/
+                            // kedip). Fallback ke submit form biasa tetap jalan kalau JS
+                            // gagal/nonaktif (progressive enhancement).
+                            (function () {
+                                document.querySelectorAll('#mockup-candidate-grid .js-mockup-select-form').forEach(function (form) {
+                                    form.addEventListener('submit', async function (e) {
+                                        e.preventDefault();
+                                        const btn = form.querySelector('[data-select-btn]');
+                                        const card = form.closest('[data-mockup-card]');
+                                        const originalLabel = btn.textContent;
+                                        btn.disabled = true;
+                                        btn.textContent = 'Menyimpan...';
+
+                                        try {
+                                            const res = await fetch(form.action, {
+                                                method: 'POST',
+                                                headers: {
+                                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
+                                                    'X-Requested-With': 'XMLHttpRequest',
+                                                    'Accept': 'application/json',
+                                                },
+                                                body: new FormData(form),
+                                            });
+                                            const data = await res.json();
+
+                                            if (!res.ok || !data.success) {
+                                                throw new Error(data.message || 'Request gagal');
+                                            }
+
+                                            const selectedCard = card;
+                                            document.querySelectorAll('#mockup-candidate-grid [data-mockup-card]').forEach(function (c) {
+                                                const isSelected = c === selectedCard;
+                                                c.classList.toggle('border-blue-500', isSelected);
+                                                c.classList.toggle('ring-2', isSelected);
+                                                c.classList.toggle('ring-blue-100', isSelected);
+                                                c.classList.toggle('border-slate-200', !isSelected);
+
+                                                const cardBtn = c.querySelector('[data-select-btn]');
+                                                cardBtn.textContent = isSelected ? 'Terpilih' : 'Pilih Mockup Ini';
+                                                cardBtn.classList.toggle('bg-blue-600', isSelected);
+                                                cardBtn.classList.toggle('text-white', isSelected);
+                                                cardBtn.classList.toggle('border', !isSelected);
+                                                cardBtn.classList.toggle('border-slate-200', !isSelected);
+                                                cardBtn.classList.toggle('text-slate-600', !isSelected);
+                                                cardBtn.classList.toggle('hover:bg-slate-50', !isSelected);
+                                                cardBtn.disabled = false;
+                                            });
+                                        } catch (err) {
+                                            btn.disabled = false;
+                                            btn.textContent = originalLabel;
+                                            alert(err.message || 'Gagal menyimpan pilihan mockup. Coba lagi.');
+                                        }
+                                    });
+                                });
+                            })();
+                        </script>
                     @endif
                     @if ($project->latestProposal->status !== 'approved')
                         <form method="POST" action="{{ route('pages.projects.proposal.approve', $project) }}" class="mt-3">
