@@ -57,7 +57,7 @@ Route::middleware(['auth'])->group(function () {
     )->name('pages.projects.proposal.download');
 
     // 5. AI Workspace
-    Route::get('/project-workspace', [WebsiteBuilderController::class, 'aiWorkspace'])->name('pages.seo-backlink');
+    Route::get('/project-workspace', [WebsiteBuilderController::class, 'aiWorkspace'])->name('pages.project-workspace');
     Route::get('/workshop', [WebsiteBuilderController::class, 'proposalWorkshop'])->name('pages.workshop');
     // NOTE: generateAiContent has no controller method yet (already
     // missing before this route split — pre-existing, not caused by it).

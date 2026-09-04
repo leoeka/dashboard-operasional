@@ -260,7 +260,7 @@ class WebsiteBuilderController extends Controller
     {
         // The original Workspace remains the primary UI while the proposal
         // workflow is refined. Keep old /workshop bookmarks working too.
-        return redirect()->route('pages.seo-backlink', $request->filled('project') ? [
+        return redirect()->route('pages.project-workspace', $request->filled('project') ? [
             'project' => $request->integer('project'),
         ] : []);
     }

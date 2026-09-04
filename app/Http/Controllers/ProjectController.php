@@ -34,7 +34,7 @@ class ProjectController extends Controller
 
     public function show(Project $project)
     {
-        return redirect()->route('pages.seo-backlink', ['project' => $project->id]);
+        return redirect()->route('pages.project-workspace', ['project' => $project->id]);
     }
 
     public function edit(Project $project)

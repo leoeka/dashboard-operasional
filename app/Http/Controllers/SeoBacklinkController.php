@@ -416,7 +416,7 @@ class SeoBacklinkController extends Controller
     private function manualScreenshotRedirect(Request $request, Project $project)
     {
         if ($request->input('return_tab') === 'performa') {
-            return redirect()->to(route('pages.seo-backlink', ['project' => $project->id]) . '#performa');
+            return redirect()->to(route('pages.project-workspace', ['project' => $project->id]) . '#performa');
         }
 
         return back();
