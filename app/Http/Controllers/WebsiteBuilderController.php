@@ -253,7 +253,7 @@ class WebsiteBuilderController extends Controller
             $project = Project::with(['latestProposal'])->find($request->project);
         }
 
-        return view('pages.project', compact('projects', 'project'));
+        return view('pages.project-workspace', compact('projects', 'project'));
     }
 
     public function proposalWorkshop(Request $request)
