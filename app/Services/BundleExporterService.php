@@ -666,7 +666,7 @@ PHP;
 
         return <<<CSS
 .wp-block-heading { color: {$primary}; }
-.wp-block-button__link, .wp-element-button { background-color: {$accent}; color: #fff; border-radius: 8px; padding: 12px 22px; font-weight: 600; }
+.wp-block-button__link, .wp-element-button { background-color: {$accent}; color: #fff; border-radius: 8px; padding: 12px 22px; font-weight: 600; text-decoration: none; display: inline-block; }
 .wp-block-columns { gap: 24px; margin: 24px 0; }
 .wp-block-column { padding: 8px; }
 .wp-block-separator { border-color: #e5e7eb; margin: 40px auto; max-width: 1100px; }

@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\MockupTemplate;
 use App\Models\ActivityLog;
 use App\Models\Invoice;
 
@@ -29,12 +28,6 @@ class Project extends Model
         'type',
         'website_name',
         'value',
-        'mockup_template_id',
-        'zipwp_template_uuid',
-        'zipwp_template_name',
-        'zipwp_template_preview_url',
-        'zipwp_site_uuid',
-        'zipwp_site_url',
         'status',
         'description', // sebelumnya: 'ai_generated_content'
         'design_reference_type',
@@ -126,11 +119,6 @@ class Project extends Model
         ]);
     }
 
-    public function mockupTemplate()
-    {
-        return $this->belongsTo(MockupTemplate::class, 'mockup_template_id');
-    }
-
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
@@ -144,23 +132,5 @@ class Project extends Model
     public function bundles()
     {
         return $this->hasMany(ProjectBundle::class);
-    }
-
-    public function autoMatchMockupTemplate(): ?MockupTemplate
-    {
-        // TODO: nanti diganti pemanggilan AI sungguhan (baca requirement_notes
-        // secara semantik, bukan cuma cocokkan kategori). Untuk sekarang,
-        // cocokkan berdasarkan kategori dari `type` project ke kategori template.
-        $categoryKey = collect(MockupTemplate::categories())->search($this->type);
-
-        if ($categoryKey) {
-            $match = MockupTemplate::where('category', $categoryKey)->inRandomOrder()->first();
-            if ($match) {
-                return $match;
-            }
-        }
-
-        // Fallback kalau tidak ketemu kategori yang cocok sama sekali
-        return MockupTemplate::inRandomOrder()->first();
     }
 }

@@ -47,7 +47,6 @@ class AnalyzePageSpeedJob implements ShouldQueue
         $project = $this->project;
         return $project->seo_requirements['target_url']
             ?? $project->backlink_requirements['target_url']
-            ?? $project->mockupTemplate?->source_url
             ?? null;
     }
 

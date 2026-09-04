@@ -119,10 +119,10 @@
 
                 {{--
                 AUTO-DETECT: kalau client yang dipilih sudah punya URL
-                website dari project lain (zipwp_site_url ATAU
-                seo_requirements sebelumnya), tampilkan sebagai saran —
-                tim tinggal klik "Pakai URL ini", tidak perlu copy-paste
-                manual. Tetap bisa diedit/diganti manual kalau perlu.
+                website dari project lain (seo_requirements.target_url),
+                tampilkan sebagai saran — tim tinggal klik "Pakai URL ini",
+                tidak perlu copy-paste manual. Tetap bisa diedit/diganti
+                manual kalau perlu.
                 --}}
                 <div id="urlSuggestionBox" class="hidden mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
                     <p class="text-blue-700">Website detected from this client's other project: <span id="detectedUrlText"

@@ -22,7 +22,7 @@ use Illuminate\Support\Str;
  * Both now apply the approved mockup's design tokens (colors) and mirror the
  * same Hero / icon-band / photo-card structure the client actually saw and
  * approved in the PNG mockup (see resources/views/pdf/mockup-render.blade.php
- * and AiServices::pickMockupSections()) — a plain, uncolored heading/paragraph
+ * and GenerateMockupGptService::pickMockupSections()) — a plain, uncolored heading/paragraph
  * loop was producing a WordPress page that looked nothing like what was
  * approved, even though Claude's header/footer/style.css were on-brand.
  */
@@ -53,7 +53,7 @@ class ElementorPageBuilderService
             $slug = $index === 0 ? 'home' : (Str::slug($name) ?: 'page-' . ($index + 1));
             // array_values(): a page's `sections` list must be sequentially
             // indexed from 0 for the "index 0 = hero" convention below (and
-            // in AiServices::pickMockupSections(), which the PNG mockup
+            // in GenerateMockupGptService::pickMockupSections(), which the PNG mockup
             // renderer uses) to actually line up — GPT's JSON doesn't
             // guarantee that on decode.
             $sections = is_array($page['sections'] ?? null) ? array_values($page['sections']) : [];
@@ -144,7 +144,7 @@ class ElementorPageBuilderService
             // wrote, but it was never part of what the client actually saw
             // and approved — the PNG only ever showed Hero + this one icon
             // section + this one photo section (see pickMockupSections() in
-            // AiServices, which built that same PNG). Rendering everything
+            // GenerateMockupGptService, which built that same PNG). Rendering everything
             // here made the live page several screens longer than, and
             // structurally unrecognizable from, the approved design.
             // Skipping anything that isn't one of those three keeps the
@@ -188,7 +188,7 @@ class ElementorPageBuilderService
     /**
      * Same "index 0 is the hero, first items-bearing section after that is
      * the icon row, the next one is the photo/card grid" heuristic as
-     * AiServices::pickMockupSections() — kept in sync so the real WordPress
+     * GenerateMockupGptService::pickMockupSections() — kept in sync so the real WordPress
      * page matches the structure of the PNG the client actually approved.
      *
      * @return array{icon: ?int, photo: ?int}
@@ -305,7 +305,13 @@ class ElementorPageBuilderService
 
         $style = [];
         $classes = ['wp-block-button__link', 'wp-element-button'];
-        $inlineStyle = '';
+        // Without this, the button renders as a plain underlined hyperlink
+        // instead of a solid button — Gutenberg's own editor CSS strips the
+        // underline via its stylesheet, but that stylesheet isn't loaded on
+        // the live site unless a theme explicitly enqueues it, so a
+        // generated theme's own CSS is the only thing that can do it. Set
+        // inline rather than relying on that CSS existing/being correct.
+        $inlineStyle = 'text-decoration:none;display:inline-block;';
 
         if ($bgColor) {
             $style['color']['background'] = $bgColor;

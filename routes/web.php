@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\WebsiteBuilderController;
+use App\Http\Controllers\SeoBacklinkController;
+use App\Http\Controllers\MockupController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\requestOrderController;
 use Illuminate\Support\Facades\Route;
@@ -9,7 +12,6 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AboutController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ReportController;
-use App\Http\Controllers\SiteCleanupController;
 
 /*
 |--------------------------------------------------------------------------
@@ -40,65 +42,62 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/projects/{project}', [ProjectController::class, 'update'])->name('pages.projects.update');
     Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->name('pages.projects.destroy');
     Route::post('/projects/{project}/files', [ProjectController::class, 'storeFile'])->name('pages.projects.files.store');
+    // NOTE: destroyFile has no controller method yet (already missing
+    // before this route split — pre-existing, not caused by it).
     Route::delete('/projects/{project}/files/{file}', [ProjectController::class, 'destroyFile'])->name('pages.projects.files.destroy');
-    Route::put('/projects/{project}/mockup', [ProjectController::class, 'addmockupTemplate'])
-        ->name('pages.projects.mockup.add');
-
 
     Route::get(
         '/projects/{project}/proposal/preview',
-        [ProjectController::class, 'previewProposal']
+        [WebsiteBuilderController::class, 'previewProposal']
     )->name('pages.projects.proposal.preview');
 
     Route::get(
         '/projects/{project}/proposal/download',
-        [ProjectController::class, 'downloadProposal']
+        [WebsiteBuilderController::class, 'downloadProposal']
     )->name('pages.projects.proposal.download');
 
-    Route::delete('/projects/{project}/mockup/zipwp-site', [SiteCleanupController::class, 'destroy'])
-        ->name('pages.projects.mockup.zipwp-delete');
-
-
-
     // 5. AI Workspace
-    Route::get('/seo-backlink', [ProjectController::class, 'aiWorkspace'])->name('pages.seo-backlink');
-    Route::get('/workshop', [ProjectController::class, 'proposalWorkshop'])->name('pages.workshop');
-    Route::post('/seo-backlink/{project}/generate', [ProjectController::class, 'generateAiContent'])->name('pages.seo-backlink.generate');
-    Route::post('/projects/{project}/analyze-seo-backlink', [ProjectController::class, 'analyzeSeoBacklink'])
+    Route::get('/seo-backlink', [WebsiteBuilderController::class, 'aiWorkspace'])->name('pages.seo-backlink');
+    Route::get('/workshop', [WebsiteBuilderController::class, 'proposalWorkshop'])->name('pages.workshop');
+    // NOTE: generateAiContent has no controller method yet (already
+    // missing before this route split — pre-existing, not caused by it).
+    Route::post('/seo-backlink/{project}/generate', [WebsiteBuilderController::class, 'generateAiContent'])->name('pages.seo-backlink.generate');
+    Route::post('/projects/{project}/analyze-seo-backlink', [SeoBacklinkController::class, 'analyzeSeoBacklink'])
         ->name('pages.projects.seo-backlink.analyze');
-    Route::get('/projects/{project}/analyze-seo-backlink/status', [ProjectController::class, 'seoBacklinkStatus'])
+    Route::get('/projects/{project}/analyze-seo-backlink/status', [SeoBacklinkController::class, 'seoBacklinkStatus'])
         ->name('pages.projects.seo-backlink.status');
-    Route::post('/seo-backlink/preview/analyze', [ProjectController::class, 'analyzeSeoBacklinkPreview'])
+    Route::post('/seo-backlink/preview/analyze', [SeoBacklinkController::class, 'analyzeSeoBacklinkPreview'])
         ->name('pages.seo-backlink.preview.analyze');
-    Route::get('/seo-backlink/preview/status', [ProjectController::class, 'seoBacklinkPreviewStatus'])
+    Route::get('/seo-backlink/preview/status', [SeoBacklinkController::class, 'seoBacklinkPreviewStatus'])
         ->name('pages.seo-backlink.preview.status');
-    Route::post('/projects/{project}/pagespeed/analyze', [ProjectController::class, 'analyzePageSpeed'])
+    Route::post('/projects/{project}/pagespeed/analyze', [SeoBacklinkController::class, 'analyzePageSpeed'])
         ->name('pages.projects.pagespeed.analyze');
-    Route::get('/projects/{project}/pagespeed/status', [ProjectController::class, 'pageSpeedStatus'])
+    Route::get('/projects/{project}/pagespeed/status', [SeoBacklinkController::class, 'pageSpeedStatus'])
         ->name('pages.projects.pagespeed.status');
-    Route::post('/projects/{project}/search-console/analyze', [ProjectController::class, 'analyzeSearchConsole'])
+    Route::post('/projects/{project}/search-console/analyze', [SeoBacklinkController::class, 'analyzeSearchConsole'])
         ->name('pages.projects.search-console.analyze');
-    Route::post('/projects/{project}/ga4/analyze', [ProjectController::class, 'analyzeGoogleAnalytics'])
+    Route::post('/projects/{project}/ga4/analyze', [SeoBacklinkController::class, 'analyzeGoogleAnalytics'])
         ->name('pages.projects.ga4.analyze');
-    Route::get('/projects/{project}/seo-backlink/report/download', [ProjectController::class, 'downloadSeoBacklinkReport'])
+    Route::get('/projects/{project}/seo-backlink/report/download', [SeoBacklinkController::class, 'downloadSeoBacklinkReport'])
         ->name('pages.projects.seo-backlink.report.download');
-    Route::post('/projects/{project}/competitor-pagespeed/analyze', [ProjectController::class, 'analyzeCompetitorPageSpeed'])
+    Route::post('/projects/{project}/competitor-pagespeed/analyze', [SeoBacklinkController::class, 'analyzeCompetitorPageSpeed'])
         ->name('pages.projects.competitor-pagespeed.analyze');
-    Route::get('/projects/{project}/competitor-pagespeed/status', [ProjectController::class, 'competitorPageSpeedStatus'])
+    Route::get('/projects/{project}/competitor-pagespeed/status', [SeoBacklinkController::class, 'competitorPageSpeedStatus'])
         ->name('pages.projects.competitor-pagespeed.status');
-    Route::post('/projects/{project}/manual-screenshot', [ProjectController::class, 'uploadManualScreenshot'])
+    Route::post('/projects/{project}/manual-screenshot', [SeoBacklinkController::class, 'uploadManualScreenshot'])
         ->name('pages.projects.manual-screenshot.store');
-    Route::delete('/projects/{project}/manual-screenshot', [ProjectController::class, 'deleteManualScreenshot'])
+    Route::delete('/projects/{project}/manual-screenshot', [SeoBacklinkController::class, 'deleteManualScreenshot'])
         ->name('pages.projects.manual-screenshot.destroy');
-    Route::get('/projects/{project}/seo-proposal/download', [ProjectController::class, 'downloadSeoProposal'])
+    Route::get('/projects/{project}/seo-proposal/download', [SeoBacklinkController::class, 'downloadSeoProposal'])
         ->name('pages.projects.seo-proposal.download');
-    Route::post('/projects/{project}/competitors/select', [ProjectController::class, 'selectCompetitors'])
+    Route::post('/projects/{project}/competitors/select', [SeoBacklinkController::class, 'selectCompetitors'])
         ->name('pages.projects.competitors.select');
-    Route::post('/projects/{project}/keywords/select', [ProjectController::class, 'selectKeywords'])
+    Route::post('/projects/{project}/keywords/select', [SeoBacklinkController::class, 'selectKeywords'])
         ->name('pages.projects.keywords.select');
 
-    // 6. Mockup
-    Route::get('/mockup', [ProjectController::class, 'mockupTemplates'])->name('pages.mockup');
+    // 6. Mockup (browsing gallery only — not wired to the active proposal
+    // pipeline, kept because it may be reused later)
+    Route::get('/mockup', [MockupController::class, 'index'])->name('pages.mockup');
 
     // 7. Website
     Route::get('/website', function () {
@@ -129,12 +128,12 @@ Route::middleware(['auth'])->group(function () {
 
     // 10. Proposal
 
-    Route::post('/projects/{project}/proposal/generate', [ProjectController::class, 'generateProposal'])->name('pages.projects.proposal.generate');
-    Route::get('/projects/{project}/proposal/status', [ProjectController::class, 'proposalStatus'])
+    Route::post('/projects/{project}/proposal/generate', [WebsiteBuilderController::class, 'generateProposal'])->name('pages.projects.proposal.generate');
+    Route::get('/projects/{project}/proposal/status', [WebsiteBuilderController::class, 'proposalStatus'])
         ->name('pages.projects.proposal.status');
-    Route::post('/projects/{project}/proposal/approve', [ProjectController::class, 'approveProposal'])
+    Route::post('/projects/{project}/proposal/approve', [WebsiteBuilderController::class, 'approveProposal'])
         ->name('pages.projects.proposal.approve');
-    Route::post('/projects/{project}/proposal/mockup/select', [ProjectController::class, 'selectMockup'])
+    Route::post('/projects/{project}/proposal/mockup/select', [WebsiteBuilderController::class, 'selectMockup'])
         ->name('pages.projects.proposal.mockup.select');
 
     // WordPress bundle workflow

@@ -45,15 +45,13 @@ class GenerateKeywordRecommendationsJob implements ShouldQueue
      * 1. seo_requirements.target_url (URL asli client, diisi tim di form)
      * 2. backlink_requirements.target_url (kalau tim cuma pilih layanan
      *    Backlink tanpa SEO, seo_requirements bisa saja kosong)
-     * 3. mockupTemplate.source_url (situs yang KITA bikinkan)
-     * Kalau ketiganya kosong, tidak bisa lanjut.
+     * Kalau keduanya kosong, tidak bisa lanjut.
      */
     private function resolveWebsiteUrl(): ?string
     {
         $project = $this->project;
         return $project->seo_requirements['target_url']
             ?? $project->backlink_requirements['target_url']
-            ?? $project->mockupTemplate?->source_url
             ?? null;
     }
 

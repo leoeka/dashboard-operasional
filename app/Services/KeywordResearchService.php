@@ -26,7 +26,7 @@ use Illuminate\Support\Facades\Http;
  * - Mode PREVIEW (RunKeywordPreviewAnalysisJob): dipanggil SEBELUM
  *   client/project dibuat — $context di sini adalah objek Project yang
  *   BELUM disimpan (->exists tetap false), cuma dipakai sebagai "wadah"
- *   konteks (nama bisnis, tipe, lokasi) karena AiServices memang
+ *   konteks (nama bisnis, tipe, lokasi) karena AnalisisGeminiService memang
  *   menerima objek Project, bukan string lepas. Hasilnya disimpan oleh
  *   caller ke Cache, bukan ke database.
  */
@@ -40,7 +40,7 @@ class KeywordResearchService
     private const CANDIDATE_COUNT = 25;
 
     public function __construct(
-        private AiServices $aiService,
+        private AnalisisGeminiService $aiService,
         private CompetitorContentFetcher $fetcher,
         private CompetitorDiscoveryService $discovery,
         private SearchConsoleService $searchConsole,
@@ -135,11 +135,11 @@ class KeywordResearchService
         }
 
         // TAHAP 5 — Gemini perluas kandidat.
-        // Kandidat mentah dari AiServices sebaiknya > CANDIDATE_COUNT
+        // Kandidat mentah dari AnalisisGeminiService sebaiknya > CANDIDATE_COUNT
         // (mis. 40-an) supaya tahap 7 punya cukup bahan untuk ranking,
         // bukan cuma pas-pasan 25. Kalau expandSeedKeywords() saat ini
         // dibatasi hasilkan persis ~10-15, itu perlu diubah juga di
-        // AiServices (di luar file ini) supaya jumlah kandidat mentahnya
+        // AnalisisGeminiService (di luar file ini) supaya jumlah kandidat mentahnya
         // lebih besar dari 25.
         $report('running', 60, 'AI memperluas daftar kandidat keyword...');
         $candidates = $this->aiService->expandSeedKeywords($context, $seedKeywords, $competitorContents);

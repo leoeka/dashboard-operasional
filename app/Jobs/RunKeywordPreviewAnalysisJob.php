@@ -57,7 +57,7 @@ class RunKeywordPreviewAnalysisJob implements ShouldQueue
 
         // Project SENGAJA TIDAK disimpan (->exists tetap false) — cuma
         // dipakai sebagai wadah konteks (nama, tipe, lokasi) untuk
-        // AiServices, karena prompt-nya memang menerima objek Project.
+        // AnalisisGeminiService, karena prompt-nya memang menerima objek Project.
         $context = new Project([
             'name' => $this->businessName ?: '',
             'type' => $this->businessType ?: '',

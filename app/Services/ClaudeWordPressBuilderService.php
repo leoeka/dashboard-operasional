@@ -223,6 +223,46 @@ class ClaudeWordPressBuilderService
             . implode("\n", $lines) . "\n";
     }
 
+    /**
+     * Exact measurements pulled from resources/views/pdf/mockup-render.blade.php
+     * — the same template used to render the PNG the client approved — so
+     * Claude reproduces the chrome (nav bar, footer) with the identical
+     * proportions instead of a generic/looser interpretation of "the mood".
+     * The page body itself doesn't need this (it's built deterministically
+     * by ElementorPageBuilderService using these same numbers), but header.php
+     * and footer.php are entirely Claude's own code, so this is the only way
+     * they end up actually matching instead of merely being on-brand.
+     */
+    private function chromeDesignSpec(array $design): string
+    {
+        $primary = $design['primary_color'] ?? '#1F2937';
+        $secondary = $design['secondary_color'] ?? '#F8FAFC';
+        $accent = $design['accent_color'] ?? '#2563EB';
+        $fontHeading = $design['font_heading'] ?? 'Georgia';
+        $fontBody = $design['font_body'] ?? 'Arial';
+
+        return <<<SPEC
+
+CHROME DESIGN SPEC — the exact layout the approved PNG mockup uses for its nav bar and footer (built from the same design tokens: primary {$primary}, secondary {$secondary}, accent {$accent}, heading font {$fontHeading}, body font {$fontBody}). Match these measurements, not just the colors:
+
+Nav bar (header.php):
+- Sits in the page's normal document flow at the very top (do NOT use `position: fixed` or `position: sticky` — it must scroll away with the page, not overlay the hero section below it). White background, ~94px min-height, horizontal padding ~74px (scale down responsively).
+- Left: logo image (if supplied) + site name, bold, heading font, ~22px.
+- Right: page links (from wp_list_pages as instructed above) with ~32px gap between them, then a pill-shaped CTA button — background {$accent}, white text, ~13px 22px padding, border-radius 8px, bold, no underline.
+- A subtle 1px bottom border (very light, e.g. rgba(0,0,0,.06)) — no heavy box-shadow.
+
+Footer (footer.php):
+- Full-width band, background #1c1a17 (dark, near-black — not pure black, not the brand's primary color), light gray/cream text (~#cfc8bd).
+- 3-column grid (`display:grid;grid-template-columns:2fr 1fr 1fr;gap:36px`, stacking to 1 column on mobile): column 1 = brand name + short description; column 2 = "Navigasi" heading (uppercase, small, letter-spaced) + the same page list as the nav; column 3 = "Kontak" heading + contact info.
+- Below the 3-column grid, a full-width thin band, background slightly darker (#151310), centered small copyright line: "© {current year} {site name}. All rights reserved."
+- Headings inside the footer columns: uppercase, ~14px, letter-spacing 1px, muted color (~#c9c2b8) — not the same size/weight as body headings.
+
+Overall page chrome:
+- Body font: '{$fontBody}'. Heading font: '{$fontHeading}' for site name and footer/nav headings.
+- No visible gap/margin between header, the page content, and footer — they should sit flush against each other, matching a single continuous page the way the approved mockup does.
+SPEC;
+    }
+
     private function friendlyError(string $message): string
     {
         $lowerMessage = strtolower($message);
@@ -254,6 +294,7 @@ class ClaudeWordPressBuilderService
         ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
         $assetsSection = $this->describeAssets($bundle['assets'] ?? []);
+        $chromeSpec = $this->chromeDesignSpec($bundle['mockup']['design'] ?? []);
 
         return <<<PROMPT
 Build an install-ready WordPress package for this approved client project.
@@ -272,6 +313,7 @@ IMPORTANT — a separate, deterministic step (not you) already appends page-crea
 - Nothing in this build creates or assigns a WordPress navigation menu (Appearance > Menus) — do NOT call `wp_nav_menu()` in header.php or footer.php, it can silently render an unrelated leftover menu from a previous site setup instead of this project's own pages. Build the nav from the real pages directly instead, e.g. `wp_list_pages(['title_li' => '', 'sort_column' => 'menu_order'])` inside a `<ul>`, so it always reflects exactly the pages this build actually created.
 - `style.css` must still style the site chrome (header/nav/footer, colors, typography, buttons) AND give sensible default styling to plain content HTML rendered inside `the_content()` — real `<h1>`-`<h6>`, `<p>`, `<ul>`/`<li>`, `<a>` elements, plus these utility classes used by the plain-content fallback: `.exito-section`, `.exito-grid` (a responsive card grid), `.exito-card`, `.exito-button`. Do not assume there's no content inside `the_content()` — style it properly, matching the approved mockup's spacing/typography/color mood.
 - Do NOT write any page-creation, `wp_insert_post`, or activation-import logic yourself in functions.php — that is appended separately and automatically after your functions.php, and would only risk duplicating or conflicting with it.
+{$chromeSpec}
 
 Return ONLY this JSON shape (theme files only — there is no plugin):
 {"files":{"exito-client-theme/style.css":"...","exito-client-theme/functions.php":"...","exito-client-theme/index.php":"...","exito-client-theme/front-page.php":"...","exito-client-theme/page.php":"...","exito-client-theme/header.php":"...","exito-client-theme/footer.php":"...","exito-client-theme/assets/theme.json":"...","README.md":"..."}}
@@ -279,7 +321,7 @@ Return ONLY this JSON shape (theme files only — there is no plugin):
 Rules:
 - Generate valid WordPress PHP files with a safe unique prefix: exito_client_.
 - The theme must be installable as a normal WordPress theme and render the approved content without external build tools.
-- Recreate the approved mockup's visual language faithfully in header.php/footer.php and style.css: navigation, spacing rhythm, typography mood, color palette, and footer structure. The Home/About/Services/Contact section content itself comes from the_content() as explained above — don't duplicate it as static markup.
+- header.php/footer.php/style.css MUST follow the exact measurements given in "CHROME DESIGN SPEC" below — not a loose interpretation of the mockup's "mood". The Home/About/Services/Contact section content itself comes from the_content() as explained above — don't duplicate it as static markup.
 - If this is an ecommerce project, include WooCommerce-friendly styling hooks, but do not invent products beyond the supplied content.
 - Use escaped output, wp_enqueue_style, wp_head, wp_footer, and standard WordPress APIs.
 - Use semantic HTML, responsive CSS, CSS variables for the supplied colors, polished buttons, and accessible navigation. Do not use placeholder text or a bare unstyled page.

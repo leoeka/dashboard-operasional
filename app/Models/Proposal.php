@@ -12,9 +12,4 @@ class Proposal extends Model
     {
         return $this->belongsTo(Project::class);
     }
-
-    public function mockupTemplate()
-    {
-        return $this->belongsTo(MockupTemplate::class);
-    }
 }

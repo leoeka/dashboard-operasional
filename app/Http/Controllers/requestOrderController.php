@@ -121,7 +121,7 @@ class requestOrderController extends Controller
             // 'requirement_notes' yang BUKAN kolom asli di tabel projects
             // (tidak ada di migration maupun $fillable) — jadi selalu hilang
             // diam-diam dan tidak pernah sampai ke prompt AI. Sekarang disimpan
-            // sebagai kolom sendiri supaya bisa dipakai AiServices.
+            // sebagai kolom sendiri supaya bisa dipakai GenerateMockupGptService.
             if ($wantsWebsite) {
                 $referencePath = null;
                 if ($request->hasFile('design_reference_file')) {

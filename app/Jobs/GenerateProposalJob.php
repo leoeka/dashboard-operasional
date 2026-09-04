@@ -3,10 +3,11 @@
 namespace App\Jobs;
 
 use App\Models\Project;
-use App\Services\AiServices;
+use App\Services\GenerateMockupGptService;
+use App\Services\AnalisisGeminiService;
 use App\Services\CompetitorDiscoveryService;
 use App\Services\CompetitorContentFetcher;
-use App\Http\Controllers\ProjectController;
+use App\Http\Controllers\WebsiteBuilderController;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -32,15 +33,16 @@ class GenerateProposalJob implements ShouldQueue
     }
 
     public function handle(
-        AiServices $aiService,
+        GenerateMockupGptService $aiService,
+        AnalisisGeminiService $geminiService,
         CompetitorDiscoveryService $competitorDiscovery,
         CompetitorContentFetcher $contentFetcher
     ): void {
         // TAMBAHKAN BARIS INI DI SINI
         set_time_limit(0);
 
-        $controller = app(ProjectController::class);
-        $controller->runProposalGeneration($this->project, $aiService, $competitorDiscovery, $contentFetcher);
+        $controller = app(WebsiteBuilderController::class);
+        $controller->runProposalGeneration($this->project, $aiService, $geminiService, $competitorDiscovery, $contentFetcher);
     }
 
     public function failed(Throwable $exception): void
