@@ -106,6 +106,9 @@ class ElementorPageBuilderService
         // colors (e.g. a bright pink) that never appeared in what the client
         // actually approved.
         $altBandColor = '#F6F4F0';
+        $layoutVariant = in_array($design['layout_variant'] ?? null, ['split-right', 'split-left', 'overlay-bg'], true)
+            ? $design['layout_variant']
+            : 'split-right';
 
         $heroFilename = $images['hero'] ?? null;
         $itemFilenames = $images['items'] ?? [];
@@ -131,7 +134,8 @@ class ElementorPageBuilderService
                     $cta ? (string) $cta : null,
                     $heroFilename,
                     $primary,
-                    $accent
+                    $accent,
+                    $layoutVariant
                 );
                 continue;
             }
@@ -222,7 +226,17 @@ class ElementorPageBuilderService
      * (two columns) when one was generated — mirrors .hero in
      * mockup-render.blade.php instead of just stacking plain text.
      */
-    private function gbHero(string $heading, string $description, ?string $cta, ?string $heroImage, string $primary, string $accent): string
+    /**
+     * Mirrors mockup-render.blade.php's 3 layout variants (see
+     * layout_variant in GenerateMockupGptService::generateMockupCandidates())
+     * so the built WordPress page structurally matches whichever option the
+     * client actually approved, not just its colors:
+     * - split-right (default): copy left / photo right, two columns.
+     * - split-left: mirrored — photo left / copy right.
+     * - overlay-bg: photo as a full-bleed wp:cover background with a dim
+     *   overlay, copy centered on top of it.
+     */
+    private function gbHero(string $heading, string $description, ?string $cta, ?string $heroImage, string $primary, string $accent, string $layoutVariant = 'split-right'): string
     {
         $textColor = $this->isLightColor($primary) ? '#1c1a17' : '#ffffff';
 
@@ -241,19 +255,61 @@ class ElementorPageBuilderService
             return '';
         }
 
+        if ($heroImage && $layoutVariant === 'overlay-bg') {
+            return $this->gbCoverHero($copy, $heroImage, $primary);
+        }
+
         if ($heroImage) {
+            $copyWidth = $layoutVariant === 'split-left' ? '45%' : '55%';
+            $imageWidth = $layoutVariant === 'split-left' ? '55%' : '45%';
             $imageBlock = $this->gbImage($heroImage, 'large');
-            $colWidths = json_encode(['width' => '55%'], JSON_UNESCAPED_SLASHES);
-            $colWidthsImg = json_encode(['width' => '45%'], JSON_UNESCAPED_SLASHES);
-            $inner = "<!-- wp:columns -->\n<div class=\"wp-block-columns\">\n"
-                . "<!-- wp:column {$colWidths} -->\n<div class=\"wp-block-column\" style=\"flex-basis:55%\">\n{$copy}</div>\n<!-- /wp:column -->\n\n"
-                . "<!-- wp:column {$colWidthsImg} -->\n<div class=\"wp-block-column\" style=\"flex-basis:45%\">\n{$imageBlock}</div>\n<!-- /wp:column -->\n\n"
-                . "</div>\n<!-- /wp:columns -->\n\n";
+            $colWidthsCopy = json_encode(['width' => $copyWidth], JSON_UNESCAPED_SLASHES);
+            $colWidthsImg = json_encode(['width' => $imageWidth], JSON_UNESCAPED_SLASHES);
+            $copyColumn = "<!-- wp:column {$colWidthsCopy} -->\n<div class=\"wp-block-column\" style=\"flex-basis:{$copyWidth}\">\n{$copy}</div>\n<!-- /wp:column -->\n\n";
+            $imageColumn = "<!-- wp:column {$colWidthsImg} -->\n<div class=\"wp-block-column\" style=\"flex-basis:{$imageWidth}\">\n{$imageBlock}</div>\n<!-- /wp:column -->\n\n";
+            $columns = $layoutVariant === 'split-left' ? ($imageColumn . $copyColumn) : ($copyColumn . $imageColumn);
+            $inner = "<!-- wp:columns -->\n<div class=\"wp-block-columns\">\n{$columns}</div>\n<!-- /wp:columns -->\n\n";
         } else {
             $inner = $copy;
         }
 
         return $this->gbSection($inner, $primary);
+    }
+
+    /**
+     * The "overlay-bg" hero variant: a native wp:cover block with the hero
+     * photo as its background image, a dim overlay in the brand's primary
+     * color, and the heading/description/CTA centered on top — the same
+     * effect as mockup-render.blade.php's `.hero.overlay-bg`. Uses wp:cover
+     * specifically (rather than a styled wp:group) because it's the block
+     * WordPress itself ships for exactly this "background image + dim +
+     * centered content" pattern, so it edits normally in the Block Editor.
+     */
+    private function gbCoverHero(string $innerCopy, string $heroImage, string $primary): string
+    {
+        $token = "__EXITO_IMAGE:{$heroImage}__";
+        $attrs = json_encode([
+            'url' => $token,
+            'dimRatio' => 60,
+            'overlayColor' => null,
+            'customOverlayColor' => $primary,
+            'minHeight' => 480,
+            'contentPosition' => 'center center',
+        ], JSON_UNESCAPED_SLASHES);
+
+        // The marker span wraps ONLY the <img> tag (same convention as
+        // gbImage()) — not the whole wp:cover block — so a failed/missing
+        // photo just leaves a solid-color cover band (dim span still has
+        // the brand color as its background) instead of losing the
+        // headline/description/CTA that live inside the same block.
+        return "<!-- wp:cover {$attrs} -->\n"
+            . "<div class=\"wp-block-cover\" style=\"min-height:480px\">"
+            . "<span aria-hidden=\"true\" class=\"wp-block-cover__background has-background-dim-60 has-background-dim\" style=\"background-color:{$primary}\"></span>"
+            . "<!--EXITO_IMG_START:{$heroImage}-->"
+            . "<img class=\"wp-block-cover__image-background\" alt=\"\" src=\"{$token}\" data-object-fit=\"cover\"/>"
+            . "<!--EXITO_IMG_END:{$heroImage}-->"
+            . "<div class=\"wp-block-cover__inner-container\">\n{$innerCopy}</div>"
+            . "</div>\n<!-- /wp:cover -->\n\n";
     }
 
     private function gbHeading(string $text, int $level = 2, ?string $color = null): string

@@ -199,6 +199,17 @@ PROMPT;
             'Option 2 - Modern & confident: clean conversion-focused composition, strong grid, crisp sans-serif typography, bold decisive layout choices.',
             'Option 3 - Calm & approachable: soft rounded cards, friendly approachable hierarchy, understated photography, airy layout.',
         ];
+
+        // A real STRUCTURAL layout per option, not just a color/font
+        // difference — assigned deterministically (not left to GPT) so
+        // each render is guaranteed one of these three known-good,
+        // fully-tested arrangements instead of an unpredictable one. This
+        // is what was actually making every option feel "kaku" (rigid):
+        // the design tokens varied, but mockup-render.blade.php's actual
+        // hero/section markup never did. See layout_variant handling in
+        // mockup-render.blade.php and ElementorPageBuilderService.
+        $layoutVariants = ['split-right', 'overlay-bg', 'split-left'];
+
         $count = max(2, min(3, (int) config('services.openai.mockup_candidate_count', 3)));
         $candidates = [];
 
@@ -210,6 +221,7 @@ PROMPT;
             // builder — gets guaranteed strings too, not just the mockup
             // PNG render. See normalizeMockupForRender()'s docblock.
             $candidate = $this->normalizeMockupForRender($candidate);
+            $candidate['design']['layout_variant'] = $layoutVariants[$index % count($layoutVariants)];
             $candidate['candidate_number'] = $index + 1;
             $candidate['candidate_label'] = str_replace('Option ' . ($index + 1) . ' - ', '', $visualDirections[$index]);
             $candidate['client_logo_path'] = $project->client?->logo_path
