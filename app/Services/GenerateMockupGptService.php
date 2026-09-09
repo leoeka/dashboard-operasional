@@ -6,6 +6,7 @@ use App\Models\Project;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 /**
  * All GPT/OpenAI calls: the mockup design pass (colors/typography per
@@ -237,17 +238,24 @@ PROMPT;
     }
 
     /**
-     * Renders the mockup as a real HTML/CSS page (design tokens, actual
-     * copy, a guaranteed-present footer) and screenshots it — instead of
-     * asking gpt-image-1 to draw an entire multi-section webpage as one
-     * image. That approach was repeatedly cropping the footer mid-section
-     * and inventing content/imagery that wasn't in the blueprint (an
-     * inherent limitation of single-shot image generation for a complex,
-     * text-heavy, precisely-laid-out composition — no amount of prompt
-     * wording fixed it reliably). HTML capture cannot crop: Browsershot
-     * screenshots the full scrollable page height. AI is only asked to
-     * draw individual product/hero PHOTOS (generateMockupPhotos()), which
-     * is a task it's actually reliable at.
+     * Asks GPT's image model to draw the ENTIRE homepage — header, every
+     * section from Gemini's blueprint in order, footer — as one tall
+     * design comp PNG that goes straight into the proposal.
+     *
+     * Per explicit product decision (2026-09): the client only needs to
+     * *picture* the layout and see their brand's shape end to end, so
+     * exact copy fidelity inside the image is NOT required. This replaced
+     * the previous "render pdf.mockup-render as HTML + Browsershot
+     * screenshot + individually AI-generated section photos" pipeline —
+     * that round-trip (and the later GPT-reads-PNG-into-manifest +
+     * Claude-rebuilds hops) is what kept producing WordPress themes whose
+     * design didn't match the approved mockup.
+     *
+     * Note: normalizeMockupForRender(), pickMockupSections(),
+     * generateMockupPhotos()/generateMockupPhotoDataUrls(),
+     * clientLogoDataUrl(), and the pdf.mockup-render / pdf.mockup-screenshot
+     * Blade views are no longer on this path — left in place for now,
+     * pending a separate cleanup pass.
      */
     public function generateMockupImage(Project $project, array $analysis, array $mockup, int $candidateNumber = 1, string $visualDirection = ''): ?string
     {
@@ -256,44 +264,114 @@ PROMPT;
             throw new \RuntimeException('OPENAI_API_KEY belum tersedia untuk membuat PNG mockup.');
         }
 
-        // GPT's JSON doesn't always match the requested schema exactly —
-        // a "headline"/"description"/"cta"/"global_cta" field sometimes
-        // comes back as an array instead of a string. Normalize every
-        // text-bearing field to a real string ONCE, up front, so nothing
-        // downstream (section picking, photo prompts, and Blade's
-        // {{ }} which calls htmlspecialchars() and fatals on a non-string)
-        // has to guess or re-check.
         $mockup = $this->normalizeMockupForRender($mockup);
+        $prompt = $this->buildMockupImagePrompt($project, $analysis, $mockup, $visualDirection);
 
-        $pages = is_array($mockup['pages'] ?? null) ? $mockup['pages'] : [];
-        $home = collect($pages)->first(fn ($page) => is_array($page) && strtolower((string) ($page['name'] ?? '')) === 'home') ?? ($pages[0] ?? []);
-        $homeSections = is_array($home['sections'] ?? null) ? array_values($home['sections']) : [];
-        $hero = $homeSections[0] ?? [];
-        $picked = $this->pickMockupSections($homeSections);
-        $photos = $this->generateMockupPhotos($project, $hero, $picked['photo'], $visualDirection);
-
-        $html = view('pdf.mockup-render', [
-            'project' => $project,
-            'mockup' => $mockup,
-            'design' => is_array($mockup['design'] ?? null) ? $mockup['design'] : [],
-            'pages' => $pages,
-            'homeSections' => $homeSections,
-            'hero' => $hero,
-            'iconSection' => $picked['icon'],
-            'photoSection' => $picked['photo'],
-            'heroPhoto' => $photos['hero'],
-            'itemPhotos' => $photos['items'],
-            'logoDataUrl' => $this->clientLogoDataUrl($project),
-        ])->render();
-
-        $path = 'mockups/' . $project->code . '-gpt-option-' . $candidateNumber . '.png';
-        $saved = $this->screenshotService->captureHtml($html, $path);
-
-        if (!$saved) {
-            throw new \RuntimeException('Gagal merender PNG mockup (Browsershot).');
+        try {
+            $response = Http::timeout(240)
+                ->withToken($apiKey)
+                ->asJson()
+                ->post('https://api.openai.com/v1/images/generations', [
+                    'model' => config('services.openai.mockup_image_model', 'gpt-image-1'),
+                    'prompt' => $this->toSafeAscii($prompt),
+                    'size' => config('services.openai.mockup_image_size', '1024x1536'),
+                    'quality' => config('services.openai.mockup_image_quality', 'medium'),
+                    'output_format' => 'png',
+                ]);
+        } catch (\Throwable $e) {
+            Log::error('GenerateMockupGptService: request gambar mockup gagal.', [
+                'project_id' => $project->id,
+                'candidate' => $candidateNumber,
+                'error' => $e->getMessage(),
+            ]);
+            throw new \RuntimeException('Gagal membuat PNG mockup dari GPT image: ' . $e->getMessage(), 0, $e);
         }
 
-        return $saved;
+        if (!$response->successful()) {
+            Log::error('GenerateMockupGptService: OpenAI menolak request gambar mockup.', [
+                'project_id' => $project->id,
+                'candidate' => $candidateNumber,
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            throw new \RuntimeException('OpenAI image API error: ' . $response->body());
+        }
+
+        $base64 = $response->json('data.0.b64_json');
+        $bytes = $base64 ? base64_decode($base64, true) : null;
+        if (!$bytes) {
+            throw new \RuntimeException('OpenAI tidak mengembalikan data gambar mockup.');
+        }
+
+        $path = 'mockups/' . $project->code . '-gpt-option-' . $candidateNumber . '.png';
+        Storage::disk('public')->put($path, $bytes);
+
+        return $path;
+    }
+
+    /**
+     * Builds the image-generation prompt for one candidate: brand + concept
+     * from Gemini's analysis, the ordered section list from the (already
+     * final) blueprint, and this candidate's design tokens / layout
+     * variant / visual direction so the 3 options come out genuinely
+     * different, not recolored copies of each other.
+     */
+    private function buildMockupImagePrompt(Project $project, array $analysis, array $mockup, string $visualDirection): string
+    {
+        $design = is_array($mockup['design'] ?? null) ? $mockup['design'] : [];
+        $primary = $design['primary_color'] ?? '#1F2937';
+        $secondary = $design['secondary_color'] ?? '#F8FAFC';
+        $accent = $design['accent_color'] ?? '#2563EB';
+        $fontHeading = $design['font_heading'] ?? 'a modern serif';
+        $fontBody = $design['font_body'] ?? 'a clean sans-serif';
+        $style = $design['style'] ?? 'modern, clean, professional';
+        $layoutHint = match ($design['layout_variant'] ?? null) {
+            'overlay-bg' => 'Hero is a full-bleed background photo with a dark overlay and centered white text.',
+            'split-left' => 'Hero puts the photo on the left and the copy on the right; cards are softly rounded with shadows.',
+            default => 'Hero puts the copy on the left and a photo on the right; cards are bordered in an even grid.',
+        };
+
+        $brand = $project->client?->company_name ?: ($project->client_name ?: $project->name);
+        $type = $project->type ?: 'business';
+        $globalCta = $mockup['global_cta'] ?? 'Get Started';
+
+        $home = collect($mockup['pages'] ?? [])
+            ->first(fn ($p) => is_array($p) && strtolower((string) ($p['name'] ?? '')) === 'home')
+            ?? data_get($mockup, 'pages.0', []);
+        $sections = is_array($home['sections'] ?? null) ? array_values($home['sections']) : [];
+
+        // Section HEADINGS only — never the body copy. Feeding GPT's image
+        // model paragraphs of real copy just makes it try to typeset them
+        // and produce gibberish; short labels it renders cleanly.
+        $sectionLabels = [];
+        foreach ($sections as $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+            $label = trim((string) ($section['headline'] ?? $section['name'] ?? ''));
+            if ($label !== '') {
+                $sectionLabels[] = Str::limit($label, 46, '');
+            }
+        }
+        $sectionList = implode(', ', array_slice($sectionLabels, 0, 5) ?: ['Hero', 'About', 'Services', 'Contact']);
+
+        $navLinks = collect($mockup['pages'] ?? [])->pluck('name')->filter()->take(5)->implode(', ')
+            ?: 'Home, About, Services, Contact';
+
+        $variantLine = trim($visualDirection) !== '' ? " Design direction: {$visualDirection}." : '';
+
+        return <<<PROMPT
+A polished, high-fidelity website homepage design mockup for "{$brand}", a {$type}. One cohesive desktop page shown top to bottom, like a premium product design shot.
+
+It MUST begin, at the very top edge, with a navigation bar: "{$brand}" logo on the left, the links ({$navLinks}), and a filled "{$globalCta}" button on the right.
+Then a hero: one big headline, one short sub-line, one button, with a real photo.
+Then these sections, in order, each a compact band: {$sectionList}.
+It MUST end, at the very bottom edge, with a full-width footer on a darker background: brand name, a short column of links, and contact info.
+
+Visual style: {$style}. Primary color {$primary}, page background {$secondary}, accent {$accent} on buttons.{$variantLine} Headings look like {$fontHeading}; body text like {$fontBody}. {$layoutHint}
+
+Use only short, real, correctly spelled labels and 3-6 word headings — NO paragraphs, NO lorem ipsum, NO dummy text blocks. Realistic photography, generous whitespace, consistent spacing, crisp modern UI. No browser chrome, no address bar, no cursor, no rulers or annotations.
+PROMPT;
     }
 
     /**

@@ -30,12 +30,15 @@ class BundleBuilderService
         $mockup = $proposalData['mockup'] ?? [];
         $mockupPages = $mockup['pages'] ?? [];
 
-        // TEMPORARY, per explicit request: build only the Home page for now
-        // so the layout can be verified/matched against the approved
-        // mockup one page at a time, instead of every page (About/Services/
-        // Contact/...) at once. Remove this slice to build the full
-        // sitemap again once Home looks right.
-        $mockupPages = array_slice($mockupPages, 0, 1);
+        // Build the full approved sitemap (Home, About, Services, Contact,
+        // ...) by default. services.bundle.page_limit can cap this to the
+        // first N pages — set BUNDLE_PAGE_LIMIT=1 to build Home only while a
+        // layout change is being matched against the approved mockup one
+        // page at a time.
+        $pageLimit = (int) config('services.bundle.page_limit', 0);
+        if ($pageLimit > 0) {
+            $mockupPages = array_slice($mockupPages, 0, $pageLimit);
+        }
 
         // A few real, on-topic photos (hero + some items) generated via
         // OpenAI, bounded by services.openai.section_image_count. Wrapped in

@@ -47,6 +47,17 @@ return [
         'section_image_model' => env('OPENAI_SECTION_IMAGE_MODEL', 'gpt-image-1'),
         'section_image_quality' => env('OPENAI_SECTION_IMAGE_QUALITY', 'low'),
         'section_image_count' => env('OPENAI_SECTION_IMAGE_COUNT', 6),
+        // Full-page proposal mockup — GPT's image model draws the whole
+        // homepage (header, every section, footer) as one tall comp PNG,
+        // instead of rendering HTML and screenshotting it. Bigger/slower
+        // than a section photo: quality 'medium'/'high' and a portrait size
+        // are the knobs worth tuning. Sizes: 1024x1024 | 1024x1536 |
+        // 1536x1024. Quality: low | medium | high.
+        'mockup_image_model' => env('OPENAI_MOCKUP_IMAGE_MODEL', 'gpt-image-1'),
+        'mockup_image_size' => env('OPENAI_MOCKUP_IMAGE_SIZE', '1024x1536'),
+        // 'high' is what makes text render legibly — 'medium'/'low' turn
+        // any label longer than a word into gibberish. Costs more per image.
+        'mockup_image_quality' => env('OPENAI_MOCKUP_IMAGE_QUALITY', 'high'),
     ],
 
     'anthropic' => [
@@ -66,6 +77,16 @@ return [
     ],
 
     'proposal_ai_enabled' => env('PROPOSAL_AI_ENABLED', true),
+
+    'bundle' => [
+        // How many pages of the approved mockup the WordPress bundle
+        // actually builds, counted from the first (Home). 0 = all pages in
+        // the approved sitemap (Home, About, Services, Contact, ...). Set to
+        // 1 to build Home only — useful while a layout change is being
+        // matched against the approved mockup one page at a time. See
+        // BundleBuilderService::build().
+        'page_limit' => (int) env('BUNDLE_PAGE_LIMIT', 0),
+    ],
 
     'zipwp' => [
         'token' => env('ZIPWP_API_TOKEN'),
