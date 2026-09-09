@@ -425,7 +425,7 @@
                 $isConnected = false; // TODO: ganti jadi cek kolom wp_application_password setelah fitur Connect Website dibangun
 
                 $connectHint = match (true) {
-                    $cmsPlatform === 'baru' => 'Get the username & password from the ZipWP sandbox dashboard, then paste them here.',
+                    $cmsPlatform === 'baru' => 'This is a freshly built site — get the WordPress admin username & password from whoever set it up, then paste them here.',
                     $cmsPlatform === 'wordpress' => 'Request WordPress access from the client, then paste it here.',
                     in_array($cmsPlatform, ['shopify', 'wix']) => 'This platform (' . ucfirst($cmsPlatform) . ') is not yet supported for automatic publishing — articles will be provided for manual download/copy.',
                     default => 'Ask the client about their website platform to enable automatic publishing.',
@@ -436,7 +436,7 @@
                     ->filter()
                     ->values();
 
-                $resolvedUrl = $seo['target_url'] ?? $backlink['target_url'] ?? optional($project->mockupTemplate)->source_url ?? null;
+                $resolvedUrl = $seo['target_url'] ?? $backlink['target_url'] ?? null;
                 $aiRecommendations = $seo['ai_recommendations'] ?? null;
                 $aiTopics = $seo['ai_identified_topics'] ?? null;
                 $discoveredCompetitors = collect(explode("\n", $seo['competitors'] ?? ''))
