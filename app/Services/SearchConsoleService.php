@@ -10,9 +10,10 @@ use Illuminate\Support\Facades\Log;
  * Ambil data performa pencarian (klik, tayang, CTR, posisi, top query)
  * dari Google Search Console — pakai 1 akun kantor yang sudah punya
  * akses ke Search Console banyak client sekaligus (bukan akun per-
- * client). Sama polanya seperti GoogleAdsKeywordService: refresh token
- * disimpan di .env, gagal secara HALUS (return null) kalau kredensial
- * belum lengkap — tidak bikin fitur lain ikut gagal.
+ * client). Refresh token disimpan di .env, gagal secara HALUS (return
+ * null) kalau kredensial belum lengkap — tidak bikin fitur lain ikut
+ * gagal. Ini juga satu-satunya sumber data volume/performa keyword yang
+ * dipakai sistem (Google Ads Keyword Planner sengaja tidak dipakai).
  */
 class SearchConsoleService
 {
