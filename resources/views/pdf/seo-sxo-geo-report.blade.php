@@ -92,6 +92,42 @@
 <h2>SEO</h2>
 @include('pdf.partials.seo-sxo-geo-parts', ['parts' => $scores['seo']['parts']])
 
+@if ($onpage)
+    <h3>Audit on-page ({{ $onpage['summary']['pages_checked'] }} halaman &middot; skor rata-rata {{ $onpage['summary']['avg_score'] ?? '-' }})</h3>
+    <p class="muted">{{ $onpage['recommendation'] }}</p>
+    <table class="data-table" style="margin-top:6px">
+        <tr><th>Halaman</th><th class="num">Skor</th><th>Isu</th></tr>
+        @foreach ($onpage['pages'] as $p)
+            <tr>
+                <td>{{ $p['url'] }}</td>
+                <td class="num">{{ $p['score'] ?? '-' }}</td>
+                <td class="note">{{ $p['fetch_status'] === 'ok' ? (implode(' · ', $p['issues']) ?: '—') : 'gagal diambil' }}</td>
+            </tr>
+        @endforeach
+    </table>
+@else
+    <p class="empty">Audit on-page belum dijalankan.</p>
+@endif
+
+@if ($technical)
+    <h3>SEO teknis situs (skor {{ $technical['score'] ?? '-' }})</h3>
+    <p class="muted">{{ $technical['recommendation'] }}</p>
+    <table class="data-table" style="margin-top:6px">
+        <tr><th>Cek</th><th>Status</th><th>Detail</th></tr>
+        @foreach ($technical['checks'] as $c)
+            <tr>
+                <td>{{ $c['label'] }}</td>
+                <td style="color:{{ $c['status'] === 'fail' ? '#b3261e' : ($c['status'] === 'warn' ? '#b0740e' : '#16794a') }}">
+                    {{ ['pass' => 'OK', 'warn' => 'perhatikan', 'fail' => 'MASALAH'][$c['status']] ?? $c['status'] }}
+                </td>
+                <td>{{ $c['detail'] }}</td>
+            </tr>
+        @endforeach
+    </table>
+@else
+    <p class="empty">Cek SEO teknis belum dijalankan.</p>
+@endif
+
 @if ($structured)
     <h3>Structured data ({{ $structured['summary']['pages_checked'] }} halaman)</h3>
     <p class="muted">{{ $structured['recommendation'] }}</p>
@@ -179,6 +215,28 @@
     </table>
 @else
     <p class="empty">Akses AI crawler belum dicek.</p>
+@endif
+
+@if ($extract)
+    <h3>Konten mudah dikutip AI (skor rata-rata {{ $extract['summary']['avg_score'] ?? '-' }})</h3>
+    <p class="muted">{{ $extract['recommendation'] }}</p>
+    <table class="data-table" style="margin-top:6px">
+        <tr><th>Halaman</th><th class="num">Skor</th><th>Kriteria terpenuhi</th><th>Saran utama</th></tr>
+        @foreach ($extract['pages'] as $p)
+            @php
+                $critLabels = ['direct_answers' => 'jawaban ringkas', 'tldr' => 'TL;DR', 'stats_sourced' => 'statistik bersumber', 'faq' => 'FAQ', 'quotable' => 'kalimat mandiri'];
+                $met = $p['status'] === 'ok' ? array_keys(array_filter($p['criteria'])) : [];
+            @endphp
+            <tr>
+                <td>{{ $p['url'] }}</td>
+                <td class="num">{{ $p['score'] ?? '-' }}</td>
+                <td>{{ $p['status'] === 'ok' ? (implode(', ', array_map(fn ($k) => $critLabels[$k] ?? $k, $met)) ?: '—') : 'gagal dinilai' }}</td>
+                <td class="note">{{ $p['suggestions'][0] ?? '—' }}</td>
+            </tr>
+        @endforeach
+    </table>
+@else
+    <p class="empty">Penilaian extractability konten (AI) belum dijalankan.</p>
 @endif
 
 <div class="foot">

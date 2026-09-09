@@ -1339,6 +1339,24 @@
                                 class="geo-btn text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
                                 <i class='bx bx-line-chart-down'></i> Cek CTR gap
                             </button>
+                            <button type="button"
+                                data-geo-analyze="{{ route('pages.projects.onpage-audit.analyze', $project) }}"
+                                data-geo-status="{{ route('pages.projects.onpage-audit.status', $project) }}"
+                                class="geo-btn text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
+                                <i class='bx bx-file'></i> Audit on-page
+                            </button>
+                            <button type="button"
+                                data-geo-analyze="{{ route('pages.projects.technical-seo.analyze', $project) }}"
+                                data-geo-status="{{ route('pages.projects.technical-seo.status', $project) }}"
+                                class="geo-btn text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
+                                <i class='bx bx-wrench'></i> Cek SEO teknis
+                            </button>
+                            <button type="button"
+                                data-geo-analyze="{{ route('pages.projects.content-extractability.analyze', $project) }}"
+                                data-geo-status="{{ route('pages.projects.content-extractability.status', $project) }}"
+                                class="geo-btn text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
+                                <i class='bx bx-bulb'></i> Cek konten (AI)
+                            </button>
                             <a href="{{ route('pages.projects.seo-sxo-geo.report.download', $project) }}"
                                 class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50">
                                 <i class='bx bx-download'></i> Download laporan SEO/SXO/GEO

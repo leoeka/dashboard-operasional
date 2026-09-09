@@ -15,8 +15,10 @@
 return [
     'weights' => [
         'seo' => [
-            'lighthouse_seo' => 0.5,   // skor kategori SEO dari Lighthouse (PageSpeed)
-            'structured_data' => 0.5,  // cakupan schema.org di halaman-halaman kunci
+            'lighthouse_seo' => 0.30,  // skor kategori SEO dari Lighthouse (PageSpeed)
+            'structured_data' => 0.22, // cakupan schema.org di halaman-halaman kunci
+            'onpage' => 0.28,          // title/meta/heading/alt/canonical/noindex per halaman
+            'technical' => 0.20,       // robots.txt, sitemap, HTTPS, link mati (tingkat situs)
         ],
         'sxo' => [
             'core_web_vitals' => 0.35, // LCP / CLS / INP
@@ -25,9 +27,10 @@ return [
             'engagement' => 0.30,      // engagement rate rata-rata landing page organik (GA4)
         ],
         'geo' => [
-            'ai_crawler_access' => 0.5, // crawler "penjawab" (OAI-SearchBot, Perplexity, Google-Extended, ...) diizinkan?
-            'structured_data' => 0.35,  // ada schema yang bisa "dibaca" mesin AI?
-            'llms_txt' => 0.15,         // ada /llms.txt?
+            'ai_crawler_access' => 0.40, // crawler "penjawab" (OAI-SearchBot, Perplexity, Google-Extended, ...) diizinkan?
+            'structured_data' => 0.28,   // ada schema yang bisa "dibaca" mesin AI?
+            'extractability' => 0.22,    // konten terstruktur untuk dikutip AI (penilaian Gemini)
+            'llms_txt' => 0.10,          // ada /llms.txt?
         ],
     ],
 

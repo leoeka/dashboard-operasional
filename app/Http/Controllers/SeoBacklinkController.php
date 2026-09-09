@@ -213,6 +213,58 @@ class SeoBacklinkController extends Controller
         return response()->json(['available' => true] + $service->build($byLandingPage));
     }
 
+    public function analyzeOnPage(Project $project)
+    {
+        return $this->dispatchSeoJob($project, \App\Jobs\AnalyzeOnPageJob::class);
+    }
+
+    public function onPageStatus(Project $project)
+    {
+        return $this->seoJobStatus($project, \App\Jobs\AnalyzeOnPageJob::class);
+    }
+
+    public function analyzeTechnicalSeo(Project $project)
+    {
+        return $this->dispatchSeoJob($project, \App\Jobs\AnalyzeTechnicalSeoJob::class);
+    }
+
+    public function technicalSeoStatus(Project $project)
+    {
+        return $this->seoJobStatus($project, \App\Jobs\AnalyzeTechnicalSeoJob::class);
+    }
+
+    public function analyzeContentExtractability(Project $project)
+    {
+        return $this->dispatchSeoJob($project, \App\Jobs\AnalyzeContentExtractabilityJob::class);
+    }
+
+    public function contentExtractabilityStatus(Project $project)
+    {
+        return $this->seoJobStatus($project, \App\Jobs\AnalyzeContentExtractabilityJob::class);
+    }
+
+    /** @param class-string $jobClass */
+    private function dispatchSeoJob(Project $project, string $jobClass)
+    {
+        Cache::put(
+            $jobClass::cacheKey($project->id),
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Waiting to be processed...'],
+            now()->addMinutes(15)
+        );
+
+        $jobClass::dispatch($project);
+
+        return response()->json(['queued' => true]);
+    }
+
+    /** @param class-string $jobClass */
+    private function seoJobStatus(Project $project, string $jobClass)
+    {
+        return response()->json(
+            Cache::get($jobClass::cacheKey($project->id), ['status' => 'idle', 'progress' => 0, 'message' => ''])
+        );
+    }
+
     public function analyzeSearchConsole(Project $project, SearchConsoleService $service)
     {
         $url = $project->seo_requirements['target_url']

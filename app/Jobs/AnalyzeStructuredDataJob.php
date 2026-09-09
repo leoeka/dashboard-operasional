@@ -64,7 +64,7 @@ class AnalyzeStructuredDataJob implements ShouldQueue
 
         $result = $service->analyze(
             $url,
-            $this->extraUrls($seo),
+            self::topPageUrls($seo),
             $this->isLocalBusiness($seo),
         );
 
@@ -89,11 +89,12 @@ class AnalyzeStructuredDataJob implements ShouldQueue
 
     /**
      * Halaman tambahan dari hasil Search Console / GA4 yang sudah tersimpan
-     * (kalau ada) — supaya bukan cuma homepage yang dicek.
+     * (kalau ada) — supaya bukan cuma homepage yang dicek. Statik & publik
+     * supaya dipakai ulang oleh job audit SEO lain.
      *
      * @return list<string>
      */
-    private function extraUrls(array $seo): array
+    public static function topPageUrls(array $seo): array
     {
         $urls = [];
 

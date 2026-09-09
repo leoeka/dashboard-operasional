@@ -25,6 +25,9 @@ class SeoSxoGeoReportService
         $structured = is_array($seo['structured_data'] ?? null) ? $seo['structured_data'] : null;
         $crawler = is_array($seo['ai_crawler_access'] ?? null) ? $seo['ai_crawler_access'] : null;
         $ctr = is_array($seo['ctr_gaps'] ?? null) ? $seo['ctr_gaps'] : null;
+        $onpage = is_array($seo['onpage_audit'] ?? null) ? $seo['onpage_audit'] : null;
+        $technical = is_array($seo['technical_seo'] ?? null) ? $seo['technical_seo'] : null;
+        $extract = is_array($seo['content_extractability'] ?? null) ? $seo['content_extractability'] : null;
         $byLandingPage = $seo['google_analytics']['by_landing_page'] ?? [];
         $scorecard = !empty($byLandingPage) ? $this->sxoScorecard->build($byLandingPage) : null;
 
@@ -32,23 +35,26 @@ class SeoSxoGeoReportService
             'project' => $project,
             'generatedAt' => now()->format('d F Y H:i'),
             'scores' => [
-                'seo' => $this->seoScore($pagespeed, $structured),
+                'seo' => $this->seoScore($pagespeed, $structured, $onpage, $technical),
                 'sxo' => $this->sxoScore($pagespeed, $ctr, $scorecard),
-                'geo' => $this->geoScore($crawler, $structured),
+                'geo' => $this->geoScore($crawler, $structured, $extract),
             ],
             'pagespeed' => $pagespeed,
             'structured' => $structured,
             'crawler' => $crawler,
             'ctr' => $ctr,
+            'onpage' => $onpage,
+            'technical' => $technical,
+            'extract' => $extract,
             'scorecard' => $scorecard,
-            'actions' => $this->actionList($pagespeed, $structured, $crawler, $ctr, $scorecard),
-            'analysedNothing' => !$pagespeed && !$structured && !$crawler && !$ctr && !$scorecard,
+            'actions' => $this->actionList($pagespeed, $structured, $crawler, $ctr, $scorecard, $onpage, $technical, $extract),
+            'analysedNothing' => !$pagespeed && !$structured && !$crawler && !$ctr && !$scorecard && !$onpage && !$technical && !$extract,
         ];
     }
 
     // ---- skor per lapis -------------------------------------------------
 
-    private function seoScore(?array $pagespeed, ?array $structured): array
+    private function seoScore(?array $pagespeed, ?array $structured, ?array $onpage, ?array $technical): array
     {
         $w = config('seo_scoring.weights.seo');
         $parts = [];
@@ -58,6 +64,12 @@ class SeoSxoGeoReportService
         }
         if ($structured !== null) {
             $parts[] = $this->part('Cakupan structured data', $this->structuredCoverageScore($structured), $w['structured_data']);
+        }
+        if ($onpage !== null) {
+            $parts[] = $this->part('On-page tiap halaman', $onpage['summary']['avg_score'] ?? null, $w['onpage']);
+        }
+        if ($technical !== null) {
+            $parts[] = $this->part('SEO teknis situs', $technical['score'] ?? null, $w['technical']);
         }
 
         return $this->rollUp($parts);
@@ -84,7 +96,7 @@ class SeoSxoGeoReportService
         return $this->rollUp($parts);
     }
 
-    private function geoScore(?array $crawler, ?array $structured): array
+    private function geoScore(?array $crawler, ?array $structured, ?array $extract): array
     {
         $w = config('seo_scoring.weights.geo');
         $parts = [];
@@ -96,6 +108,9 @@ class SeoSxoGeoReportService
         if ($structured !== null) {
             $distinct = (int) ($structured['summary']['distinct_types'] ?? 0);
             $parts[] = $this->part('Schema untuk mesin AI', min(100, $distinct * 15), $w['structured_data']);
+        }
+        if ($extract !== null) {
+            $parts[] = $this->part('Konten mudah dikutip AI', $extract['summary']['avg_score'] ?? null, $w['extractability']);
         }
 
         return $this->rollUp($parts);
@@ -182,7 +197,7 @@ class SeoSxoGeoReportService
     // ---- daftar perbaikan prioritas ------------------------------------
 
     /** @return list<array{text:string,layer:string,impact:int}> */
-    private function actionList(?array $pagespeed, ?array $structured, ?array $crawler, ?array $ctr, ?array $scorecard): array
+    private function actionList(?array $pagespeed, ?array $structured, ?array $crawler, ?array $ctr, ?array $scorecard, ?array $onpage = null, ?array $technical = null, ?array $extract = null): array
     {
         $actions = [];
         $add = function (string $layer, string $text, int|float $impact) use (&$actions) {
@@ -242,6 +257,42 @@ class SeoSxoGeoReportService
         $seoScore = $pagespeed['scores']['seo'] ?? null;
         if ($seoScore !== null && $seoScore < 90) {
             $add('SEO', "Bereskan isu SEO teknis di audit Lighthouse (skor sekarang {$seoScore}).", 40);
+        }
+
+        // On-page: halaman noindex dulu (kritis), lalu isu on-page paling sering.
+        $onpageCounts = [];
+        foreach ($onpage['pages'] ?? [] as $page) {
+            if (!empty($page['noindex'])) {
+                $add('SEO', "Halaman {$page['url']} di-set noindex — cek apakah disengaja, karena tidak akan muncul di Google.", 90);
+            }
+            foreach ($page['checks'] ?? [] as $c) {
+                if (($c['status'] ?? '') === 'fail') {
+                    $onpageCounts[$c['label']] = ($onpageCounts[$c['label']] ?? 0) + 1;
+                }
+            }
+        }
+        arsort($onpageCounts);
+        foreach (array_slice(array_keys($onpageCounts), 0, 3) as $label) {
+            $add('SEO', "Perbaiki \"{$label}\" di {$onpageCounts[$label]} halaman (audit on-page).", 50);
+        }
+
+        // Teknis: setiap check yang fail.
+        foreach ($technical['checks'] ?? [] as $c) {
+            if (($c['status'] ?? '') === 'fail') {
+                $add('SEO', "SEO teknis — {$c['label']}: {$c['detail']}", 60);
+            } elseif (($c['status'] ?? '') === 'warn' && in_array($c['id'] ?? '', ['sitemap', 'broken_links'], true)) {
+                $add('SEO', "SEO teknis — {$c['label']}: {$c['detail']}", 35);
+            }
+        }
+
+        // Extractability: saran per halaman dari Gemini.
+        foreach ($extract['pages'] ?? [] as $page) {
+            if (($page['status'] ?? '') !== 'ok') {
+                continue;
+            }
+            foreach (array_slice($page['suggestions'] ?? [], 0, 2) as $s) {
+                $add('GEO', "Konten {$page['url']}: {$s}", max(20, 60 - (int) ($page['score'] ?? 0) / 2));
+            }
         }
 
         usort($actions, fn ($a, $b) => $b['impact'] <=> $a['impact']);

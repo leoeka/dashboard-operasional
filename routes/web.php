@@ -88,6 +88,18 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.ctr-gap.status');
     Route::get('/projects/{project}/sxo-scorecard', [SeoBacklinkController::class, 'sxoScorecard'])
         ->name('pages.projects.sxo-scorecard');
+    Route::post('/projects/{project}/onpage-audit/analyze', [SeoBacklinkController::class, 'analyzeOnPage'])
+        ->name('pages.projects.onpage-audit.analyze');
+    Route::get('/projects/{project}/onpage-audit/status', [SeoBacklinkController::class, 'onPageStatus'])
+        ->name('pages.projects.onpage-audit.status');
+    Route::post('/projects/{project}/technical-seo/analyze', [SeoBacklinkController::class, 'analyzeTechnicalSeo'])
+        ->name('pages.projects.technical-seo.analyze');
+    Route::get('/projects/{project}/technical-seo/status', [SeoBacklinkController::class, 'technicalSeoStatus'])
+        ->name('pages.projects.technical-seo.status');
+    Route::post('/projects/{project}/content-extractability/analyze', [SeoBacklinkController::class, 'analyzeContentExtractability'])
+        ->name('pages.projects.content-extractability.analyze');
+    Route::get('/projects/{project}/content-extractability/status', [SeoBacklinkController::class, 'contentExtractabilityStatus'])
+        ->name('pages.projects.content-extractability.status');
     Route::get('/projects/{project}/seo-sxo-geo/report/download', [SeoBacklinkController::class, 'downloadSeoSxoGeoReport'])
         ->name('pages.projects.seo-sxo-geo.report.download');
     Route::post('/projects/{project}/search-console/analyze', [SeoBacklinkController::class, 'analyzeSearchConsole'])
