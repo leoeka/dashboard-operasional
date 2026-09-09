@@ -78,6 +78,10 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.ai-crawler-access.analyze');
     Route::get('/projects/{project}/ai-crawler-access/status', [SeoBacklinkController::class, 'aiCrawlerAccessStatus'])
         ->name('pages.projects.ai-crawler-access.status');
+    Route::post('/projects/{project}/structured-data/analyze', [SeoBacklinkController::class, 'analyzeStructuredData'])
+        ->name('pages.projects.structured-data.analyze');
+    Route::get('/projects/{project}/structured-data/status', [SeoBacklinkController::class, 'structuredDataStatus'])
+        ->name('pages.projects.structured-data.status');
     Route::post('/projects/{project}/search-console/analyze', [SeoBacklinkController::class, 'analyzeSearchConsole'])
         ->name('pages.projects.search-console.analyze');
     Route::post('/projects/{project}/ga4/analyze', [SeoBacklinkController::class, 'analyzeGoogleAnalytics'])

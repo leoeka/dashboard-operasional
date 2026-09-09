@@ -147,6 +147,30 @@ class SeoBacklinkController extends Controller
         );
     }
 
+    public function analyzeStructuredData(Project $project)
+    {
+        Cache::put(
+            \App\Jobs\AnalyzeStructuredDataJob::cacheKey($project->id),
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Waiting to be processed...'],
+            now()->addMinutes(10)
+        );
+
+        \App\Jobs\AnalyzeStructuredDataJob::dispatch($project);
+
+        return response()->json(['queued' => true]);
+    }
+
+    public function structuredDataStatus(Project $project)
+    {
+        return response()->json(
+            Cache::get(\App\Jobs\AnalyzeStructuredDataJob::cacheKey($project->id), [
+                'status' => 'idle',
+                'progress' => 0,
+                'message' => '',
+            ])
+        );
+    }
+
     public function analyzeSearchConsole(Project $project, SearchConsoleService $service)
     {
         $url = $project->seo_requirements['target_url']
