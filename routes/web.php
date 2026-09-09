@@ -82,6 +82,14 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.structured-data.analyze');
     Route::get('/projects/{project}/structured-data/status', [SeoBacklinkController::class, 'structuredDataStatus'])
         ->name('pages.projects.structured-data.status');
+    Route::post('/projects/{project}/ctr-gap/analyze', [SeoBacklinkController::class, 'analyzeCtrGap'])
+        ->name('pages.projects.ctr-gap.analyze');
+    Route::get('/projects/{project}/ctr-gap/status', [SeoBacklinkController::class, 'ctrGapStatus'])
+        ->name('pages.projects.ctr-gap.status');
+    Route::get('/projects/{project}/sxo-scorecard', [SeoBacklinkController::class, 'sxoScorecard'])
+        ->name('pages.projects.sxo-scorecard');
+    Route::get('/projects/{project}/seo-sxo-geo/report/download', [SeoBacklinkController::class, 'downloadSeoSxoGeoReport'])
+        ->name('pages.projects.seo-sxo-geo.report.download');
     Route::post('/projects/{project}/search-console/analyze', [SeoBacklinkController::class, 'analyzeSearchConsole'])
         ->name('pages.projects.search-console.analyze');
     Route::post('/projects/{project}/ga4/analyze', [SeoBacklinkController::class, 'analyzeGoogleAnalytics'])
