@@ -138,7 +138,7 @@
             margin-bottom: 3px;
         }
 
-        ul.simple-list li .bullet-arrow {
+        .bullet-arrow {
             font-family: 'DejaVu Sans', sans-serif;
         }
 
