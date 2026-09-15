@@ -633,11 +633,17 @@ Urutkan berdasarkan: relevansi dengan bisnis, volume pencarian (kalau
 data tersedia), tingkat persaingan, dan peluang ranking realistis untuk
 bisnis skala ini. Sertakan juga related keywords terpisah untuk
 memperluas coverage konten (di luar {$count} keyword utama).
- 
+
+Untuk SETIAP keyword utama, sertakan 2-3 \"derivative_keywords\": variasi
+turunan long-tail dari keyword utama itu (lebih spesifik/lebih panjang,
+masih satu maksud pencarian) — ini ditampilkan ke klien sebagai kolom
+\"Keyword Turunan\" di proposal, jadi harus benar-benar turunan dari
+keyword utamanya, bukan keyword acak yang tidak berhubungan.
+
 Wajib kembalikan HANYA format JSON murni tanpa markdown:
 {
   \"main_keywords\": [
-    {\"keyword\": \"...\", \"avg_monthly_searches\": angka_atau_null, \"competition\": \"LOW/MEDIUM/HIGH_atau_null\", \"reasoning\": \"alasan singkat\"},
+    {\"keyword\": \"...\", \"derivative_keywords\": [\"turunan 1\", \"turunan 2\"], \"avg_monthly_searches\": angka_atau_null, \"competition\": \"LOW/MEDIUM/HIGH_atau_null\", \"reasoning\": \"alasan singkat\"},
     ...hingga {$count} item, diurutkan dari yang paling direkomendasikan...
   ],
   \"related_keywords\": [\"keyword tambahan 1\", ...],

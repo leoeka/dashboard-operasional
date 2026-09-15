@@ -675,6 +675,7 @@
                                                         <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
                                                             <th class="pb-2 pr-2 w-6"></th>
                                                             <th class="pb-2 pr-4">Keyword</th>
+                                                            <th class="pb-2 pr-4">Derivatives</th>
                                                             <th class="pb-2 pr-4">Volume/month</th>
                                                             <th class="pb-2 pr-4">Competition</th>
                                                             <th class="pb-2">Reason</th>
@@ -688,6 +689,9 @@
                                                                         value="{{ $kw['keyword'] ?? '' }}" class="keyword-checkbox" {{ !empty($kw['selected']) ? 'checked' : '' }}>
                                                                 </td>
                                                                 <td class="py-1.5 pr-4 font-medium text-slate-700">{{ $kw['keyword'] ?? '-' }}
+                                                                </td>
+                                                                <td class="py-1.5 pr-4 text-slate-500 text-xs">
+                                                                    {{ implode(', ', array_filter((array) ($kw['derivative_keywords'] ?? []))) ?: '-' }}
                                                                 </td>
                                                                 <td class="py-1.5 pr-4 text-slate-500">{{ $kw['avg_monthly_searches'] ?? '-' }}
                                                                 </td>

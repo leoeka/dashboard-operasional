@@ -443,11 +443,40 @@
         @endphp
 
         @if ($keywordsForProposal->isNotEmpty())
-            <ul class="simple-list">
-                @foreach ($keywordsForProposal as $keyword)
-                    <li><span class="bullet-arrow">&#10146;</span> {{ $keyword['keyword'] ?? '-' }}</li>
-                @endforeach
-            </ul>
+            <table class="data">
+                <thead>
+                    <tr>
+                        <th style="width:26%">Main Keyword</th>
+                        <th style="width:34%">Derivative Keywords</th>
+                        <th style="width:22%">Monthly Search Volume</th>
+                        <th style="width:18%">Competition</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($keywordsForProposal as $keyword)
+                        @php
+                            $derivatives = array_filter((array) ($keyword['derivative_keywords'] ?? []));
+                            $volume = $keyword['avg_monthly_searches'] ?? null;
+                            $competition = strtoupper(trim((string) ($keyword['competition'] ?? '')));
+                        @endphp
+                        <tr>
+                            <td>{{ $keyword['keyword'] ?? '-' }}</td>
+                            <td>{{ $derivatives ? implode(', ', $derivatives) : '—' }}</td>
+                            <td>{{ is_numeric($volume) ? number_format((float) $volume) . ' / mo' : '—' }}</td>
+                            <td>{{ in_array($competition, ['LOW', 'MEDIUM', 'HIGH']) ? ucfirst(strtolower($competition)) : '—' }}
+                            </td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+
+            <p class="empty-note">
+                @if (($aiRecommendations['data_source'] ?? '') === 'google_ads_api')
+                    Search volume &amp; competition sourced from Google Ads Keyword Planner.
+                @else
+                    Search volume &amp; competition are AI estimates — not measured Google Ads data.
+                @endif
+            </p>
         @else
             <p class="empty-note">No top keywords yet.</p>
         @endif
