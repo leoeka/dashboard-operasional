@@ -141,14 +141,14 @@ class GoogleAnalyticsService
     }
 
     /**
-     * Ambil laporan 28 hari terakhir untuk 1 Property GA4: total sessions
+     * Ambil laporan 90 hari terakhir untuk 1 Property GA4: total sessions
      * organik + users + conversions, new vs returning users, dan top 10
      * landing page (sessions, engagement rate, rata-rata waktu
      * engagement, conversions) — semua difilter cuma traffic organik
      * (sessionDefaultChannelGroup = "Organic Search"), sesuai yang
      * diminta di spec dashboard ("Total Organic Sessions", dst).
      */
-    public function getReport(string $accessToken, string $propertyId, int $days = 28): ?array
+    public function getReport(string $accessToken, string $propertyId, int $days = 90): ?array
     {
         try {
             $dateRange = [['startDate' => "{$days}daysAgo", 'endDate' => 'yesterday']];

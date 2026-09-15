@@ -1293,7 +1293,7 @@
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-400 mb-4">Last 28 days.</p>
+                        <p class="text-xs text-slate-400 mb-4">Last 3 months.</p>
 
                         @if (!$resolvedUrl)
                             <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
@@ -1455,7 +1455,7 @@
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-400 mb-4">Last 28 days.</p>
+                        <p class="text-xs text-slate-400 mb-4">Last 3 months.</p>
 
                         @if (!$resolvedUrl)
                             <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">

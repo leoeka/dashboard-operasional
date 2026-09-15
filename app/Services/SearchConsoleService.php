@@ -50,14 +50,14 @@ class SearchConsoleService
     }
 
     /**
-     * Ambil ringkasan performa untuk 1 website, 28 hari terakhir (data
+     * Ambil ringkasan performa untuk 1 website, 90 hari terakhir (data
      * 3 hari terakhir sengaja dilewati — Search Console sering belum
      * lengkap datanya untuk beberapa hari paling baru).
      *
      * Return null kalau: kredensial belum lengkap, atau website ini
      * TIDAK ketemu di daftar property yang terverifikasi di akun.
      */
-    public function getPerformance(string $siteUrl, int $days = 28): ?array
+    public function getPerformance(string $siteUrl, int $days = 90): ?array
     {
         $accessToken = $this->getAccessToken();
         if (!$accessToken) {
