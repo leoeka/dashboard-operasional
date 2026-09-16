@@ -354,6 +354,17 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
      * sebelumnya memanggil Gemini langsung TANPA retry sama sekali.
      * Melempar RuntimeException kalau semua percobaan gagal.
      */
+    /**
+     * Pembungkus publik tipis untuk callGeminiJson — dipakai service lain
+     * (mis. ContentExtractabilityService) yang butuh satu panggilan Gemini
+     * "prompt masuk, JSON keluar" tanpa mengulang logika retry/repair di
+     * sini. Model mengikuti pemanggil callGeminiJson lain di kelas ini.
+     */
+    public function callJson(string $prompt): array
+    {
+        return $this->callGeminiJson('gemini-3.6-flash', $prompt);
+    }
+
     private function callGeminiJson(string $model, string $prompt, int $maxRetries = 3): array
     {
         $attempt = 1;

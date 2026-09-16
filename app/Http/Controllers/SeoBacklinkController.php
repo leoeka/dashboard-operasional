@@ -123,6 +123,148 @@ class SeoBacklinkController extends Controller
         );
     }
 
+    public function analyzeAiCrawlerAccess(Project $project)
+    {
+        Cache::put(
+            \App\Jobs\AnalyzeAiCrawlerAccessJob::cacheKey($project->id),
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Waiting to be processed...'],
+            now()->addMinutes(10)
+        );
+
+        \App\Jobs\AnalyzeAiCrawlerAccessJob::dispatch($project);
+
+        return response()->json(['queued' => true]);
+    }
+
+    public function aiCrawlerAccessStatus(Project $project)
+    {
+        return response()->json(
+            Cache::get(\App\Jobs\AnalyzeAiCrawlerAccessJob::cacheKey($project->id), [
+                'status' => 'idle',
+                'progress' => 0,
+                'message' => '',
+            ])
+        );
+    }
+
+    public function analyzeStructuredData(Project $project)
+    {
+        Cache::put(
+            \App\Jobs\AnalyzeStructuredDataJob::cacheKey($project->id),
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Waiting to be processed...'],
+            now()->addMinutes(10)
+        );
+
+        \App\Jobs\AnalyzeStructuredDataJob::dispatch($project);
+
+        return response()->json(['queued' => true]);
+    }
+
+    public function structuredDataStatus(Project $project)
+    {
+        return response()->json(
+            Cache::get(\App\Jobs\AnalyzeStructuredDataJob::cacheKey($project->id), [
+                'status' => 'idle',
+                'progress' => 0,
+                'message' => '',
+            ])
+        );
+    }
+
+    public function analyzeCtrGap(Project $project)
+    {
+        Cache::put(
+            \App\Jobs\AnalyzeCtrGapJob::cacheKey($project->id),
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Waiting to be processed...'],
+            now()->addMinutes(10)
+        );
+
+        \App\Jobs\AnalyzeCtrGapJob::dispatch($project);
+
+        return response()->json(['queued' => true]);
+    }
+
+    public function ctrGapStatus(Project $project)
+    {
+        return response()->json(
+            Cache::get(\App\Jobs\AnalyzeCtrGapJob::cacheKey($project->id), [
+                'status' => 'idle',
+                'progress' => 0,
+                'message' => '',
+            ])
+        );
+    }
+
+    /**
+     * SXO engagement scorecard — dihitung langsung dari data GA4 yang sudah
+     * tersimpan (tidak perlu job / panggilan API).
+     */
+    public function sxoScorecard(Project $project, \App\Services\SxoScorecardService $service)
+    {
+        $byLandingPage = $project->seo_requirements['google_analytics']['by_landing_page'] ?? [];
+
+        if (empty($byLandingPage)) {
+            return response()->json([
+                'available' => false,
+                'message' => 'Jalankan analisis Google Analytics (GA4) dulu untuk mengisi scorecard ini.',
+            ]);
+        }
+
+        return response()->json(['available' => true] + $service->build($byLandingPage));
+    }
+
+    public function analyzeOnPage(Project $project)
+    {
+        return $this->dispatchSeoJob($project, \App\Jobs\AnalyzeOnPageJob::class);
+    }
+
+    public function onPageStatus(Project $project)
+    {
+        return $this->seoJobStatus($project, \App\Jobs\AnalyzeOnPageJob::class);
+    }
+
+    public function analyzeTechnicalSeo(Project $project)
+    {
+        return $this->dispatchSeoJob($project, \App\Jobs\AnalyzeTechnicalSeoJob::class);
+    }
+
+    public function technicalSeoStatus(Project $project)
+    {
+        return $this->seoJobStatus($project, \App\Jobs\AnalyzeTechnicalSeoJob::class);
+    }
+
+    public function analyzeContentExtractability(Project $project)
+    {
+        return $this->dispatchSeoJob($project, \App\Jobs\AnalyzeContentExtractabilityJob::class);
+    }
+
+    public function contentExtractabilityStatus(Project $project)
+    {
+        return $this->seoJobStatus($project, \App\Jobs\AnalyzeContentExtractabilityJob::class);
+    }
+
+    /** @param class-string $jobClass */
+    private function dispatchSeoJob(Project $project, string $jobClass)
+    {
+        Cache::put(
+            $jobClass::cacheKey($project->id),
+            ['status' => 'queued', 'progress' => 0, 'message' => 'Waiting to be processed...'],
+            now()->addMinutes(15)
+        );
+
+        $jobClass::dispatch($project);
+
+        return response()->json(['queued' => true]);
+    }
+
+    /** @param class-string $jobClass */
+    private function seoJobStatus(Project $project, string $jobClass)
+    {
+        return response()->json(
+            Cache::get($jobClass::cacheKey($project->id), ['status' => 'idle', 'progress' => 0, 'message' => ''])
+        );
+    }
+
     public function analyzeSearchConsole(Project $project, SearchConsoleService $service)
     {
         $url = $project->seo_requirements['target_url']
@@ -448,6 +590,16 @@ class SeoBacklinkController extends Controller
         $fileName = "Proposal-SEO-{$clientSlug}-{$project->code}.pdf";
 
         return $pdf->download($fileName);
+    }
+
+    public function downloadSeoSxoGeoReport(Project $project, \App\Services\SeoSxoGeoReportService $service)
+    {
+        $data = $service->assemble($project);
+
+        $pdf = Pdf::loadView('pdf.seo-sxo-geo-report', $data);
+        $clientSlug = Str::slug($project->client_name);
+
+        return $pdf->download("Laporan-SEO-SXO-GEO-{$clientSlug}-{$project->code}.pdf");
     }
 
     public function competitorPageSpeedStatus(Project $project)
