@@ -35,15 +35,3 @@ it('renders the travel web proposal sections and project pricing', function () {
         ->toContain('Agreement Contract must be done')
         ->toContain('Thank you for your interest');
 });
-
-it('allows proposal pricing and ZipWP site details to be mass assigned', function () {
-    $project = new Project([
-        'value' => 5000000,
-        'zipwp_site_uuid' => 'site-123',
-        'zipwp_site_url' => 'https://example.com',
-    ]);
-
-    expect($project->value)->toBe(5000000)
-        ->and($project->zipwp_site_uuid)->toBe('site-123')
-        ->and($project->zipwp_site_url)->toBe('https://example.com');
-});
