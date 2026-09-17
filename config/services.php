@@ -40,13 +40,6 @@ return [
         'mockup_model' => env('OPENAI_MOCKUP_MODEL', 'gpt-5-mini'),
         'image_model' => env('OPENAI_IMAGE_MODEL', 'gpt-image-1'),
         'mockup_candidate_count' => env('OPENAI_MOCKUP_CANDIDATE_COUNT', 3),
-        // Dipakai SectionImageService — foto per section (hero + beberapa
-        // item) yang disisipkan ke halaman WordPress yang di-generate.
-        // Dibatasi section_image_count per project supaya biaya & waktu
-        // build tetap terkendali (tiap gambar = 1 panggilan API berbayar).
-        'section_image_model' => env('OPENAI_SECTION_IMAGE_MODEL', 'gpt-image-1'),
-        'section_image_quality' => env('OPENAI_SECTION_IMAGE_QUALITY', 'low'),
-        'section_image_count' => env('OPENAI_SECTION_IMAGE_COUNT', 6),
     ],
 
     'anthropic' => [

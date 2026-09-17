@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use App\Models\Project;
 use App\Models\Client;
 use Gemini\Laravel\Facades\Gemini;
@@ -279,11 +280,10 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                     'attempts' => $attempt,
                 ]);
 
-                throw new \RuntimeException(
-                    $isTransientError
-                    ? 'Layanan AI Gemini sedang sibuk atau kuota habis. Silakan coba beberapa saat lagi.'
-                    : 'Gagal menghubungi AI Gemini: ' . $e->getMessage()
-                );
+                // Classified so the pipeline can tell an exhausted quota from a
+                // busy provider from a bad key, record which stage stopped, and
+                // resume there instead of re-running the whole analysis.
+                throw ProviderException::fromThrowable('gemini', $e);
             }
         }
 
@@ -420,11 +420,7 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                     'attempts' => $attempt,
                 ]);
 
-                throw new \RuntimeException(
-                    $isTransientError
-                    ? 'Layanan AI Gemini sedang sibuk atau kuota habis.'
-                    : 'Gagal menghubungi AI Gemini: ' . $e->getMessage()
-                );
+                throw ProviderException::fromThrowable('gemini', $e);
             }
         }
 

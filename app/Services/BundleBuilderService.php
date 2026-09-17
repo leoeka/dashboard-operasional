@@ -3,15 +3,15 @@
 namespace App\Services;
 
 use App\Models\Project;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class BundleBuilderService
 {
     public function __construct(
         private ClaudeWordPressBuilderService $claudeBuilder,
         private ElementorPageBuilderService $elementorPageBuilder,
-        private SectionImageService $sectionImageService,
+        private MockupAssetService $mockupAssets,
     ) {
     }
 
@@ -37,21 +37,13 @@ class BundleBuilderService
         // sitemap again once Home looks right.
         $mockupPages = array_slice($mockupPages, 0, 1);
 
-        // A few real, on-topic photos (hero + some items) generated via
-        // OpenAI, bounded by services.openai.section_image_count. Wrapped in
-        // try/catch — this is an enhancement, not a blocker: if it fails
-        // (no key, rate limit, network), the build still succeeds with a
-        // text-and-buttons-only page instead of an error. See
-        // SectionImageService.
-        try {
-            $sectionImages = $this->sectionImageService->generateForPages($project, $mockupPages);
-        } catch (\Throwable $e) {
-            Log::warning('SectionImageService gagal, lanjut build tanpa gambar section.', [
-                'project_id' => $project->id,
-                'error' => $e->getMessage(),
-            ]);
-            $sectionImages = ['map' => [], 'files' => []];
-        }
+        // The exact photo files the client approved, read back off disk — no
+        // image generation happens after approval at all. Deliberately NOT
+        // wrapped in a try/catch: a photo the approved design actually shows
+        // going missing is a real failure, and swallowing it is what used to
+        // ship a text-only page while reporting success. Optional/absent slots
+        // are skipped quietly; required ones throw. See MockupAssetService.
+        $sectionImages = $this->mockupAssets->loadApproved($mockup);
 
         $bundle = [
             'analysis' => $analysis,
@@ -90,12 +82,27 @@ class BundleBuilderService
         ], $proposalAnalysis);
     }
 
+    /**
+     * Describes the project's own website category. This used to return a
+     * fixed "Restaurant Modern" / category "restaurant" for every project,
+     * and the value is handed straight to Claude in the build prompt (see
+     * ClaudeWordPressBuilderService::buildPrompt()) — so a law firm or a
+     * coffee roaster was being told, in writing, that it was a restaurant
+     * build. Where the project states no type, nothing is claimed rather
+     * than a category being invented.
+     */
     protected function resolveTemplate(Project $project): array
     {
+        $type = trim((string) ($project->type ?? ''));
+
+        if ($type === '') {
+            return ['slug' => null, 'name' => null, 'category' => null, 'preview_url' => null];
+        }
+
         return [
-            'slug' => 'restaurant-modern',
-            'name' => 'Restaurant Modern',
-            'category' => 'restaurant',
+            'slug' => Str::slug($type),
+            'name' => $type,
+            'category' => Str::slug($type),
             'preview_url' => null,
         ];
     }

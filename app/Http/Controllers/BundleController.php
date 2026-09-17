@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Project;
 use App\Models\ProjectBundle;
+use App\Exceptions\ProviderException;
 use App\Services\BundleBuilderService;
 use App\Services\BundleExporterService;
 use Illuminate\Support\Facades\Log;
@@ -17,12 +18,24 @@ class BundleController extends Controller
 
     public function build(Project $project, BundleBuilderService $builder, BundleExporterService $exporter)
     {
+        // A failed build must never leave a ProjectBundle row behind: that row is
+        // what the UI treats as a finished, downloadable deliverable, and writing
+        // one for a build that produced no files is exactly how "success" gets
+        // reported for a site that does not exist. Both failure paths return
+        // before it.
         try {
             $bundle = $builder->build($project);
-        } catch (\Throwable $e) {
+        } catch (ProviderException $e) {
+            // Classification and a scrubbed detail only — never a key.
+            Log::error('WordPress build gagal di provider.', array_merge(['project_id' => $project->id], $e->context()));
+
             return redirect()
                 ->route('pages.projects.bundle', $project)
                 ->with('error', $e->getMessage());
+        } catch (\Throwable $e) {
+            return redirect()
+                ->route('pages.projects.bundle', $project)
+                ->with('error', ProviderException::sanitise($e->getMessage()));
         }
 
         $bundleDir = storage_path('app/bundles/' . $project->id);
@@ -31,12 +44,12 @@ class BundleController extends Controller
         } catch (\Throwable $e) {
             Log::error('WordPress bundle export gagal.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
 
             return redirect()
                 ->route('pages.projects.bundle', $project)
-                ->with('error', "ZIP WordPress gagal dibuat. Perbaiki hasil build Claude lalu coba lagi. ({$e->getMessage()})");
+                ->with('error', 'ZIP WordPress gagal dibuat. Perbaiki hasil build Claude lalu coba lagi. (' . ProviderException::sanitise($e->getMessage()) . ')');
         }
 
         ProjectBundle::updateOrCreate(

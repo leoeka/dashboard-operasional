@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use App\Models\Project;
 use App\Services\Concerns\LintsGeneratedPhp;
+use App\Support\MockupDesignSpec;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -17,7 +19,7 @@ class ClaudeWordPressBuilderService
         $apiKey = config('services.anthropic.key');
 
         if (!$apiKey) {
-            throw new \RuntimeException('ANTHROPIC_API_KEY belum tersedia. Claude wajib aktif untuk membangun WordPress dari analisis GPT.');
+            throw ProviderException::missingKey('anthropic');
         }
 
         $prompt = $this->buildPrompt($project, $bundle);
@@ -55,16 +57,17 @@ class ClaudeWordPressBuilderService
             $files = json_decode($text, true);
 
             if (json_last_error() !== JSON_ERROR_NONE || !is_array($files['files'] ?? null)) {
-                throw new \RuntimeException('Respons Claude bukan manifest file WordPress yang valid.');
+                throw ProviderException::invalidResponse('anthropic', 'Respons Claude bukan manifest file WordPress yang valid.');
             }
 
             return ['files' => $this->sanitizeFiles($files['files'])];
         } catch (\Throwable $e) {
-            Log::error('Claude WordPress build gagal.', [
-                'project_id' => $project->id,
-                'error' => $e->getMessage(),
-            ]);
-            throw new \RuntimeException($this->friendlyError($e->getMessage()), 0, $e);
+            $failure = ProviderException::fromThrowable('anthropic', $e);
+            // Classification + scrubbed detail only: an Anthropic error body can
+            // quote the request back, headers included.
+            Log::error('Claude WordPress build gagal.', array_merge(['project_id' => $project->id], $failure->context()));
+
+            throw $failure;
         }
     }
 
@@ -90,7 +93,7 @@ class ClaudeWordPressBuilderService
             ]);
 
         if (!$response->successful()) {
-            throw new \RuntimeException('Anthropic API error: ' . $response->body());
+            throw ProviderException::fromResponse('anthropic', $response);
         }
 
         $body = $response->toPsrResponse()->getBody();
@@ -224,14 +227,18 @@ class ClaudeWordPressBuilderService
     }
 
     /**
-     * Exact measurements pulled from resources/views/pdf/mockup-render.blade.php
-     * — the same template used to render the PNG the client approved — so
-     * Claude reproduces the chrome (nav bar, footer) with the identical
-     * proportions instead of a generic/looser interpretation of "the mood".
-     * The page body itself doesn't need this (it's built deterministically
-     * by ElementorPageBuilderService using these same numbers), but header.php
-     * and footer.php are entirely Claude's own code, so this is the only way
-     * they end up actually matching instead of merely being on-brand.
+     * The chrome half of the approved design, written out for Claude.
+     *
+     * Every measurement comes from MockupDesignSpec — the same values the PNG
+     * the client approved was rendered with, and the same ones the Gutenberg
+     * page body uses. These numbers used to be typed out here by hand as
+     * approximations ("~94px", "~32px gap"), a second copy that could drift
+     * from the blade CSS without anything noticing.
+     *
+     * The page body itself is built deterministically by
+     * ElementorPageBuilderService, but header.php, footer.php and style.css
+     * are entirely Claude's own code, so this brief is the only thing keeping
+     * them to the approved proportions rather than merely on-brand.
      */
     private function chromeDesignSpec(array $design): string
     {
@@ -241,21 +248,33 @@ class ClaudeWordPressBuilderService
         $fontHeading = $design['font_heading'] ?? 'Georgia';
         $fontBody = $design['font_body'] ?? 'Arial';
 
+        $t = MockupDesignSpec::tokens();
+
         return <<<SPEC
 
-CHROME DESIGN SPEC — the exact layout the approved PNG mockup uses for its nav bar and footer (built from the same design tokens: primary {$primary}, secondary {$secondary}, accent {$accent}, heading font {$fontHeading}, body font {$fontBody}). Match these measurements, not just the colors:
+CHROME DESIGN SPEC — the exact layout the approved PNG mockup uses for its nav bar and footer (built from the same design tokens: primary {$primary}, secondary {$secondary}, accent {$accent}, heading font {$fontHeading}, body font {$fontBody}). These measurements are the mockup's own, not approximations — match them, not just the colors:
+
+Page shell:
+- Content column max-width {$t['container_width']}px, centered. Horizontal padding {$t['gutter']}px on every full-width band (nav, sections, footer) — scale this down responsively on narrow screens, but keep every band using the SAME horizontal padding as each other so their content lines up in one vertical column.
+- Section vertical padding {$t['section_padding_y']}px. The showcase band's background is {$t['section_band_color']} — a fixed neutral, not the brand's secondary color.
 
 Nav bar (header.php):
-- Sits in the page's normal document flow at the very top (do NOT use `position: fixed` or `position: sticky` — it must scroll away with the page, not overlay the hero section below it). White background, ~94px min-height, horizontal padding ~74px (scale down responsively).
-- Left: logo image (if supplied) + site name, bold, heading font, ~22px.
-- Right: page links (from wp_list_pages as instructed above) with ~32px gap between them, then a pill-shaped CTA button — background {$accent}, white text, ~13px 22px padding, border-radius 8px, bold, no underline.
-- A subtle 1px bottom border (very light, e.g. rgba(0,0,0,.06)) — no heavy box-shadow.
+- Sits in the page's normal document flow at the very top (do NOT use `position: fixed` or `position: sticky` — it must scroll away with the page, not overlay the hero section below it). White background, {$t['nav_height']}px min-height, horizontal padding {$t['gutter']}px.
+- Left: logo image (if supplied) + site name, bold, heading font, {$t['brand_font_size']}px.
+- Right: page links (from wp_list_pages as instructed above) at {$t['nav_link_font_size']}px with a {$t['nav_link_gap']}px gap between them, then a CTA button — background {$accent}, white text, {$t['nav_button_padding_y']}px {$t['nav_button_padding_x']}px padding, border-radius {$t['button_radius']}px, {$t['nav_button_font_size']}px, bold, no underline.
+- A subtle 1px bottom border, {$t['nav_border']} — no heavy box-shadow.
+
+Content typography (for the blocks rendered inside the_content()):
+- h1 {$t['h1_size']}px, line-height {$t['h1_line_height']}. h2 {$t['h2_size']}px. Card/grid titles {$t['card_title_size']}px. Small body copy {$t['body_text_size']}px.
+- Cards (`.exito-card` and wp:group blocks with a border): {$t['card_border_width']}px solid {$t['card_border_color']}, border-radius {$t['card_radius']}px, padding {$t['card_padding']}px. Grid gap {$t['grid_gap']}px.
+- Images inside content fill their container's width (`width:100%`) with `object-fit:cover` — do NOT centre them at their natural size.
 
 Footer (footer.php):
-- Full-width band, background #1c1a17 (dark, near-black — not pure black, not the brand's primary color), light gray/cream text (~#cfc8bd).
-- 3-column grid (`display:grid;grid-template-columns:2fr 1fr 1fr;gap:36px`, stacking to 1 column on mobile): column 1 = brand name + short description; column 2 = "Navigasi" heading (uppercase, small, letter-spaced) + the same page list as the nav; column 3 = "Kontak" heading + contact info.
-- Below the 3-column grid, a full-width thin band, background slightly darker (#151310), centered small copyright line: "© {current year} {site name}. All rights reserved."
-- Headings inside the footer columns: uppercase, ~14px, letter-spacing 1px, muted color (~#c9c2b8) — not the same size/weight as body headings.
+- Full-width band, background {$t['footer_bg']} (dark, near-black — not pure black, not the brand's primary color), light gray/cream text ({$t['footer_text_color']}), {$t['footer_text_size']}px.
+- Padding {$t['footer_padding_top']}px {$t['gutter']}px {$t['footer_padding_bottom']}px.
+- 3-column grid (`display:grid;grid-template-columns:{$t['footer_columns']};gap:{$t['footer_gap']}px`, stacking to 1 column on mobile): column 1 = brand name + short description; column 2 = "Navigasi" heading (uppercase, small, letter-spaced) + the same page list as the nav; column 3 = "Kontak" heading + contact info.
+- Below the 3-column grid, a full-width thin band, background {$t['footer_bottom_bg']}, padding {$t['footer_bottom_padding_y']}px {$t['gutter']}px, centered {$t['footer_bottom_font_size']}px copyright line: "© {current year} {site name}. All rights reserved."
+- Headings inside the footer columns: uppercase, {$t['footer_heading_size']}px, letter-spacing 1px, muted color {$t['footer_heading_color']} — not the same size/weight as body headings.
 
 Overall page chrome:
 - Body font: '{$fontBody}'. Heading font: '{$fontHeading}' for site name and footer/nav headings.
@@ -263,30 +282,15 @@ Overall page chrome:
 SPEC;
     }
 
-    private function friendlyError(string $message): string
-    {
-        $lowerMessage = strtolower($message);
-
-        if (str_contains($lowerMessage, 'credit balance') || str_contains($lowerMessage, 'billing')) {
-            return 'Claude belum dapat membangun WordPress karena saldo Anthropic habis. Isi kredit Anthropic lalu jalankan build ulang.';
-        }
-
-        if (str_contains($lowerMessage, 'credential validation')) {
-            return 'Credential Claude tidak valid. Periksa ANTHROPIC_API_KEY lalu jalankan build ulang.';
-        }
-
-        if (str_contains($lowerMessage, 'anthropic-workspace-id')) {
-            return 'ANTHROPIC_API_KEY yang dipakai adalah identity-linked key dan butuh ANTHROPIC_WORKSPACE_ID. Ambil workspace ID di console.anthropic.com > Settings > Workspaces, isi ke .env, lalu jalankan build ulang.';
-        }
-
-        return 'Claude gagal membangun WordPress dari analisis GPT. Periksa konfigurasi Claude lalu coba lagi.';
-    }
 
     private function buildPrompt(Project $project, array $bundle): string
     {
         $bundleJson = json_encode([
             'analysis' => $bundle['analysis'] ?? [],
-            'template' => $bundle['template'] ?? [],
+            // array_filter: a project with no stated type contributes no
+            // template/category keys at all, rather than showing the model
+            // explicit nulls to reason about.
+            'template' => array_filter($bundle['template'] ?? []),
             'mockup_png' => ['path' => data_get($bundle, 'mockup.screenshot_path')],
             'implementation_manifest' => $bundle['implementation_manifest'] ?? [],
             'brand' => $bundle['brand'] ?? [],
@@ -305,7 +309,7 @@ Client: {$project->client_name}
 The business analysis, approved GPT website blueprint, brand values, and final content are below:
 {$bundleJson}
 
-The `implementation_manifest` is the handoff produced by GPT after visually reading the approved PNG. Treat it as the source of truth for the build: reproduce its ordered sections and design system, map every declared asset slot, and use the supplied approved copy. The PNG is a visual reference for the same approved design, not optional inspiration.
+The `implementation_manifest` is derived deterministically from the blueprint the client approved — it is not anyone's reading of the PNG. Treat it as the source of truth for the build: reproduce its ordered sections and design system exactly, honour each section's declared `layout.heading_align` and `layout.body_align` rather than centering everything, map every declared asset slot, and use the supplied approved copy verbatim. Do not redesign, re-order, re-align, or re-word anything it specifies — the client already approved those decisions. The PNG is a visual cross-check of that same approved design, not a brief to reinterpret.
 {$assetsSection}
 IMPORTANT — a separate, deterministic step (not you) already appends page-creation code straight into functions.php, and that code creates every WordPress Page in the blueprint (Home, About, Services, Contact, etc.) with its real content written as native Gutenberg blocks — so the client can visually edit it in WordPress's built-in Block Editor immediately after installing this ONE theme. There is no separate plugin; installing and activating this theme is the client's only step. Because of that:
 - `front-page.php` and `page.php` MUST render the actual page content via the standard WordPress Loop and `the_content()` — do NOT hardcode the homepage's sections as static markup in `front-page.php`. If you hardcode the content there instead of calling `the_content()`, the client's block-editor edits will never show up on the live site, which defeats the whole point.

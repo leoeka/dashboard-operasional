@@ -350,10 +350,10 @@ MD;
             return;
         }
 
-        // SectionImageService's generated photos (filename => raw JPEG
-        // bytes). Embedded as real binary files in the theme and uploaded
-        // to the Media Library at import time — see
-        // exito_client_import_images() below.
+        // The approved mockup's own photos (filename => raw JPEG bytes),
+        // read back off disk by MockupAssetService::loadApproved(). Embedded
+        // verbatim as real binary files in the theme and uploaded to the Media
+        // Library at import time — see exito_client_import_images() below.
         $images = $bundle['section_images'] ?? [];
         $imagesForExport = [];
         if (is_array($images)) {

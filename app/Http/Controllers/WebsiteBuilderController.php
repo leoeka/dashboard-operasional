@@ -6,6 +6,9 @@ use App\Models\Project;
 use App\Models\Proposal;
 use App\Services\GenerateMockupGptService;
 use App\Services\AnalisisGeminiService;
+use App\Exceptions\ProviderException;
+use App\Services\BlueprintManifestService;
+use App\Services\PipelineCheckpointService;
 use App\Services\CompetitorContentFetcher;
 use App\Services\CompetitorDiscoveryService;
 use App\Services\ScreenshotService;
@@ -35,18 +38,33 @@ class WebsiteBuilderController extends Controller
         return response()->json(['queued' => true]);
     }
 
-    public function proposalStatus(Project $project)
+    public function proposalStatus(Project $project, PipelineCheckpointService $checkpoints)
     {
-        return response()->json(
-            Cache::get($this->progressCacheKey($project->id), [
-                'status' => 'idle',
+        $progress = Cache::get($this->progressCacheKey($project->id), [
+            'status' => 'idle',
+            'progress' => 0,
+            'message' => '',
+        ]);
+
+        // The cache entry expires after ten minutes; a failure has to outlive
+        // it, or somebody coming back later sees "idle" and no reason to retry.
+        $failure = $checkpoints->failure($project);
+
+        if ($failure && $progress['status'] !== 'processing') {
+            $progress = [
+                'status' => 'failed',
                 'progress' => 0,
-                'message' => '',
-            ])
-        );
+                'message' => $failure->error_message,
+                'error_code' => $failure->error_code,
+                'failed_stage' => $failure->stage,
+                'resume_stage' => $checkpoints->nextStage($project),
+            ];
+        }
+
+        return response()->json($progress);
     }
 
-    public function approveProposal(Project $project, GenerateMockupGptService $aiService): RedirectResponse
+    public function approveProposal(Project $project, BlueprintManifestService $manifestService): RedirectResponse
     {
         $proposal = $project->latestProposal;
 
@@ -57,12 +75,11 @@ class WebsiteBuilderController extends Controller
         $proposalData = json_decode((string) $proposal->ai_reasoning, true) ?: [];
         $selectedIndex = (int) ($proposalData['selected_mockup_index'] ?? 0);
         $selectedMockup = $proposalData['mockup_candidates'][$selectedIndex] ?? ($proposalData['mockup'] ?? []);
-        try {
-            $manifest = $aiService->decomposeApprovedMockup($project, $selectedMockup);
-        } catch (\Throwable $e) {
-            Log::error('Approved mockup decomposition failed.', ['project_id' => $project->id, 'error' => $e->getMessage()]);
-            return back()->with('error', 'GPT belum berhasil memecah PNG mockup menjadi data build. Coba setujui lagi setelah konfigurasi OpenAI diperbaiki.');
-        }
+        // Derived straight from the blueprint the client approved. This used
+        // to round-trip through GPT vision — send the mockup PNG back and ask
+        // it to describe the design in the picture — which could only lose or
+        // invent detail, and made approval fail whenever OpenAI was down.
+        $manifest = $manifestService->build($selectedMockup);
 
         $proposalData['mockup'] = $selectedMockup;
         $proposalData['implementation_manifest'] = $manifest;
@@ -112,14 +129,49 @@ class WebsiteBuilderController extends Controller
      * Dipanggil dari GenerateProposalJob (queued, lihat generateProposal()
      * di atas).
      */
+    /**
+     * Runs the pipeline stage by stage, resuming where a previous attempt
+     * stopped.
+     *
+     * Each stage's result is checkpointed the moment it succeeds, so a provider
+     * failing halfway no longer throws the whole run away: the analysis and the
+     * frozen blueprints survive, and a retry re-runs only the stage that failed.
+     * That is also what makes a retry idempotent — nothing upstream is
+     * recomputed, so there is no second proposal, no second set of assets and no
+     * different blueprint than the one already frozen.
+     */
     public function runProposalGeneration(
         Project $project,
         GenerateMockupGptService $aiService,
         AnalisisGeminiService $geminiService,
         CompetitorDiscoveryService $competitorDiscovery,
-        CompetitorContentFetcher $contentFetcher
+        CompetitorContentFetcher $contentFetcher,
+        ?PipelineCheckpointService $checkpoints = null
     ): void {
         @set_time_limit(300);
+        $checkpoints ??= app(PipelineCheckpointService::class);
+
+        try {
+            $this->runPipeline($project, $aiService, $geminiService, $competitorDiscovery, $contentFetcher, $checkpoints);
+        } catch (ProviderException $e) {
+            // Classification only — never a key, see ProviderException::sanitise().
+            $this->reportProgress($project, 'failed', 0, $e->getMessage(), [
+                'error_code' => $e->errorCode,
+                'failed_stage' => $checkpoints->nextStage($project),
+            ]);
+
+            throw $e;
+        }
+    }
+
+    private function runPipeline(
+        Project $project,
+        GenerateMockupGptService $aiService,
+        AnalisisGeminiService $geminiService,
+        CompetitorDiscoveryService $competitorDiscovery,
+        CompetitorContentFetcher $contentFetcher,
+        PipelineCheckpointService $checkpoints
+    ): void {
 
         // 1. UPDATE PROGRESS: Load Data
         $this->reportProgress($project, 'processing', 10, 'Fetching project and client data...');
@@ -132,9 +184,15 @@ class WebsiteBuilderController extends Controller
             throw new \Exception('Project is not linked to client data.');
         }
 
-        $competitorContents = [];
-        if (!empty(trim((string) $project->target_market))) {
+        // Competitor research is genuinely optional — it enriches the brief but
+        // the pipeline works without it, so a failure here stays a warning.
+        $competitorContents = $checkpoints->remember($project, 'competitor_research', function () use ($project, $geminiService, $competitorDiscovery, $contentFetcher) {
+            if (empty(trim((string) $project->target_market))) {
+                return [];
+            }
+
             $this->reportProgress($project, 'processing', 20, 'Researching websites in the target market...');
+            $found = [];
 
             try {
                 $searchContext = $geminiService->extractCompetitorSearchContext($project);
@@ -147,22 +205,40 @@ class WebsiteBuilderController extends Controller
 
                 foreach (array_slice($competitorUrls, 0, 3) as $url) {
                     if (CompetitorContentFetcher::isSafeUrl($url) && ($content = $contentFetcher->fetch($url))) {
-                        $competitorContents[] = array_merge($content, ['url' => $url]);
+                        $found[] = array_merge($content, ['url' => $url]);
                     }
                 }
             } catch (\Throwable $e) {
                 Log::warning('Competitor research for proposal gagal, lanjut tanpa data kompetitor.', [
                     'project_id' => $project->id,
-                    'error' => $e->getMessage(),
+                    'error' => ProviderException::sanitise($e->getMessage()),
                 ]);
             }
-        }
 
-        $this->reportProgress($project, 'processing', 35, 'Analyzing business requirements with AI...');
-        $analysis = $geminiService->analyzeProject($project, $client, $competitorContents);
+            return $found;
+        });
 
-        $this->reportProgress($project, 'processing', 60, 'GPT is creating three website mockup options...');
-        $mockupCandidates = $aiService->generateMockupCandidates($project, $analysis, $competitorContents);
+        $analysis = $checkpoints->remember($project, 'gemini_analysis', function () use ($project, $client, $competitorContents, $geminiService) {
+            $this->reportProgress($project, 'processing', 35, 'Analyzing business requirements with AI...');
+
+            return $geminiService->analyzeProject($project, $client, $competitorContents);
+        });
+
+        // Frozen designs, checkpointed BEFORE any photo is paid for. An image
+        // quota failure below therefore costs nothing here on retry, and the
+        // retry produces assets for exactly these designs.
+        $blueprints = $checkpoints->remember($project, 'design_blueprint', function () use ($project, $analysis, $competitorContents, $aiService) {
+            $this->reportProgress($project, 'processing', 55, 'GPT is designing three website options...');
+
+            return $aiService->generateMockupBlueprints($project, $analysis, $competitorContents);
+        });
+
+        $mockupCandidates = $checkpoints->remember($project, 'mockup_assets', function () use ($project, $blueprints, $aiService) {
+            $this->reportProgress($project, 'processing', 70, 'Producing mockup photos and screenshots...');
+
+            return $aiService->renderCandidates($project, $blueprints);
+        });
+
         $mockup = $mockupCandidates[0];
 
         $home = collect($mockup['pages'] ?? [])->first(fn ($page) => strtolower($page['name'] ?? '') === 'home');
@@ -174,7 +250,11 @@ class WebsiteBuilderController extends Controller
             $mockup['screenshot_path'] = app(ScreenshotService::class)->captureHtml($mockupHtml, 'mockups/' . $project->code . '.png');
         }
 
-        $this->reportProgress($project, 'processing', 80, 'Assembling the PDF proposal document...');
+        // Skipped entirely when the proposal already exists — no PDF is
+        // rendered and no progress is reported for work that will not happen.
+        if ($checkpoints->completed($project, 'proposal_document') === null) {
+            $this->reportProgress($project, 'processing', 80, 'Assembling the PDF proposal document...');
+        }
         $projectData = [
             'project_name' => $project->name,
             'client_name' => $project->client_name,
@@ -183,26 +263,35 @@ class WebsiteBuilderController extends Controller
             'generated_at' => now()->format('d F Y H:i'),
         ];
 
-        try {
-            $pdf = Pdf::loadView('pdf.proposal', compact('project', 'projectData', 'analysis', 'mockup', 'mockupCandidates'));
-            $fileName = 'proposals/Proposal-Mockup-' . Str::slug($project->client_name) . '-' . $project->code . '.pdf';
-            Storage::disk('public')->put($fileName, $pdf->output());
+        // Checkpointed like every other stage, so re-running a finished job
+        // replays this instead of re-rendering the PDF, rewriting the proposal
+        // and logging the activity a second time.
+        $checkpoints->remember($project, 'proposal_document', function () use ($project, $projectData, $analysis, $mockup, $mockupCandidates) {
+            try {
+                $pdf = Pdf::loadView('pdf.proposal', compact('project', 'projectData', 'analysis', 'mockup', 'mockupCandidates'));
+                $fileName = 'proposals/Proposal-Mockup-' . Str::slug($project->client_name) . '-' . $project->code . '.pdf';
+                Storage::disk('public')->put($fileName, $pdf->output());
 
-            Proposal::updateOrCreate(['project_id' => $project->id], [
-                'client_name' => $project->client_name,
-                'pdf_path' => $fileName,
-                'version' => 1,
-                'ai_reasoning' => json_encode(['analysis' => $analysis, 'mockup' => $mockup, 'mockup_candidates' => $mockupCandidates, 'selected_mockup_index' => 0], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
-                'summary' => $mockup['website_concept'] ?? null,
-            ]);
+                Proposal::updateOrCreate(['project_id' => $project->id], [
+                    'client_name' => $project->client_name,
+                    'pdf_path' => $fileName,
+                    'version' => 1,
+                    'ai_reasoning' => json_encode(['analysis' => $analysis, 'mockup' => $mockup, 'mockup_candidates' => $mockupCandidates, 'selected_mockup_index' => 0], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
+                    'summary' => $mockup['website_concept'] ?? null,
+                ]);
 
-            $project->logActivity('AI business analysis and website mockup blueprint generated');
-            $this->reportProgress($project, 'completed', 100, 'Proposal and website mockup blueprint created successfully.');
-        } catch (\Throwable $e) {
-            Log::error('PDF Error: ' . $e->getMessage());
-            $this->reportProgress($project, 'failed', 0, 'Failed to create PDF proposal: ' . $e->getMessage());
-            throw $e;
-        }
+                $project->logActivity('AI business analysis and website mockup blueprint generated');
+
+                return ['pdf_path' => $fileName];
+            } catch (\Throwable $e) {
+                Log::error('PDF Error: ' . ProviderException::sanitise($e->getMessage()));
+                $this->reportProgress($project, 'failed', 0, 'Failed to create PDF proposal: ' . ProviderException::sanitise($e->getMessage()));
+
+                throw $e;
+            }
+        });
+
+        $this->reportProgress($project, 'completed', 100, 'Proposal and website mockup blueprint created successfully.');
     }
 
     public function previewProposal(Project $project)
@@ -270,11 +359,11 @@ class WebsiteBuilderController extends Controller
         return "proposal_progress:{$projectId}";
     }
 
-    private function reportProgress(Project $project, string $status, int $progress, string $message): void
+    private function reportProgress(Project $project, string $status, int $progress, string $message, array $extra = []): void
     {
         Cache::put(
             $this->progressCacheKey($project->id),
-            ['status' => $status, 'progress' => $progress, 'message' => $message],
+            array_merge(['status' => $status, 'progress' => $progress, 'message' => $message], $extra),
             now()->addMinutes(10)
         );
     }

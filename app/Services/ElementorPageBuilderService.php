@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Support\CompositionSpec;
+use App\Support\MockupDesignSpec;
 use Illuminate\Support\Str;
 
 /**
@@ -28,10 +30,11 @@ use Illuminate\Support\Str;
  */
 class ElementorPageBuilderService
 {
+
     /**
      * @param array $mockupPages   $mockup['pages'] from the approved proposal (list of {name, sections}).
      * @param array $design        $mockup['design'] (primary/secondary/accent colors, fonts).
-     * @param array $imageMap      SectionImageService's ['map'], keyed by the same page slugs this method
+     * @param array $imageMap      MockupAssetService::loadApproved()'s ['map'], keyed by the same page slugs this method
      *                             computes: page slug -> {hero?: filename, items?: {itemIndex: filename}}.
      * @return array<string, array{title:string, slug:string, html:string, elements:array}>
      *         Keyed by page slug ('home' for the first/"Home" page).
@@ -70,6 +73,95 @@ class ElementorPageBuilderService
     }
 
     /**
+     * The structural decisions this builder actually applies to one page's
+     * sections: which section becomes the hero / icon band / card grid,
+     * which are dropped, and the alignment each part renders with.
+     *
+     * Public because the approval step builds Claude's implementation
+     * manifest from exactly these decisions (see BlueprintManifestService)
+     * instead of asking GPT to read them back out of the mockup PNG.
+     * renderGutenbergBlocks() consumes the same method, so the manifest and
+     * the shipped markup cannot describe different layouts.
+     *
+     * @return array<int, array{index:int, role:string, heading_align:string, body_align:string, layout_variant:string, rendered:bool}>
+     */
+    public function describeSections(array $sections, array $design = []): array
+    {
+        $sections = array_values($sections);
+        $layoutVariant = $this->layoutVariant($design);
+        $picked = $this->pickIconPhotoIndexes($sections);
+        $plan = [];
+
+        foreach ($sections as $index => $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            if ($index === 0) {
+                // .hero lays its copy out in a left column, except
+                // .hero.overlay-bg which centers it over the full-bleed photo.
+                $role = 'hero';
+                $align = $this->resolveAlign($section, $layoutVariant === 'overlay-bg' ? 'center' : 'left');
+                $headingAlign = $align;
+                $bodyAlign = $align;
+            } elseif ($index === $picked['icon']) {
+                // .icon-row centers its badges; .icon-row.minimal (the
+                // overlay-bg pairing) makes the band a left-aligned list.
+                $role = 'icon_band';
+                $headingAlign = $this->resolveAlign($section, 'center');
+                $bodyAlign = $this->resolveAlign($section, $layoutVariant === 'overlay-bg' ? 'left' : 'center');
+            } elseif ($index === $picked['photo']) {
+                // .card sets no text-align in any variant, so card copy reads left.
+                $role = 'card_grid';
+                $headingAlign = $this->resolveAlign($section, 'center');
+                $bodyAlign = $this->resolveAlign($section, 'left');
+            } else {
+                // Real content GPT wrote, but never part of the PNG the
+                // client approved - see the note in renderGutenbergBlocks().
+                $role = 'skipped';
+                $headingAlign = $this->resolveAlign($section, 'center');
+                $bodyAlign = $headingAlign;
+            }
+
+            // The composition the blueprint asked for, resolved into concrete
+            // rendering decisions. Both the mockup Blade and the Gutenberg body
+            // read these same values, so a composition cannot mean one thing in
+            // the PNG and another in WordPress.
+            $composition = $role === 'skipped' ? null : CompositionSpec::resolve($section, $design, $role);
+
+            // A blueprint that states its own text_align wins over the legacy
+            // per-variant mapping; CompositionSpec applies that same rule, so
+            // take the alignment from there whenever a composition resolved.
+            if ($composition && isset($section['text_align'])) {
+                $bodyAlign = $composition['text_align'];
+                if ($role === 'hero') {
+                    $headingAlign = $composition['text_align'];
+                }
+            }
+
+            $plan[$index] = [
+                'index' => $index,
+                'role' => $role,
+                'heading_align' => $headingAlign,
+                'body_align' => $bodyAlign,
+                'layout_variant' => $layoutVariant,
+                'composition' => $composition,
+                'rendered' => $role !== 'skipped',
+            ];
+        }
+
+        return $plan;
+    }
+
+    /** The approved PNG's structural arrangement, guarded against an unknown value. */
+    private function layoutVariant(array $design): string
+    {
+        return in_array($design['layout_variant'] ?? null, ['split-right', 'split-left', 'overlay-bg'], true)
+            ? $design['layout_variant']
+            : 'split-right';
+    }
+
+    /**
      * Native WordPress Block Editor content — real `<!-- wp:type -->` block
      * comments around standard core-block markup, so opening the page in
      * wp-admin shows genuine, individually-editable heading/paragraph/
@@ -87,7 +179,7 @@ class ElementorPageBuilderService
      *   alternating a light background band for visual rhythm.
      *
      * Image blocks reference a `__EXITO_IMAGE:<filename>__` token instead of
-     * a real URL, because the actual photo (from SectionImageService) is
+     * a real URL, because the actual photo (from the approved mockup's assets) is
      * only uploaded to the Media Library at plugin-activation time inside
      * WordPress — see BundleExporterService, which replaces these tokens
      * with the real attachment URL (or strips the block entirely if that
@@ -105,14 +197,12 @@ class ElementorPageBuilderService
         // reusing it here for a section background produced loud, ungrounded
         // colors (e.g. a bright pink) that never appeared in what the client
         // actually approved.
-        $altBandColor = '#F6F4F0';
-        $layoutVariant = in_array($design['layout_variant'] ?? null, ['split-right', 'split-left', 'overlay-bg'], true)
-            ? $design['layout_variant']
-            : 'split-right';
+        $altBandColor = (string) MockupDesignSpec::token('section_band_color');
+        $layoutVariant = $this->layoutVariant($design);
 
         $heroFilename = $images['hero'] ?? null;
         $itemFilenames = $images['items'] ?? [];
-        $picked = $this->pickIconPhotoIndexes($sections);
+        $plan = $this->describeSections($sections, $design);
 
         $blocks = '';
         $itemImagesUsed = false;
@@ -127,7 +217,12 @@ class ElementorPageBuilderService
             $cta = $section['cta'] ?? null;
             $items = is_array($section['items'] ?? null) ? array_values($section['items']) : [];
 
-            if ($sectionIndex === 0) {
+            $sectionPlan = $plan[$sectionIndex] ?? null;
+            if (!$sectionPlan) {
+                continue;
+            }
+
+            if ($sectionPlan['role'] === 'hero') {
                 $blocks .= $this->gbHero(
                     $heading ? (string) $heading : '',
                     $description ? (string) $description : '',
@@ -135,13 +230,14 @@ class ElementorPageBuilderService
                     $heroFilename,
                     $primary,
                     $accent,
-                    $layoutVariant
+                    $sectionPlan['body_align'],
+                    $sectionPlan['composition']
                 );
                 continue;
             }
 
-            $isIconSection = $sectionIndex === $picked['icon'];
-            $isPhotoSection = $sectionIndex === $picked['photo'];
+            $isIconSection = $sectionPlan['role'] === 'icon_band';
+            $isPhotoSection = $sectionPlan['role'] === 'card_grid';
 
             // Every other section in the mockup blueprint (pricing,
             // testimonials, instructor bios, FAQ, ...) is real content GPT
@@ -157,28 +253,33 @@ class ElementorPageBuilderService
                 continue;
             }
 
+            // .section-head is text-align:center in every layout variant,
+            // so the band's own heading/intro stay centered even when the
+            // items below them are left-aligned.
+            $sectionHeadAlign = $sectionPlan['heading_align'];
+
             $inner = '';
             if ($heading) {
-                $inner .= $this->gbHeading((string) $heading, 2, $primary);
+                $inner .= $this->gbHeading((string) $heading, 2, $primary, $sectionHeadAlign);
             }
             if ($description) {
-                $inner .= $this->gbParagraph((string) $description);
+                $inner .= $this->gbParagraph((string) $description, null, $sectionHeadAlign);
             }
 
             if ($items) {
                 if ($isIconSection) {
-                    $inner .= $this->gbIconRow($items, $accent);
+                    $inner .= $this->gbIconRow($items, $accent, $sectionPlan['body_align']);
                 } else {
                     // Only the designated photo section actually consumes the
-                    // generated photo budget — matches SectionImageService.
+                    // approved photo budget — matches MockupAssetService.
                     $imagesForThisGrid = $itemImagesUsed ? [] : $itemFilenames;
                     $itemImagesUsed = $itemImagesUsed || (bool) $itemFilenames;
-                    $inner .= $this->gbCardGrid($items, $imagesForThisGrid);
+                    $inner .= $this->gbCardGrid($items, $imagesForThisGrid, $sectionPlan['body_align'], $sectionPlan['composition']);
                 }
             }
 
             if ($cta) {
-                $inner .= $this->gbButton((string) $cta, $accent);
+                $inner .= $this->gbButton((string) $cta, $accent, null, $sectionHeadAlign);
             }
 
             // Only the designated photo/showcase section gets the neutral
@@ -236,42 +337,55 @@ class ElementorPageBuilderService
      * - overlay-bg: photo as a full-bleed wp:cover background with a dim
      *   overlay, copy centered on top of it.
      */
-    private function gbHero(string $heading, string $description, ?string $cta, ?string $heroImage, string $primary, string $accent, string $layoutVariant = 'split-right'): string
+    private function gbHero(string $heading, string $description, ?string $cta, ?string $heroImage, string $primary, string $accent, string $align = 'left', ?array $composition = null): string
     {
+        $composition ??= CompositionSpec::resolve([], [], 'hero');
         $textColor = $this->isLightColor($primary) ? '#1c1a17' : '#ffffff';
 
         $copy = '';
         if ($heading !== '') {
-            $copy .= $this->gbHeading($heading, 1, $textColor);
+            $copy .= $this->gbHeading($heading, 1, $textColor, $align);
         }
         if ($description !== '') {
-            $copy .= $this->gbParagraph($description, $textColor);
+            $copy .= $this->gbParagraph($description, $textColor, $align);
         }
         if ($cta) {
-            $copy .= $this->gbButton($cta, '#ffffff', $primary);
+            $copy .= $this->gbButton($cta, '#ffffff', $primary, $align);
         }
 
         if ($copy === '') {
             return '';
         }
 
-        if ($heroImage && $layoutVariant === 'overlay-bg') {
+        // The same decisions the mockup PNG was rendered from: a composition
+        // that shows no photograph is copy alone, an overlay hero is a cover
+        // block, and a split hero uses the blueprint's own column widths rather
+        // than one fixed pair.
+        if ($composition['image_position'] === 'none' || !$heroImage) {
+            return $this->gbSection($copy, $primary);
+        }
+
+        if ($composition['family'] === 'overlay') {
             return $this->gbCoverHero($copy, $heroImage, $primary);
         }
 
-        if ($heroImage) {
-            $copyWidth = $layoutVariant === 'split-left' ? '45%' : '55%';
-            $imageWidth = $layoutVariant === 'split-left' ? '55%' : '45%';
-            $imageBlock = $this->gbImage($heroImage, 'large');
+        if ($composition['family'] === 'split') {
+            $copyWidth = $composition['content_width'] . '%';
+            $imageWidth = $composition['image_width'] . '%';
+            $imageBlock = $this->gbImage($heroImage, 'large', $composition['image_ratio']);
             $colWidthsCopy = json_encode(['width' => $copyWidth], JSON_UNESCAPED_SLASHES);
             $colWidthsImg = json_encode(['width' => $imageWidth], JSON_UNESCAPED_SLASHES);
             $copyColumn = "<!-- wp:column {$colWidthsCopy} -->\n<div class=\"wp-block-column\" style=\"flex-basis:{$copyWidth}\">\n{$copy}</div>\n<!-- /wp:column -->\n\n";
             $imageColumn = "<!-- wp:column {$colWidthsImg} -->\n<div class=\"wp-block-column\" style=\"flex-basis:{$imageWidth}\">\n{$imageBlock}</div>\n<!-- /wp:column -->\n\n";
-            $columns = $layoutVariant === 'split-left' ? ($imageColumn . $copyColumn) : ($copyColumn . $imageColumn);
+            $columns = $composition['image_position'] === 'left' ? ($imageColumn . $copyColumn) : ($copyColumn . $imageColumn);
             $inner = "<!-- wp:columns -->\n<div class=\"wp-block-columns\">\n{$columns}</div>\n<!-- /wp:columns -->\n\n";
-        } else {
-            $inner = $copy;
+
+            return $this->gbSection($inner, $primary);
         }
+
+        // stacked_media and centered: the photo sits above or below the copy.
+        $imageBlock = $this->gbImage($heroImage, 'large', $composition['image_ratio']);
+        $inner = $composition['image_position'] === 'above' ? ($imageBlock . $copy) : ($copy . $imageBlock);
 
         return $this->gbSection($inner, $primary);
     }
@@ -293,9 +407,11 @@ class ElementorPageBuilderService
             'dimRatio' => 60,
             'overlayColor' => null,
             'customOverlayColor' => $primary,
-            'minHeight' => 480,
+            'minHeight' => MockupDesignSpec::token('hero_overlay_min_height'),
             'contentPosition' => 'center center',
         ], JSON_UNESCAPED_SLASHES);
+
+        $coverHeight = MockupDesignSpec::token('hero_overlay_min_height');
 
         // The marker span wraps ONLY the <img> tag (same convention as
         // gbImage()) — not the whole wp:cover block — so a failed/missing
@@ -303,7 +419,7 @@ class ElementorPageBuilderService
         // the brand color as its background) instead of losing the
         // headline/description/CTA that live inside the same block.
         return "<!-- wp:cover {$attrs} -->\n"
-            . "<div class=\"wp-block-cover\" style=\"min-height:480px\">"
+            . "<div class=\"wp-block-cover\" style=\"min-height:{$coverHeight}px\">"
             . "<span aria-hidden=\"true\" class=\"wp-block-cover__background has-background-dim-60 has-background-dim\" style=\"background-color:{$primary}\"></span>"
             . "<!--EXITO_IMG_START:{$heroImage}-->"
             . "<img class=\"wp-block-cover__image-background\" alt=\"\" src=\"{$token}\" data-object-fit=\"cover\"/>"
@@ -312,11 +428,12 @@ class ElementorPageBuilderService
             . "</div>\n<!-- /wp:cover -->\n\n";
     }
 
-    private function gbHeading(string $text, int $level = 2, ?string $color = null): string
+    private function gbHeading(string $text, int $level = 2, ?string $color = null, string $align = 'center'): string
     {
         $escaped = e($text);
-        $attrs = ['level' => $level, 'textAlign' => 'center'];
-        $class = 'wp-block-heading has-text-align-center';
+        $align = $this->safeAlign($align);
+        $attrs = ['level' => $level, 'textAlign' => $align];
+        $class = 'wp-block-heading has-text-align-' . $align;
         $style = '';
 
         if ($color) {
@@ -332,11 +449,12 @@ class ElementorPageBuilderService
             . "<!-- /wp:heading -->\n\n";
     }
 
-    private function gbParagraph(string $text, ?string $color = null): string
+    private function gbParagraph(string $text, ?string $color = null, string $align = 'center'): string
     {
         $escaped = e($text);
-        $attrs = ['align' => 'center'];
-        $class = 'has-text-align-center';
+        $align = $this->safeAlign($align);
+        $attrs = ['align' => $align];
+        $class = 'has-text-align-' . $align;
         $style = '';
 
         if ($color) {
@@ -352,9 +470,10 @@ class ElementorPageBuilderService
             . "<!-- /wp:paragraph -->\n\n";
     }
 
-    private function gbButton(string $text, ?string $bgColor = null, ?string $textColor = null): string
+    private function gbButton(string $text, ?string $bgColor = null, ?string $textColor = null, string $align = 'center'): string
     {
         $escaped = e($text);
+        $align = $this->safeAlign($align);
         if ($bgColor && !$textColor) {
             $textColor = '#ffffff';
         }
@@ -384,7 +503,7 @@ class ElementorPageBuilderService
         $styleAttr = $inlineStyle ? ' style="' . $inlineStyle . '"' : '';
         $classAttr = implode(' ', $classes);
 
-        return "<!-- wp:buttons {\"layout\":{\"type\":\"flex\",\"justifyContent\":\"center\"}} -->\n"
+        return "<!-- wp:buttons {\"layout\":{\"type\":\"flex\",\"justifyContent\":\"{$align}\"}} -->\n"
             . "<div class=\"wp-block-buttons\"><!-- wp:button" . ($innerAttrs ? " {$innerAttrs}" : '') . " -->\n"
             . "<div class=\"wp-block-button\"><a class=\"{$classAttr}\"{$styleAttr} href=\"#\">{$escaped}</a></div>\n"
             . "<!-- /wp:button --></div>\n"
@@ -428,7 +547,7 @@ class ElementorPageBuilderService
      * heading block's own supported color attribute) above a title/description,
      * no photo needed. Mirrors .icon-row in mockup-render.blade.php.
      */
-    private function gbIconRow(array $items, string $accent): string
+    private function gbIconRow(array $items, string $accent, string $align = 'center'): string
     {
         $columnsHtml = '';
 
@@ -436,12 +555,12 @@ class ElementorPageBuilderService
             $title = is_array($item) ? ($item['title'] ?? $item['name'] ?? null) : (string) $item;
             $desc = is_array($item) ? ($item['description'] ?? null) : null;
 
-            $inner = $this->gbHeading((string) ($index + 1), 4, $accent);
+            $inner = $this->gbHeading((string) ($index + 1), 4, $accent, $align);
             if ($title) {
-                $inner .= $this->gbHeading((string) $title, 3);
+                $inner .= $this->gbHeading((string) $title, 3, null, $align);
             }
             if ($desc) {
-                $inner .= $this->gbParagraph((string) $desc);
+                $inner .= $this->gbParagraph((string) $desc, null, $align);
             }
 
             $columnsHtml .= "<!-- wp:column -->\n<div class=\"wp-block-column\">\n{$inner}</div>\n<!-- /wp:column -->\n\n";
@@ -456,25 +575,27 @@ class ElementorPageBuilderService
 
     /**
      * @param array $items      up to 4 mockup section items (original item index as key), rendered as a bordered card grid.
-     * @param array $itemImages original item index => generated photo filename (from SectionImageService).
+     * @param array $itemImages original item index => approved photo filename (from MockupAssetService).
      */
-    private function gbCardGrid(array $items, array $itemImages = []): string
+    private function gbCardGrid(array $items, array $itemImages = [], string $align = 'left', ?array $composition = null): string
     {
         $columnsHtml = '';
+        $ratio = $composition['image_ratio'] ?? null;
+        $limit = max(1, min(6, $composition['columns'] ?? 4));
 
-        foreach (array_slice($items, 0, 4, true) as $itemIndex => $item) {
+        foreach (array_slice($items, 0, $limit, true) as $itemIndex => $item) {
             $title = is_array($item) ? ($item['title'] ?? $item['name'] ?? null) : (string) $item;
             $desc = is_array($item) ? ($item['description'] ?? null) : null;
 
             $inner = '';
             if (isset($itemImages[$itemIndex])) {
-                $inner .= $this->gbImage($itemImages[$itemIndex], 'medium');
+                $inner .= $this->gbImage($itemImages[$itemIndex], 'medium', $ratio);
             }
             if ($title) {
-                $inner .= $this->gbHeading((string) $title, 3);
+                $inner .= $this->gbHeading((string) $title, 3, null, $align);
             }
             if ($desc) {
-                $inner .= $this->gbParagraph((string) $desc);
+                $inner .= $this->gbParagraph((string) $desc, null, $align);
             }
             if ($inner === '') {
                 continue;
@@ -497,7 +618,13 @@ class ElementorPageBuilderService
      */
     private function gbCard(string $inner): string
     {
-        $attrs = json_encode(['style' => ['border' => ['color' => '#eae5dd', 'width' => '1px', 'radius' => '14px'], 'spacing' => ['padding' => ['top' => '16px', 'bottom' => '16px', 'left' => '16px', 'right' => '16px']]]], JSON_UNESCAPED_SLASHES);
+        $border = MockupDesignSpec::token('card_border_width') . 'px';
+        $radius = MockupDesignSpec::token('card_radius') . 'px';
+        $padding = MockupDesignSpec::token('card_padding') . 'px';
+        $attrs = json_encode(['style' => [
+            'border' => ['color' => MockupDesignSpec::token('card_border_color'), 'width' => $border, 'radius' => $radius],
+            'spacing' => ['padding' => ['top' => $padding, 'bottom' => $padding, 'left' => $padding, 'right' => $padding]],
+        ]], JSON_UNESCAPED_SLASHES);
 
         return "<!-- wp:group {$attrs} -->\n"
             . "<div class=\"wp-block-group has-border-color\" style=\"border-color:#eae5dd;border-width:1px;border-radius:14px;overflow:hidden;padding:16px\">\n{$inner}</div>\n"
@@ -513,15 +640,45 @@ class ElementorPageBuilderService
      * or upload failed) — so a missing photo just means one less image
      * block, never a broken `<img>`.
      */
-    private function gbImage(string $filename, string $sizeSlug = 'large'): string
+    private function gbImage(string $filename, string $sizeSlug = 'large', ?string $imageRatio = null): string
     {
         $token = "__EXITO_IMAGE:{$filename}__";
+        // The blueprint's aspect ratio, applied as the crop the approved mockup
+        // used. wp:image supports aspectRatio natively, so the block still edits
+        // normally in the Block Editor.
+        $ratioAttr = $imageRatio ? ',"aspectRatio":"' . str_replace(':', '/', $imageRatio) . '"' : '';
+        $ratioStyle = $imageRatio ? ' style="aspect-ratio:' . str_replace(':', '/', $imageRatio) . ';object-fit:cover"' : '';
 
         return "<!--EXITO_IMG_START:{$filename}-->"
-            . "<!-- wp:image {\"sizeSlug\":\"{$sizeSlug}\",\"align\":\"center\"} -->\n"
-            . "<figure class=\"wp-block-image aligncenter size-{$sizeSlug}\"><img src=\"{$token}\" alt=\"\"/></figure>\n"
+            . "<!-- wp:image {\"sizeSlug\":\"{$sizeSlug}\"{$ratioAttr}} -->\n"
+            . "<figure class=\"wp-block-image size-{$sizeSlug}\"><img src=\"{$token}\"{$ratioStyle} alt=\"\"/></figure>\n"
             . "<!-- /wp:image -->"
             . "<!--EXITO_IMG_END:{$filename}-->\n\n";
+    }
+
+    /** Guards against an unsupported alignment reaching Gutenberg's block attributes. */
+    private function safeAlign(string $align): string
+    {
+        return in_array($align, ['left', 'center', 'right'], true) ? $align : 'center';
+    }
+
+    /**
+     * TEMPORARY bridge for the current blueprint schema, which carries no
+     * alignment field at all: the alignment the client actually approved
+     * lives only in mockup-render.blade.php's CSS, so callers pass the
+     * fallback that matches what that CSS renders for the section in
+     * question (see alignment notes on gbHero/gbIconRow/gbCardGrid).
+     *
+     * A blueprint section that already declares `text_align` wins outright,
+     * so once the design schema is widened to emit it per section, every
+     * fallback here becomes dead and this whole mapping can be deleted
+     * without touching a single caller.
+     */
+    private function resolveAlign(array $section, string $fallback): string
+    {
+        $declared = strtolower(trim((string) ($section['text_align'] ?? '')));
+
+        return in_array($declared, ['left', 'center', 'right'], true) ? $declared : $fallback;
     }
 
     /** Validates a hex color string, falling back to a safe default if GPT sent something unusable. */
