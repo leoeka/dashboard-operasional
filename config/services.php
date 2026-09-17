@@ -60,11 +60,6 @@ return [
 
     'proposal_ai_enabled' => env('PROPOSAL_AI_ENABLED', true),
 
-    'zipwp' => [
-        'token' => env('ZIPWP_API_TOKEN'),
-        'mcp_url' => env('ZIPWP_MCP_URL', 'https://api.zipwp.com/mcp/zipwp'),
-    ],
-
     'fonnte' => [
         'token' => env('FONNTE_TOKEN'),
     ],

@@ -6,9 +6,8 @@ use Illuminate\Http\Request;
 
 /**
  * Front-end shell only — kept because the "Mockup" nav item may be reused
- * later, but no longer wired to the ZipWP API (superseded by the Gemini/
- * GPT/Claude pipeline in WebsiteBuilderController). Always renders an
- * empty template list.
+ * later. Not wired to any backend (the real pipeline lives in
+ * WebsiteBuilderController). Always renders an empty template list.
  */
 class MockupController extends Controller
 {

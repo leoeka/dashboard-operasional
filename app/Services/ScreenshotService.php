@@ -35,7 +35,7 @@ class ScreenshotService
      * Ambil screenshot dari sebuah URL (pakai Chromium headless via Browsershot)
      * lalu simpan ke storage disk 'public'.
      *
-     * @param string $url          URL situs yang mau di-screenshot (mis. site_url dari ZipWP)
+     * @param string $url          URL situs yang mau di-screenshot
      * @param string $relativePath Path relatif tujuan penyimpanan, mis. "mockups/12.png"
      * @return string|null         Path relatif (sama dengan $relativePath) kalau sukses, null kalau gagal
      */
