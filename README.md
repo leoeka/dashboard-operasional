@@ -64,4 +64,7 @@ Project-specific notes for this dashboard, separate from the Laravel framework
 documentation above:
 
 - [Billing & Finance Status](docs/BILLING_FINANCE_STATUS.md) — status, architecture and handoff for the recurring billing system (Phases 1–4, locked)
+- [Billing & Finance User Manual](docs/BILLING_FINANCE_USER_MANUAL.md) — panduan operator untuk langganan, invoice, pembayaran, reminder, SOP, dan troubleshooting
+  - [PDF Manual](docs/manuals/Billing_Finance_User_Manual.pdf)
+  - [DOCX Manual](docs/manuals/Billing_Finance_User_Manual.docx)
 - [WordPress Bundle System](docs/wordpress-bundle-system.md)
