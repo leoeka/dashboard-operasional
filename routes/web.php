@@ -10,6 +10,8 @@ use App\Http\Controllers\requestOrderController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\AboutController;
+use App\Http\Controllers\BillingSubscriptionController;
+use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\ReportController;
 
@@ -133,7 +135,21 @@ Route::middleware(['auth'])->group(function () {
     })->name('pages.website');
 
     // 8. Finance
-    Route::get('/finance', [InvoiceController::class, 'index'])->name('pages.finance');
+    // The page itself is read-only and assembled by FinanceController; every
+    // action below still runs through the controllers that already own it, so
+    // the legacy invoice behaviour is untouched.
+    Route::get('/finance', [FinanceController::class, 'index'])->name('pages.finance');
+
+    // Read-only invoice detail; every action on it posts to the routes above.
+    Route::get('/finance/invoices/{invoice}', [\App\Http\Controllers\FinanceInvoiceController::class, 'show'])->name('pages.finance.invoices.show');
+
+    // Recurring subscriptions. Status changes only — a subscription is never
+    // deleted, because paid invoices point at it.
+    Route::get('/finance/subscriptions/create', [BillingSubscriptionController::class, 'create'])->name('pages.finance.subscriptions.create');
+    Route::post('/finance/subscriptions', [BillingSubscriptionController::class, 'store'])->name('pages.finance.subscriptions.store');
+    Route::get('/finance/subscriptions/{subscription}/edit', [BillingSubscriptionController::class, 'edit'])->name('pages.finance.subscriptions.edit');
+    Route::put('/finance/subscriptions/{subscription}', [BillingSubscriptionController::class, 'update'])->name('pages.finance.subscriptions.update');
+    Route::patch('/finance/subscriptions/{subscription}/status', [BillingSubscriptionController::class, 'updateStatus'])->name('pages.finance.subscriptions.status');
     Route::post('/finance', [InvoiceController::class, 'store'])->name('pages.finance.store');
     Route::patch('/finance/{invoice}/paid', [InvoiceController::class, 'markPaid'])->name('pages.finance.paid');
     Route::post('/finance/{invoice}/remind', [InvoiceController::class, 'sendReminderNow'])->name('pages.finance.remind');

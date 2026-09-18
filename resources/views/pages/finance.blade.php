@@ -1,9 +1,22 @@
 @extends('layouts.app')
-@section('title', 'Finance')
+@section('title', 'Billing & Finance')
 
 @section('content')
 
-    <x-page-header title="Finance" />
+    <x-page-header title="Billing & Finance">
+        <x-slot:actions>
+            <div class="flex flex-wrap gap-2">
+                <a href="{{ route('pages.finance.subscriptions.create') }}"
+                    class="grad-blue text-white text-sm px-4 py-2 rounded-lg hover:opacity-90 transition inline-flex items-center gap-2">
+                    <i class='bx bx-plus'></i> Langganan Baru
+                </a>
+                <button type="button" x-data @click="$dispatch('open-invoice-form')"
+                    class="bg-slate-100 text-slate-600 text-sm px-4 py-2 rounded-lg hover:bg-slate-200 transition inline-flex items-center gap-2">
+                    <i class='bx bx-receipt'></i> Invoice Manual
+                </button>
+            </div>
+        </x-slot:actions>
+    </x-page-header>
 
     @if (session('success'))
         <div class="mb-6 px-4 py-3 rounded-lg bg-emerald-50 text-emerald-600 text-sm">{{ session('success') }}</div>
@@ -11,109 +24,88 @@
     @if (session('error'))
         <div class="mb-6 px-4 py-3 rounded-lg bg-red-50 text-red-600 text-sm">{{ session('error') }}</div>
     @endif
-
-    {{-- TAMBAH INVOICE --}}
-    <x-card class="mb-6">
-        <h2 class="font-semibold text-slate-800 mb-4">Create New Invoice</h2>
-        <form method="POST" action="{{ route('pages.finance.store') }}" class="grid grid-cols-1 sm:grid-cols-4 gap-3">
-            @csrf
-            <select name="project_id" required class="bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
-                <option value="">-- Project --</option>
-                @foreach ($projects as $p)
-                    <option value="{{ $p->id }}">{{ $p->name }} ({{ $p->client_name }})</option>
+    @if ($errors->any())
+        <div class="mb-6 px-4 py-3 rounded-lg bg-red-50 text-red-600 text-sm">
+            <ul class="list-disc list-inside space-y-0.5">
+                @foreach ($errors->all() as $error)
+                    <li>{{ $error }}</li>
                 @endforeach
-            </select>
-            <select name="type" required class="bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
-                <option value="dp">DP</option>
-                <option value="pelunasan">Final Payment</option>
-                <option value="full">Full Payment</option>
-            </select>
-            <input type="number" name="amount" placeholder="Amount (Rp)" required
-                class="bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
-            <div class="flex gap-2">
-                <input type="date" name="due_date" required
-                    class="flex-1 bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
-                <button type="submit"
-                    class="grad-blue text-white text-sm px-4 rounded-lg hover:opacity-90 transition flex-shrink-0">
-                    <i class='bx bx-plus'></i>
+            </ul>
+        </div>
+    @endif
+
+    {{-- SUMMARY — the same six numbers on every tab, so the state of the book is
+         never more than a glance away regardless of what you are looking at. --}}
+    @include('finance.partials.summary', ['summary' => $summary])
+
+    {{-- TABS --}}
+    <div class="mb-5 overflow-x-auto">
+        <div class="inline-flex gap-1 bg-slate-100 p-1 rounded-xl">
+            @foreach ([
+        'overview' => ['Overview', 'bx-grid-alt'],
+        'subscriptions' => ['Langganan', 'bx-repost'],
+        'invoices' => ['Invoice', 'bx-receipt'],
+        'payments' => ['Pembayaran', 'bx-wallet'],
+        'reminders' => ['Riwayat Reminder', 'bx-bell'],
+    ] as $key => [$label, $icon])
+                <a href="{{ route('pages.finance', ['tab' => $key]) }}"
+                    class="text-sm px-4 py-2 rounded-lg whitespace-nowrap transition inline-flex items-center gap-2
+                       {{ $tab === $key ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700' }}">
+                    <i class='bx {{ $icon }}'></i> {{ $label }}
+                </a>
+            @endforeach
+        </div>
+    </div>
+
+    @include('finance.partials.' . $tab)
+
+    {{-- The legacy manual invoice form, unchanged in behaviour and still posting
+         to the same route. Moved into a collapsible panel so it stops taking up
+         the top of the page, but nothing about it was rewritten. --}}
+    <div x-data="{ open: false }" @open-invoice-form.window="open = true" class="mt-6">
+        {{-- x-transition, not x-collapse: the layout loads Alpine core from the
+             CDN without the Collapse plugin, so x-collapse would be an unknown
+             directive. Core transitions are already available. --}}
+        <x-card x-show="open" x-cloak x-transition.duration.200ms>
+            <div class="flex items-center justify-between mb-4">
+                <div>
+                    <h2 class="font-semibold text-slate-800">Invoice Manual (Project)</h2>
+                    <p class="text-xs text-slate-400 mt-0.5">Untuk DP, pelunasan, atau pembayaran penuh sebuah project.
+                        Invoice perpanjangan dibuat otomatis oleh sistem.</p>
+                </div>
+                <button type="button" @click="open = false" class="text-slate-400 hover:text-slate-600">
+                    <i class='bx bx-x text-xl'></i>
                 </button>
             </div>
-        </form>
-    </x-card>
 
-    {{-- FILTER --}}
-    <x-card padding="p-4" class="mb-5">
-        <form method="GET" class="flex flex-wrap gap-2">
-            <a href="{{ route('pages.finance') }}"
-                class="text-xs px-3 py-1.5 rounded-lg {{ !request('status') ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">All</a>
-            <a href="{{ route('pages.finance', ['status' => 'unpaid']) }}"
-                class="text-xs px-3 py-1.5 rounded-lg {{ request('status') === 'unpaid' ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">Unpaid</a>
-            <a href="{{ route('pages.finance', ['status' => 'overdue']) }}"
-                class="text-xs px-3 py-1.5 rounded-lg {{ request('status') === 'overdue' ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">Overdue</a>
-            <a href="{{ route('pages.finance', ['status' => 'paid']) }}"
-                class="text-xs px-3 py-1.5 rounded-lg {{ request('status') === 'paid' ? 'grad-blue text-white' : 'bg-slate-100 text-slate-600' }}">Paid</a>
-        </form>
-    </x-card>
-
-    {{-- LIST INVOICE --}}
-    <x-card padding="p-0">
-        <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead>
-                    <tr class="text-left text-slate-400 border-b border-slate-100">
-                        <th class="px-6 py-4 font-medium">Invoice No.</th>
-                        <th class="px-6 py-4 font-medium">Project</th>
-                        <th class="px-6 py-4 font-medium">Type</th>
-                        <th class="px-6 py-4 font-medium">Amount</th>
-                        <th class="px-6 py-4 font-medium">Due Date</th>
-                        <th class="px-6 py-4 font-medium">Status</th>
-                        <th class="px-6 py-4 font-medium text-right">Action</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    @forelse ($invoices as $invoice)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-6 py-4 font-medium text-slate-700">{{ $invoice->invoice_number }}</td>
-                            <td class="px-6 py-4 text-slate-600">{{ $invoice->project->name }}</td>
-                            <td class="px-6 py-4 text-slate-500">{{ $invoice->typeLabel() }}</td>
-                            <td class="px-6 py-4 text-slate-700">Rp{{ number_format($invoice->amount, 0, ',', '.') }}</td>
-                            <td class="px-6 py-4 text-slate-500">{{ $invoice->due_date->translatedFormat('d M Y') }}</td>
-                            <td class="px-6 py-4"><x-badge
-                                    :color="$invoice->statusColor()">{{ $invoice->statusLabel() }}</x-badge>
-                            </td>
-                            <td class="px-6 py-4">
-                                <div class="flex items-center justify-end gap-3 text-slate-400">
-                                    @if ($invoice->status !== 'paid')
-                                        <form method="POST" action="{{ route('pages.finance.remind', $invoice) }}">
-                                            @csrf
-                                            <button type="submit" class="hover:text-brand-500" title="Send Reminder"><i
-                                                    class='bx bx-send text-lg'></i></button>
-                                        </form>
-                                        <form method="POST" action="{{ route('pages.finance.paid', $invoice) }}">
-                                            @csrf @method('PATCH')
-                                            <button type="submit" class="hover:text-emerald-500" title="Mark as Paid"><i
-                                                    class='bx bx-check-circle text-lg'></i></button>
-                                        </form>
-                                    @endif
-                                    <form method="POST" action="{{ route('pages.finance.destroy', $invoice) }}"
-                                        onsubmit="return confirm('Delete this invoice?')">
-                                        @csrf @method('DELETE')
-                                        <button type="submit" class="hover:text-red-500" title="Delete"><i
-                                                class='bx bx-trash text-lg'></i></button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="7" class="px-6 py-10 text-center text-slate-400">No invoices yet.</td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </x-card>
-
-    <div class="mt-4">{{ $invoices->links() }}</div>
+            <form method="POST" action="{{ route('pages.finance.store') }}"
+                class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                @csrf
+                <select name="project_id" required
+                    class="bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
+                    <option value="">-- Project --</option>
+                    @foreach ($projects as $p)
+                        <option value="{{ $p->id }}">{{ $p->name }} ({{ $p->client_name }})</option>
+                    @endforeach
+                </select>
+                <select name="type" required
+                    class="bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
+                    <option value="dp">DP</option>
+                    <option value="pelunasan">Final Payment</option>
+                    <option value="full">Full Payment</option>
+                </select>
+                <input type="number" name="amount" placeholder="Amount (Rp)" required
+                    class="bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
+                <div class="flex gap-2">
+                    <input type="date" name="due_date" required
+                        class="flex-1 bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none">
+                    <button type="submit"
+                        class="grad-blue text-white text-sm px-4 rounded-lg hover:opacity-90 transition flex-shrink-0">
+                        <i class='bx bx-plus'></i>
+                    </button>
+                </div>
+            </form>
+        </x-card>
+    </div>
 
 @endsection

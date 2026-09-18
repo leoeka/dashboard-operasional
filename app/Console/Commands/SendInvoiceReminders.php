@@ -2,52 +2,30 @@
 
 namespace App\Console\Commands;
 
-use App\Mail\InvoiceReminderMail;
-use App\Models\Invoice;
-use App\Services\WhatsAppService;
+use App\Services\Billing\LegacyInvoiceReminderService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Mail;
 
+/**
+ * DEPRECATED — kept so an existing crontab or runbook entry keeps working.
+ *
+ * No longer scheduled: `billing:process-renewals` runs this same path as part
+ * of the single daily billing run. It now delegates to the shared service, so
+ * even if something still invokes it, it can only touch project invoices —
+ * never a recurring renewal — and the once-a-day guard is the same one.
+ */
 class SendInvoiceReminders extends Command
 {
     protected $signature = 'invoices:send-reminders';
-    protected $description = 'Kirim reminder invoice yang belum dibayar via email dan WhatsApp';
 
-    public function handle(WhatsAppService $whatsapp)
+    protected $description = '[Deprecated] Gunakan billing:process-renewals. Kirim reminder invoice project yang belum dibayar.';
+
+    public function handle(LegacyInvoiceReminderService $legacy): int
     {
-        $invoices = Invoice::where('status', 'unpaid')
-            ->whereDate('due_date', '<=', now()->addDays(3))
-            ->where(function ($q) {
-                $q->whereNull('last_reminder_sent_at')
-                    ->orWhereDate('last_reminder_sent_at', '<', now()->toDateString());
-            })
-            ->with('project.client')
-            ->get();
+        $summary = $legacy->sendDue();
 
-        foreach ($invoices as $invoice) {
-             /** @var \App\Models\Invoice $invoice */
-            $client = $invoice->project->client;
+        $this->warn('Command ini deprecated — pakai billing:process-renewals (sudah mencakup jalur ini).');
+        $this->info($summary['legacy_reminders_sent'] . ' reminder invoice project terkirim.');
 
-            if (!$client) {
-                continue;
-            }
-
-            if ($client->email) {
-                Mail::to($client->email)->send(new InvoiceReminderMail($invoice));
-            }
-
-            if ($client->whatsapp) {
-                $message = "Halo {$client->contact_name}, invoice {$invoice->invoice_number} sebesar Rp"
-                    . number_format($invoice->amount, 0, ',', '.')
-                    . " jatuh tempo {$invoice->due_date->translatedFormat('d M Y')}. Mohon segera diselesaikan.";
-
-                $whatsapp->send($client->whatsapp, $message);
-            }
-
-            $invoice->update(['last_reminder_sent_at' => now()]);
-            $invoice->project->logActivity("Reminder invoice {$invoice->invoice_number} dikirim");
-        }
-
-        $this->info(count($invoices) . ' reminder terkirim.');
+        return self::SUCCESS;
     }
 }

@@ -57,3 +57,11 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 ## License
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+
+## Development Documentation
+
+Project-specific notes for this dashboard, separate from the Laravel framework
+documentation above:
+
+- [Billing & Finance Status](docs/BILLING_FINANCE_STATUS.md) — status, architecture and handoff for the recurring billing system (Phases 1–4, locked)
+- [WordPress Bundle System](docs/wordpress-bundle-system.md)
