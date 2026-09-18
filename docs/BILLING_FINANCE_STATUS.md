@@ -702,15 +702,15 @@ pick one and begin implementing it on your own initiative.
 
 ## Git Checkpoint
 
-At the time this document was written, the Phase 1–4 changes were still in the
-working tree and **no final checkpoint commit had been made yet**.
-
-Once that commit exists, update this section with its real values:
+Phases 1–4 were committed as a single checkpoint on `master`:
 
 ```
-Commit:  <fill after commit>
+Commit:  1cbcb4c  (1cbcb4c96fa0690550bfd96c514f9e471ae26ef5)
 Message: feat: add recurring billing and finance workspace
-Date:    <fill after commit>
+Date:    18 September 2026
 ```
 
-Do not invent a hash before the commit exists.
+That commit carries the whole of Phases 1–4 — schema, engine, delivery,
+workspace, tests — and the first version of this document. The hash recorded
+here was filled in afterwards by a follow-up commit, so this file's own history
+runs one commit ahead of the checkpoint it describes.
