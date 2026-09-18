@@ -1,0 +1,20 @@
+Billing & Finance documentation bundle
+
+Ekstrak/copy isi ZIP ini ke ROOT repository dashboard-operasional.
+
+Hasil yang diharapkan:
+  docs/BILLING_FINANCE_USER_MANUAL.md
+  docs/manuals/Billing_Finance_User_Manual.pdf
+  docs/manuals/Billing_Finance_User_Manual.docx
+
+Lalu update README sesuai README_DOCS_PATCH.md.
+
+Commit yang disarankan:
+  docs: add billing finance user manual
+
+Perintah:
+  git add docs/BILLING_FINANCE_USER_MANUAL.md docs/manuals README.md
+  git commit -m "docs: add billing finance user manual"
+  git push origin master
+
+Tidak perlu mengubah kode aplikasi.
