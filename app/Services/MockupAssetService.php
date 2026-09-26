@@ -35,6 +35,12 @@ class MockupAssetService
     /** Photos per candidate: one hero + at most this many card items. */
     private const MAX_ITEM_PHOTOS = 4;
 
+    /** V2: most photographs any one section may take. */
+    private const MAX_ITEM_PHOTOS_V2 = 6;
+
+    /** V2: photographs per candidate across all sections, on top of the hero. */
+    private const MAX_SECTION_PHOTOS = 9;
+
     /** Sidecar recording what each persisted photograph was drawn for. */
     private const SUBJECTS_FILE = 'slot-subjects.json';
 
@@ -81,7 +87,6 @@ class MockupAssetService
 
         $plan = $this->pageBuilder->describeSections($sections, $design);
         $heroIndex = $this->indexForRole($plan, 'hero');
-        $cardGridIndex = $this->indexForRole($plan, 'card_grid');
 
         // Which photos this design needs, and whether it can do without them,
         // is the BLUEPRINT's decision — not a consequence of which API calls
@@ -106,31 +111,9 @@ class MockupAssetService
             }
         }
 
-        if ($cardGridIndex !== null) {
-            $cards = $sections[$cardGridIndex];
-            $composition = CompositionSpec::resolve($cards, $design, 'card_grid');
-
-            if ($composition['photo_slots']) {
-                $items = array_values($cards['items'] ?? []);
-                foreach (array_slice($items, 0, self::MAX_ITEM_PHOTOS, true) as $itemIndex => $item) {
-                    $title = is_array($item) ? ($item['title'] ?? $item['name'] ?? null) : $item;
-                    if (!is_string($title) || trim($title) === '') {
-                        continue;
-                    }
-
-                    $slots['item_' . $itemIndex] = [
-                        'slot' => "home.section-{$cardGridIndex}.item-{$itemIndex}",
-                        'basename' => "section-{$cardGridIndex}-item-{$itemIndex}",
-                        'role' => $this->itemRoleFor($composition['composition']),
-                        'required' => $composition['image_required'],
-                        'subject' => $title,
-                        'context' => is_array($item) ? ($item['description'] ?? null) : null,
-                        'section_index' => $cardGridIndex,
-                        'item_index' => $itemIndex,
-                    ];
-                }
-            }
-        }
+        $slots += CompositionSpec::isFullPage($design)
+            ? $this->fullPageSectionSlots($sections, $plan)
+            : $this->legacySectionSlots($sections, $plan, $design);
 
         if (!$slots) {
             return $this->empty();
@@ -189,6 +172,111 @@ class MockupAssetService
     }
 
     /**
+     * Pre-V2 blueprints: photographs only for the one card grid the approved PNG
+     * showed, at most MAX_ITEM_PHOTOS of them. Unchanged, so an old candidate
+     * retried from a checkpoint asks for exactly the photos it always did.
+     */
+    private function legacySectionSlots(array $sections, array $plan, array $design): array
+    {
+        $cardGridIndex = $this->indexForRole($plan, 'card_grid');
+        if ($cardGridIndex === null) {
+            return [];
+        }
+
+        $composition = CompositionSpec::resolve($sections[$cardGridIndex], $design, 'card_grid');
+        if (!$composition['photo_slots']) {
+            return [];
+        }
+
+        return $this->itemSlots($sections[$cardGridIndex], $cardGridIndex, 'card_grid', $composition, self::MAX_ITEM_PHOTOS);
+    }
+
+    /**
+     * V2 blueprints render every section, so every section whose composition
+     * shows photographs may get them — within a per-candidate budget, because
+     * three candidates multiply every photo's cost.
+     *
+     * The budget is spent a WHOLE section at a time, in page order. A card grid
+     * with photographs on two cards and blank tops on the rest looks broken; a
+     * section that did not fit the budget instead renders its photo-free form
+     * (monograms, colour tiles, a typographic editorial), identically in the
+     * demo and in WordPress, since both only draw photographs that exist.
+     */
+    private function fullPageSectionSlots(array $sections, array $plan): array
+    {
+        $slots = [];
+        $budget = self::MAX_SECTION_PHOTOS;
+
+        foreach ($plan as $index => $sectionPlan) {
+            $composition = $sectionPlan['composition'];
+            if (!$sectionPlan['rendered'] || $sectionPlan['role'] === 'hero' || !$composition || !$composition['photo_slots']) {
+                continue;
+            }
+
+            $section = $sections[$index];
+
+            // An editorial split carries one photograph for the whole section.
+            if ($sectionPlan['renderer'] === 'editorial') {
+                $wanted = 1;
+                $sectionSlots = $budget >= $wanted ? [
+                    'section_' . $index . '_item_0' => [
+                        'slot' => "home.section-{$index}.item-0",
+                        'basename' => "section-{$index}-item-0",
+                        'role' => 'editorial',
+                        'required' => $composition['image_required'],
+                        'subject' => (string) ($section['headline'] ?? $section['name'] ?? ''),
+                        'context' => is_string($section['description'] ?? null) ? $section['description'] : null,
+                        'section_index' => $index,
+                        'section_role' => $sectionPlan['role'],
+                        'item_index' => 0,
+                    ],
+                ] : [];
+            } else {
+                $sectionSlots = $this->itemSlots($section, $index, $sectionPlan['role'], $composition, min(self::MAX_ITEM_PHOTOS_V2, $sectionPlan['item_limit']));
+                $wanted = count($sectionSlots);
+            }
+
+            if ($wanted === 0 || ($wanted > $budget && !$composition['image_required'])) {
+                continue;
+            }
+
+            $slots += $sectionSlots;
+            $budget -= $wanted;
+        }
+
+        return $slots;
+    }
+
+    private function itemSlots(array $section, int $sectionIndex, string $sectionRole, array $composition, int $limit): array
+    {
+        $slots = [];
+        $items = array_values(is_array($section['items'] ?? null) ? $section['items'] : []);
+
+        foreach (array_slice($items, 0, $limit, true) as $itemIndex => $item) {
+            $title = is_array($item) ? ($item['title'] ?? $item['name'] ?? null) : $item;
+            if (!is_string($title) || trim($title) === '') {
+                continue;
+            }
+
+            // Keys are internal; a retry recognises paid-for photographs by
+            // basename + subject (reusePersisted()), which are unchanged.
+            $slots["section_{$sectionIndex}_item_{$itemIndex}"] = [
+                'slot' => "home.section-{$sectionIndex}.item-{$itemIndex}",
+                'basename' => "section-{$sectionIndex}-item-{$itemIndex}",
+                'role' => $this->itemRoleFor($composition['composition']),
+                'required' => $composition['image_required'],
+                'subject' => $title,
+                'context' => is_array($item) ? ($item['description'] ?? null) : null,
+                'section_index' => $sectionIndex,
+                'section_role' => $sectionRole,
+                'item_index' => $itemIndex,
+            ];
+        }
+
+        return $slots;
+    }
+
+    /**
      * Reads the frozen assets of an approved mockup back off disk, in the shape
      * ElementorPageBuilderService and BundleExporterService already consume.
      *
@@ -205,6 +293,11 @@ class MockupAssetService
 
         foreach ($pages as $slug => $page) {
             $pageMap = [];
+            // The first card grid keeps the flat `{slug}-item-N` names every
+            // build before V2 shipped; any other photographed section gets its
+            // section index in the name so two sections can never overwrite each
+            // other's photographs in the theme.
+            $legacySection = $this->legacyCardSection($page);
 
             foreach ($this->flattenSlots($page) as $entry) {
                 $path = (string) ($entry['path'] ?? '');
@@ -219,15 +312,22 @@ class MockupAssetService
                 // Bundle filenames stay flat and page-scoped, matching what the
                 // theme's importer uploads to the Media Library.
                 $extension = pathinfo($path, PATHINFO_EXTENSION) ?: 'jpg';
-                $filename = $entry['kind'] === 'hero'
-                    ? "{$slug}-hero.{$extension}"
-                    : "{$slug}-item-{$entry['item_index']}.{$extension}";
+                $isLegacyItem = $entry['kind'] === 'item' && $entry['section_index'] === $legacySection;
+                $filename = match (true) {
+                    $entry['kind'] === 'hero' => "{$slug}-hero.{$extension}",
+                    $isLegacyItem => "{$slug}-item-{$entry['item_index']}.{$extension}",
+                    default => "{$slug}-section-{$entry['section_index']}-item-{$entry['item_index']}.{$extension}",
+                };
 
                 $files[$filename] = $disk->get($path);
 
                 if ($entry['kind'] === 'hero') {
                     $pageMap['hero'] = $filename;
-                } else {
+                    continue;
+                }
+
+                $pageMap['sections'][$entry['section_index']][$entry['item_index']] = $filename;
+                if ($isLegacyItem) {
                     $pageMap['items'][$entry['item_index']] = $filename;
                 }
             }
@@ -267,19 +367,32 @@ class MockupAssetService
             ];
         }
 
-        foreach ($page['sections'] ?? [] as $section) {
+        foreach ($page['sections'] ?? [] as $sectionIndex => $section) {
             foreach ($section['items'] ?? [] as $itemIndex => $item) {
                 $entries[] = [
                     'kind' => 'item',
                     'slot' => (string) ($item['slot'] ?? "item-{$itemIndex}"),
                     'path' => (string) ($item['path'] ?? ''),
                     'required' => (bool) ($item['required'] ?? false),
+                    'section_index' => (int) $sectionIndex,
                     'item_index' => (int) $itemIndex,
                 ];
             }
         }
 
         return $entries;
+    }
+
+    /** The section whose photographs keep the pre-V2 flat filenames: the first card grid. */
+    private function legacyCardSection(array $page): ?int
+    {
+        foreach ($page['sections'] ?? [] as $sectionIndex => $section) {
+            if (($section['role'] ?? 'card_grid') === 'card_grid') {
+                return (int) $sectionIndex;
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -318,7 +431,7 @@ class MockupAssetService
                 continue;
             }
 
-            $page['sections'][$slot['section_index']]['role'] = 'card_grid';
+            $page['sections'][$slot['section_index']]['role'] = $slot['section_role'] ?? 'card_grid';
             $page['sections'][$slot['section_index']]['items'][$slot['item_index']] = $entry;
         }
 
@@ -333,7 +446,7 @@ class MockupAssetService
 
     private function empty(): array
     {
-        return ['manifest' => ['pages' => []], 'images' => ['hero' => null, 'items' => []], 'degraded' => false, 'missing' => []];
+        return ['manifest' => ['pages' => []], 'images' => ['hero' => null, 'items' => [], 'sections' => []], 'degraded' => false, 'missing' => []];
     }
 
     /** Card photographs mean different things depending on what the grid shows. */
@@ -417,11 +530,16 @@ class MockupAssetService
         return sha1(trim((string) $slot['subject']) . '|' . trim((string) ($slot['context'] ?? '')));
     }
 
-    /** Data URLs read back out of the files that were just written, never the pre-save bytes. */
+    /**
+     * Data URLs read back out of the files that were just written, never the
+     * pre-save bytes. `sections` addresses every photo by section and item;
+     * `items` keeps the flat card-grid map older renderers read.
+     */
     private function dataUrls(array $slots, array $stored): array
     {
         $disk = Storage::disk('public');
-        $images = ['hero' => null, 'items' => []];
+        $images = ['hero' => null, 'items' => [], 'sections' => []];
+        $cardGrid = null;
 
         foreach ($stored as $key => $entry) {
             if (!$disk->exists($entry['path'])) {
@@ -436,7 +554,15 @@ class MockupAssetService
                 continue;
             }
 
-            $images['items'][$slots[$key]['item_index']] = $dataUrl;
+            $slot = $slots[$key];
+            $images['sections'][$slot['section_index']][$slot['item_index']] = $dataUrl;
+
+            if (($slot['section_role'] ?? 'card_grid') === 'card_grid') {
+                $cardGrid ??= $slot['section_index'];
+                if ($cardGrid === $slot['section_index']) {
+                    $images['items'][$slot['item_index']] = $dataUrl;
+                }
+            }
         }
 
         return $images;
@@ -445,6 +571,7 @@ class MockupAssetService
     /** Which uploaded roles may fill which kind of slot, best match first. */
     private const ROLE_PREFERENCE = [
         'hero' => ['hero', 'about', 'general'],
+        'editorial' => ['about', 'hero', 'general'],
         'product' => ['product', 'service', 'gallery', 'general'],
         'team' => ['team', 'general'],
         'gallery' => ['gallery', 'product', 'general'],

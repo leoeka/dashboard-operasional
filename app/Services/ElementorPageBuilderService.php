@@ -4,6 +4,10 @@ namespace App\Services;
 
 use App\Support\CompositionSpec;
 use App\Support\MockupDesignSpec;
+use App\Support\MockupSite;
+use App\Support\Palette;
+use App\Support\SectionContent;
+use App\Support\SitemapPages;
 use Illuminate\Support\Str;
 
 /**
@@ -36,33 +40,26 @@ class ElementorPageBuilderService
      * @param array $design        $mockup['design'] (primary/secondary/accent colors, fonts).
      * @param array $imageMap      MockupAssetService::loadApproved()'s ['map'], keyed by the same page slugs this method
      *                             computes: page slug -> {hero?: filename, items?: {itemIndex: filename}}.
+     * @param string $globalCta    $mockup['global_cta'] — the label a CTA band or pricing plan falls back to, as in the live demo.
      * @return array<string, array{title:string, slug:string, html:string, elements:array}>
-     *         Keyed by page slug ('home' for the first/"Home" page).
+     *         Keyed by page slug. Home is always first and always `home`;
+     *         every other slug is unique (see SitemapPages), so two pages whose
+     *         names slug alike can no longer overwrite each other.
      */
-    public function buildPages(array $mockupPages, array $design = [], array $imageMap = []): array
+    public function buildPages(array $mockupPages, array $design = [], array $imageMap = [], string $globalCta = ''): array
     {
+        $this->globalCta = trim($globalCta);
         $pages = [];
 
-        foreach ($mockupPages as $index => $page) {
-            if (!is_array($page)) {
-                continue;
-            }
-
-            $name = trim((string) ($page['name'] ?? ''));
-            if ($name === '') {
-                continue;
-            }
-
-            $slug = $index === 0 ? 'home' : (Str::slug($name) ?: 'page-' . ($index + 1));
+        foreach (SitemapPages::ordered($mockupPages) as $entry) {
+            $slug = $entry['slug'];
             // array_values(): a page's `sections` list must be sequentially
-            // indexed from 0 for the "index 0 = hero" convention below (and
-            // in GenerateMockupGptService::pickMockupSections(), which the PNG mockup
-            // renderer uses) to actually line up — GPT's JSON doesn't
-            // guarantee that on decode.
-            $sections = is_array($page['sections'] ?? null) ? array_values($page['sections']) : [];
+            // indexed from 0 for the "index 0 = hero" convention below to line
+            // up — GPT's JSON doesn't guarantee that on decode.
+            $sections = is_array($entry['page']['sections'] ?? null) ? array_values($entry['page']['sections']) : [];
 
             $pages[$slug] = [
-                'title' => $name,
+                'title' => $entry['name'],
                 'slug' => $slug,
                 'html' => $this->renderGutenbergBlocks($sections, $imageMap[$slug] ?? [], $design),
                 'elements' => $this->mapSectionsToElements($sections, $design),
@@ -71,6 +68,9 @@ class ElementorPageBuilderService
 
         return $pages;
     }
+
+    /** Site-wide CTA label for the page currently being built. */
+    private string $globalCta = '';
 
     /**
      * The structural decisions this builder actually applies to one page's
@@ -83,11 +83,153 @@ class ElementorPageBuilderService
      * renderGutenbergBlocks() consumes the same method, so the manifest and
      * the shipped markup cannot describe different layouts.
      *
-     * @return array<int, array{index:int, role:string, heading_align:string, body_align:string, layout_variant:string, rendered:bool}>
+     * Two regimes, chosen by the blueprint itself (CompositionSpec::isFullPage()):
+     * - full page (renderer_version 2): every section with content renders,
+     *   through the composition the designer chose for it — or, when it chose
+     *   none that the content can fill, the default for that content shape.
+     * - legacy: hero + first items-bearing section (icon band) + second (card
+     *   grid), everything else skipped — exactly what the PNGs approved before
+     *   V2 showed, so an old approved project still builds what it approved.
+     *
+     * `renderer` is the one key the Blade site renderer and the Gutenberg
+     * builder both switch on, so a section cannot be drawn as one thing in the
+     * live preview and another in WordPress.
+     *
+     * @return array<int, array{index:int, role:string, renderer:?string, heading_align:string, body_align:string, layout_variant:string, composition:?array, item_limit:int, rendered:bool}>
      */
     public function describeSections(array $sections, array $design = []): array
     {
         $sections = array_values($sections);
+
+        return CompositionSpec::isFullPage($design)
+            ? $this->describeFullPage($sections, $design)
+            : $this->describeLegacy($sections, $design);
+    }
+
+    /** Item caps per renderer — shared by the live/PNG renderer and Gutenberg so both show the same items. */
+    private const ITEM_LIMITS = [
+        'features' => 6,
+        'cards' => 6,
+        'editorial' => 5,
+        'alternating' => 4,
+        'stats' => 4,
+        'testimonials' => 3,
+        'gallery' => 6,
+        'logos' => 8,
+        'faq' => 8,
+        'team' => 8,
+        'pricing' => 4,
+        'cta' => 0,
+    ];
+
+    /** Sections that describe site chrome the theme already draws, never page content. */
+    private const CHROME_TYPES = ['footer', 'header', 'navigation', 'nav', 'navbar', 'menu'];
+
+    private function describeFullPage(array $sections, array $design): array
+    {
+        $layoutVariant = $this->layoutVariant($design);
+        $plan = [];
+        $genericSeen = 0;
+
+        foreach ($sections as $index => $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            if ($index === 0) {
+                $composition = CompositionSpec::resolve($section, $design, 'hero');
+                $plan[$index] = [
+                    'index' => $index,
+                    'role' => 'hero',
+                    'renderer' => 'hero',
+                    'shape' => 'hero',
+                    'heading_align' => $composition['text_align'],
+                    'body_align' => $composition['text_align'],
+                    'layout_variant' => $layoutVariant,
+                    'composition' => $composition,
+                    'item_limit' => 0,
+                    'rendered' => true,
+                ];
+                continue;
+            }
+
+            if (!$this->hasContent($section)) {
+                $plan[$index] = $this->skippedPlan($index, $layoutVariant, $section);
+                continue;
+            }
+
+            $shape = CompositionSpec::sectionShape($section);
+            $declared = strtolower(trim((string) ($section['composition'] ?? '')));
+            $generic = in_array($shape, ['feature_items', 'card_items'], true);
+
+            // A declared composition is honoured only when the content can
+            // actually fill it — a band of plain features never becomes an FAQ
+            // just because a designer said so.
+            $name = in_array($declared, CompositionSpec::compositionsForShape($shape), true)
+                ? $declared
+                : CompositionSpec::defaultCompositionForShape($shape, $genericSeen);
+
+            if ($generic) {
+                $genericSeen++;
+            }
+
+            $role = CompositionSpec::roleForComposition($name);
+            $renderer = CompositionSpec::rendererForComposition($name);
+            $composition = CompositionSpec::resolve(array_merge($section, ['composition' => $name]), $design, $role);
+
+            $plan[$index] = [
+                'index' => $index,
+                'role' => $role,
+                'renderer' => $renderer,
+                'shape' => $shape,
+                'heading_align' => $composition['text_align'],
+                'body_align' => $composition['text_align'],
+                'layout_variant' => $layoutVariant,
+                'composition' => $composition,
+                'item_limit' => self::ITEM_LIMITS[$renderer] ?? 6,
+                'rendered' => true,
+            ];
+        }
+
+        return $plan;
+    }
+
+    private function hasContent(array $section): bool
+    {
+        $type = strtolower(trim((string) ($section['type'] ?? '')));
+        if (in_array($type, self::CHROME_TYPES, true)) {
+            return false;
+        }
+
+        foreach (['headline', 'name', 'description'] as $key) {
+            if (is_string($section[$key] ?? null) && trim($section[$key]) !== '') {
+                return true;
+            }
+        }
+
+        return !empty($section['items']) && is_array($section['items']);
+    }
+
+    private function skippedPlan(int $index, string $layoutVariant, array $section): array
+    {
+        $align = $this->resolveAlign($section, 'center');
+
+        return [
+            'index' => $index,
+            'role' => 'skipped',
+            'renderer' => null,
+            'shape' => null,
+            'heading_align' => $align,
+            'body_align' => $align,
+            'layout_variant' => $layoutVariant,
+            'composition' => null,
+            'item_limit' => 0,
+            'rendered' => false,
+        ];
+    }
+
+    private function describeLegacy(array $sections, array $design): array
+    {
         $layoutVariant = $this->layoutVariant($design);
         $picked = $this->pickIconPhotoIndexes($sections);
         $plan = [];
@@ -142,10 +284,27 @@ class ElementorPageBuilderService
             $plan[$index] = [
                 'index' => $index,
                 'role' => $role,
+                // Legacy rendering never looked at a band's composition to decide
+                // what to draw: the icon band was always the numbered feature row
+                // and the photo section always the card grid.
+                'renderer' => match ($role) {
+                    'hero' => 'hero',
+                    'icon_band' => 'features',
+                    'card_grid' => 'cards',
+                    default => null,
+                },
+                'shape' => null,
                 'heading_align' => $headingAlign,
                 'body_align' => $bodyAlign,
                 'layout_variant' => $layoutVariant,
                 'composition' => $composition,
+                // What the approved legacy PNG actually showed: three feature
+                // badges and up to four photographed cards.
+                'item_limit' => match ($role) {
+                    'icon_band' => 3,
+                    'card_grid' => 4,
+                    default => 0,
+                },
                 'rendered' => $role !== 'skipped',
             ];
         }
@@ -201,11 +360,13 @@ class ElementorPageBuilderService
         $layoutVariant = $this->layoutVariant($design);
 
         $heroFilename = $images['hero'] ?? null;
-        $itemFilenames = $images['items'] ?? [];
         $plan = $this->describeSections($sections, $design);
+        // Section index => item index => photo filename; the same assignment the
+        // live demo uses (MockupSite::photosBySection()).
+        $photos = MockupSite::photosBySection($images, $plan);
+        $fullPage = CompositionSpec::isFullPage($design);
 
         $blocks = '';
-        $itemImagesUsed = false;
 
         foreach ($sections as $sectionIndex => $section) {
             if (!is_array($section)) {
@@ -218,7 +379,12 @@ class ElementorPageBuilderService
             $items = is_array($section['items'] ?? null) ? array_values($section['items']) : [];
 
             $sectionPlan = $plan[$sectionIndex] ?? null;
-            if (!$sectionPlan) {
+            if (!$sectionPlan || !$sectionPlan['rendered']) {
+                continue;
+            }
+
+            if ($fullPage && $sectionPlan['role'] !== 'hero') {
+                $blocks .= $this->gbFullPageSection($section, $sectionPlan, $photos[$sectionIndex] ?? [], $design, $primary, $accent);
                 continue;
             }
 
@@ -272,9 +438,7 @@ class ElementorPageBuilderService
                 } else {
                     // Only the designated photo section actually consumes the
                     // approved photo budget — matches MockupAssetService.
-                    $imagesForThisGrid = $itemImagesUsed ? [] : $itemFilenames;
-                    $itemImagesUsed = $itemImagesUsed || (bool) $itemFilenames;
-                    $inner .= $this->gbCardGrid($items, $imagesForThisGrid, $sectionPlan['body_align'], $sectionPlan['composition']);
+                    $inner .= $this->gbCardGrid($items, $photos[$sectionIndex] ?? [], $sectionPlan['body_align'], $sectionPlan['composition']);
                 }
             }
 
@@ -288,6 +452,437 @@ class ElementorPageBuilderService
         }
 
         return trim($blocks);
+    }
+
+    /**
+     * One V2 section as core blocks, mirroring resources/views/mockup/sections/
+     * {renderer}.blade.php: same plan, same items (SectionContent with the
+     * plan's item_limit), same photos, same band colour, same eyebrow. Every
+     * block is a stock core block (group, columns, heading, paragraph, list,
+     * quote, details, gallery, image, buttons), so the page stays editable in
+     * the Block Editor; `exito-*` classes let the theme stylesheet add the
+     * finishing the core blocks do not carry.
+     */
+    private function gbFullPageSection(array $section, array $plan, array $photos, array $design, string $primary, string $accent): string
+    {
+        $c = $plan['composition'];
+        $renderer = $plan['renderer'];
+        $align = $plan['heading_align'];
+        $items = SectionContent::items($section, $plan['item_limit']);
+        $headline = SectionContent::text($section['headline'] ?? '') ?: SectionContent::text($section['name'] ?? '');
+        $data = [
+            'eyebrow' => MockupSite::eyebrow(SectionContent::text($section['name'] ?? ''), $headline, $plan),
+            'headline' => $headline,
+            'description' => SectionContent::text($section['description'] ?? ''),
+            'cta' => SectionContent::text($section['cta'] ?? ''),
+        ];
+
+        $band = CompositionSpec::RENDERER_BACKGROUNDS[$renderer] ?? 'none';
+        $bg = match ($band) {
+            'band' => (string) MockupDesignSpec::token('section_band_color'),
+            'primary' => $primary,
+            'accent' => $accent,
+            default => null,
+        };
+        $onBand = $bg ? Palette::textOn($bg) : null;
+        $headingColor = in_array($band, ['primary', 'accent'], true) ? $onBand : $primary;
+
+        $inner = match ($renderer) {
+            'features' => $this->gbFeatures($data, $items, $c, $align, $headingColor, $accent),
+            'cards' => $this->gbHead($data, $align, $headingColor, $accent)
+                . $this->gbCardRows($items, $photos, $c, $plan['body_align'])
+                . ($data['cta'] ? $this->gbButton($data['cta'], $accent, null, $align) : ''),
+            'editorial' => $this->gbEditorial($data, $items, $photos, $c, $headingColor, $accent),
+            'alternating' => $this->gbAlternating($data, $items, $photos, $c, $align, $headingColor, $primary, $accent),
+            'stats' => $this->gbStats($data, $items, $align, $onBand ?? $primary, $accent),
+            'testimonials' => $this->gbTestimonials($data, $items, $align, $headingColor, $accent),
+            'gallery' => $this->gbGalleryMosaic($data, $items, $photos, $align, $headingColor, $accent, $primary),
+            'logos' => $this->gbHead($data, 'center', $headingColor, $accent) . $this->gbLogos($items),
+            'faq' => $this->gbFaq($data, $items, $align, $headingColor, $accent),
+            'cta' => $this->gbCta($data, $align, $onBand ?? Palette::INK, $accent, $design),
+            'team' => $this->gbTeam($data, $items, $photos, $c, $align, $headingColor, $accent),
+            'pricing' => $this->gbPricing($data, $items, $align, $headingColor, $primary, $accent, $design),
+            default => '',
+        };
+
+        return $this->gbBand($inner, $renderer, $bg, $c);
+    }
+
+    /** The section's full-bleed band: its colour, its vertical rhythm, its content width. */
+    private function gbBand(string $inner, string $renderer, ?string $bg, array $c): string
+    {
+        if (trim($inner) === '') {
+            return '';
+        }
+
+        $top = $c['spacing_top'] . 'px';
+        $bottom = $c['spacing_bottom'] . 'px';
+        $attrs = [
+            'className' => "exito-section exito-{$renderer}",
+            'style' => ['spacing' => ['padding' => ['top' => $top, 'bottom' => $bottom]]],
+            'layout' => $c['container_width']
+                ? ['type' => 'constrained', 'contentSize' => $c['container_width'] . 'px']
+                : ['type' => 'default'],
+        ];
+        $classes = "wp-block-group exito-section exito-{$renderer}";
+        $style = "padding-top:{$top};padding-bottom:{$bottom}";
+
+        if ($bg) {
+            $text = Palette::textOn($bg);
+            $attrs['style']['color'] = ['background' => $bg, 'text' => $text];
+            $classes .= ' has-text-color has-background';
+            $style = "color:{$text};background-color:{$bg};" . $style;
+        }
+
+        return '<!-- wp:group ' . json_encode($attrs, JSON_UNESCAPED_SLASHES) . " -->\n"
+            . "<div class=\"{$classes}\" style=\"{$style}\">\n{$inner}</div>\n"
+            . "<!-- /wp:group -->\n\n";
+    }
+
+    private function gbHead(array $data, string $align, ?string $headingColor, string $accent): string
+    {
+        $out = '';
+        if ($data['eyebrow'] !== '') {
+            $out .= $this->gbParagraph($data['eyebrow'], $accent, $align, 'exito-eyebrow');
+        }
+        if ($data['headline'] !== '') {
+            $out .= $this->gbHeading($data['headline'], 2, $headingColor, $align);
+        }
+        if ($data['description'] !== '') {
+            $out .= $this->gbParagraph($data['description'], null, $align);
+        }
+
+        return $out;
+    }
+
+    /**
+     * @param array<int, array{0:string, 1?:?string}> $columns inner markup and optional flex-basis width
+     */
+    private function gbColumnsRow(array $columns, ?string $className = null): string
+    {
+        $html = '';
+        foreach ($columns as $column) {
+            [$inner, $width] = [$column[0], $column[1] ?? null];
+            $attrs = $width ? ' ' . json_encode(['width' => $width], JSON_UNESCAPED_SLASHES) : '';
+            $style = $width ? " style=\"flex-basis:{$width}\"" : '';
+            $html .= "<!-- wp:column{$attrs} -->\n<div class=\"wp-block-column\"{$style}>\n{$inner}</div>\n<!-- /wp:column -->\n\n";
+        }
+
+        if ($html === '') {
+            return '';
+        }
+
+        $attrs = $className ? ' ' . json_encode(['className' => $className], JSON_UNESCAPED_SLASHES) : '';
+        $class = 'wp-block-columns' . ($className ? ' ' . $className : '');
+
+        return "<!-- wp:columns{$attrs} -->\n<div class=\"{$class}\">\n{$html}</div>\n<!-- /wp:columns -->\n\n";
+    }
+
+    /** Several rows of at most $perRow columns — never one row squeezed six wide. */
+    private function gbGrid(array $cells, int $perRow, ?string $className = null): string
+    {
+        $out = '';
+        foreach (array_chunk($cells, max(1, $perRow)) as $row) {
+            $out .= $this->gbColumnsRow(array_map(fn (string $cell) => [$cell], $row), $className);
+        }
+
+        return $out;
+    }
+
+    private function gbList(array $lines, bool $ordered = false, ?string $className = null): string
+    {
+        $lines = array_values(array_filter($lines, fn ($line) => trim((string) $line) !== ''));
+        if (!$lines) {
+            return '';
+        }
+
+        $attrs = array_filter(['ordered' => $ordered ?: null, 'className' => $className]);
+        $attrsJson = $attrs ? ' ' . json_encode($attrs, JSON_UNESCAPED_SLASHES) : '';
+        $tag = $ordered ? 'ol' : 'ul';
+        $class = 'wp-block-list' . ($className ? ' ' . $className : '');
+        $inner = '';
+        foreach ($lines as $line) {
+            $inner .= "<!-- wp:list-item -->\n<li>" . e($line) . "</li>\n<!-- /wp:list-item -->\n";
+        }
+
+        return "<!-- wp:list{$attrsJson} -->\n<{$tag} class=\"{$class}\">{$inner}</{$tag}>\n<!-- /wp:list -->\n\n";
+    }
+
+    private function gbFeatures(array $data, array $items, array $c, string $align, ?string $headingColor, string $accent): string
+    {
+        $cells = [];
+        foreach (array_values($items) as $position => $item) {
+            $cells[] = $this->gbParagraph(sprintf('%02d', $position + 1), $accent, $align, 'exito-num')
+                . $this->gbHeading($item['title'], 3, null, $align)
+                . ($item['text'] !== '' ? $this->gbParagraph($item['text'], null, $align) : '');
+        }
+
+        $cta = $data['cta'] !== '' ? $this->gbButton($data['cta'], $accent, null, $align) : '';
+        $count = count($cells);
+
+        // Same rule as the site renderer: more than three features sit beside
+        // the heading, two to a row, unless the band is centred.
+        if ($count > 3 && $align !== 'center') {
+            return $this->gbColumnsRow([
+                [$this->gbHead($data, $align, $headingColor, $accent), '40%'],
+                [$this->gbGrid($cells, 2, 'exito-feature-grid'), '60%'],
+            ]) . $cta;
+        }
+
+        return $this->gbHead($data, $align, $headingColor, $accent)
+            . $this->gbGrid($cells, max(1, min($c['columns'], $count ?: 1)), 'exito-feature-grid')
+            . $cta;
+    }
+
+    private function gbCardRows(array $items, array $photos, array $c, string $align): string
+    {
+        $cards = [];
+        foreach ($items as $itemIndex => $item) {
+            $inner = isset($photos[$itemIndex]) ? $this->gbImage($photos[$itemIndex], 'medium', $c['image_ratio']) : '';
+            $inner .= $this->gbHeading($item['title'], 3, null, $align);
+            if ($item['text'] !== '') {
+                $inner .= $this->gbParagraph($item['text'], null, $align);
+            }
+            if ($item['price'] !== '') {
+                $inner .= $this->gbParagraph($item['price'], null, $align, 'exito-price');
+            }
+            $cards[] = $c['card_treatment'] === 'plain' || $c['card_treatment'] === 'flush' ? $inner : $this->gbCard($inner);
+        }
+
+        if (!$cards) {
+            return '';
+        }
+
+        // Feature-first: the lead card takes a wide column, the rest stack
+        // beside it — the asymmetric arrangement the site renderer draws.
+        if (!empty($c['feature_first']) && count($cards) >= 3) {
+            $lead = array_shift($cards);
+
+            return $this->gbColumnsRow([
+                [$lead, '58%'],
+                [$this->gbGrid($cards, count($cards) >= 4 ? 2 : 1), '42%'],
+            ], 'exito-cards exito-cards--feature-first');
+        }
+
+        return $this->gbGrid($cards, max(1, min($c['columns'], count($cards))), 'exito-cards');
+    }
+
+    private function gbEditorial(array $data, array $items, array $photos, array $c, ?string $headingColor, string $accent): string
+    {
+        $list = $this->gbList(array_map(
+            fn (array $item) => trim($item['title'] . ($item['text'] !== '' ? ' — ' . $item['text'] : '')),
+            $items
+        ), true, 'exito-editorial-list');
+        $cta = $data['cta'] !== '' ? $this->gbButton($data['cta'], $accent, null, 'left') : '';
+        $photo = reset($photos) ?: null;
+
+        if ($photo) {
+            $copy = [$this->gbHead($data, 'left', $headingColor, $accent) . $list . $cta, '50%'];
+            $media = [$this->gbImage($photo, 'large', $c['image_ratio']), '50%'];
+
+            return $this->gbColumnsRow($c['image_position'] === 'left' ? [$media, $copy] : [$copy, $media], 'exito-editorial');
+        }
+
+        // No photograph: heading in a narrow column, the story in a wide one.
+        $head = ($data['eyebrow'] !== '' ? $this->gbParagraph($data['eyebrow'], $accent, 'left', 'exito-eyebrow') : '')
+            . $this->gbHeading($data['headline'], 2, $headingColor, 'left');
+        $body = ($data['description'] !== '' ? $this->gbParagraph($data['description'], null, 'left', 'exito-lead') : '') . $list . $cta;
+
+        return $this->gbColumnsRow([[$head, '42%'], [$body, '58%']], 'exito-editorial exito-editorial--text');
+    }
+
+    private function gbAlternating(array $data, array $items, array $photos, array $c, string $align, ?string $headingColor, string $primary, string $accent): string
+    {
+        $rows = '';
+        foreach (array_values(array_keys($items)) as $position => $itemIndex) {
+            $item = $items[$itemIndex];
+            $number = sprintf('%02d', $position + 1);
+            $media = isset($photos[$itemIndex])
+                ? $this->gbImage($photos[$itemIndex], 'large', $c['image_ratio'])
+                : $this->gbSection($this->gbHeading($number, 3, Palette::textOn($position % 2 ? $accent : $primary), 'left', 'exito-panel-number'), $position % 2 ? $accent : $primary);
+            $copy = $this->gbParagraph($number, $accent, 'left', 'exito-num')
+                . $this->gbHeading($item['title'], 3, null, 'left')
+                . ($item['text'] !== '' ? $this->gbParagraph($item['text'], null, 'left') : '');
+
+            $columns = [[$media, '55%'], [$copy, '45%']];
+            $rows .= $this->gbColumnsRow($position % 2 ? array_reverse($columns) : $columns, 'exito-alt-row');
+        }
+
+        return $this->gbHead($data, $align, $headingColor, $accent)
+            . $rows
+            . ($data['cta'] !== '' ? $this->gbButton($data['cta'], $accent, null, $align) : '');
+    }
+
+    private function gbStats(array $data, array $items, string $align, string $textColor, string $accent): string
+    {
+        $cells = [];
+        foreach ($items as $item) {
+            $cells[] = $this->gbHeading($item['value'], 3, $textColor, 'left', 'exito-stat-value')
+                . ($item['label'] !== '' && $item['label'] !== $item['value'] ? $this->gbParagraph($item['label'], $textColor, 'left', 'exito-stat-label') : '');
+        }
+
+        $grid = $this->gbGrid($cells, max(1, min(4, count($cells) ?: 1)), 'exito-stats-grid');
+        $hasHead = $data['headline'] !== '' || $data['description'] !== '';
+
+        if ($hasHead && $align !== 'center') {
+            return $this->gbColumnsRow([[$this->gbHead($data, $align, $textColor, $textColor), '34%'], [$grid, '66%']]);
+        }
+
+        return ($hasHead ? $this->gbHead($data, $align, $textColor, $textColor) : '') . $grid;
+    }
+
+    private function gbTestimonials(array $data, array $items, string $align, ?string $headingColor, string $accent): string
+    {
+        $quotes = SectionContent::quotes($items);
+        if (!$quotes) {
+            return $this->gbHead($data, $align, $headingColor, $accent);
+        }
+
+        $lead = array_shift($quotes);
+        $leadBlock = $this->gbQuote($lead, 'exito-quote-lead');
+
+        if (!$quotes) {
+            return $this->gbHead($data, $align, $headingColor, $accent) . $leadBlock;
+        }
+
+        $side = implode('', array_map(fn (array $quote) => $this->gbQuote($quote, 'exito-quote-small'), $quotes));
+
+        return $this->gbHead($data, $align, $headingColor, $accent)
+            . $this->gbColumnsRow([[$leadBlock, '58%'], [$side, '42%']], 'exito-quotes');
+    }
+
+    /** @param array{quote:string, author:string, role:string} $quote */
+    private function gbQuote(array $quote, string $className): string
+    {
+        $cite = trim($quote['author'] . ($quote['role'] !== '' ? ', ' . $quote['role'] : ''), ', ');
+        $attrs = json_encode(['className' => $className], JSON_UNESCAPED_SLASHES);
+
+        return "<!-- wp:quote {$attrs} -->\n"
+            . "<blockquote class=\"wp-block-quote {$className}\"><!-- wp:paragraph -->\n<p>" . e($quote['quote']) . "</p>\n<!-- /wp:paragraph -->"
+            . ($cite !== '' ? '<cite>' . e($cite) . '</cite>' : '')
+            . "</blockquote>\n<!-- /wp:quote -->\n\n";
+    }
+
+    private function gbGalleryMosaic(array $data, array $items, array $photos, string $align, ?string $headingColor, string $accent, string $primary): string
+    {
+        $images = '';
+        $tiles = [];
+
+        foreach (array_values(array_keys($items)) as $position => $itemIndex) {
+            $caption = $items[$itemIndex]['title'];
+
+            if (isset($photos[$itemIndex])) {
+                $filename = $photos[$itemIndex];
+                $token = "__EXITO_IMAGE:{$filename}__";
+                $images .= "<!--EXITO_IMG_START:{$filename}-->"
+                    . "<!-- wp:image {\"sizeSlug\":\"large\"} -->\n"
+                    . "<figure class=\"wp-block-image size-large\"><img src=\"{$token}\" alt=\"" . e($caption) . '"/>'
+                    . ($caption !== '' ? '<figcaption class="wp-element-caption">' . e($caption) . '</figcaption>' : '')
+                    . "</figure>\n<!-- /wp:image -->"
+                    . "<!--EXITO_IMG_END:{$filename}-->\n";
+                continue;
+            }
+
+            // No photograph: the same colour tile the site renderer draws.
+            $tileColor = [$primary, $accent, (string) MockupDesignSpec::token('section_band_color')][$position % 3];
+            $tiles[] = $this->gbSection($this->gbParagraph($caption, Palette::textOn($tileColor), 'left', 'exito-tile-caption'), $tileColor);
+        }
+
+        $gallery = $images !== ''
+            ? "<!-- wp:gallery {\"columns\":3,\"linkTo\":\"none\",\"className\":\"exito-gallery\"} -->\n"
+                . "<figure class=\"wp-block-gallery has-nested-images columns-3 is-cropped exito-gallery\">{$images}</figure>\n<!-- /wp:gallery -->\n\n"
+            : '';
+
+        return $this->gbHead($data, $align, $headingColor, $accent)
+            . $gallery
+            . ($tiles ? $this->gbGrid($tiles, 3, 'exito-tiles') : '');
+    }
+
+    private function gbLogos(array $items): string
+    {
+        $inner = '';
+        foreach ($items as $item) {
+            $inner .= $this->gbParagraph($item['title'], null, 'center', 'exito-logo');
+        }
+
+        if ($inner === '') {
+            return '';
+        }
+
+        return "<!-- wp:group {\"className\":\"exito-logos\",\"layout\":{\"type\":\"flex\",\"flexWrap\":\"wrap\",\"justifyContent\":\"center\"}} -->\n"
+            . "<div class=\"wp-block-group exito-logos\">\n{$inner}</div>\n<!-- /wp:group -->\n\n";
+    }
+
+    private function gbFaq(array $data, array $items, string $align, ?string $headingColor, string $accent): string
+    {
+        $list = '';
+        $first = true;
+        foreach ($items as $item) {
+            // Only the first answer starts open, exactly as in the live demo.
+            $attrs = $first ? ' {"showContent":true}' : '';
+            $open = $first ? ' open' : '';
+            $list .= "<!-- wp:details{$attrs} -->\n"
+                . "<details class=\"wp-block-details\"{$open}><summary>" . e($item['title']) . '</summary>'
+                . ($item['text'] !== '' ? "<!-- wp:paragraph -->\n<p>" . e($item['text']) . "</p>\n<!-- /wp:paragraph -->" : '')
+                . "</details>\n<!-- /wp:details -->\n\n";
+            $first = false;
+        }
+
+        $head = $this->gbHead($data, $align, $headingColor, $accent);
+
+        return $align === 'center'
+            ? $head . $list
+            : $this->gbColumnsRow([[$head, '36%'], [$list, '64%']], 'exito-faq');
+    }
+
+    private function gbCta(array $data, string $align, string $textColor, string $accent, array $design): string
+    {
+        $cta = $data['cta'] !== '' ? $data['cta'] : $this->globalCta;
+        $copy = ($data['eyebrow'] !== '' ? $this->gbParagraph($data['eyebrow'], $textColor, $align, 'exito-eyebrow') : '')
+            . $this->gbHeading($data['headline'], 2, $textColor, $align)
+            . ($data['description'] !== '' ? $this->gbParagraph($data['description'], $textColor, $align) : '');
+        // The button inverts the band: band colour on the text colour.
+        $button = $cta !== '' ? $this->gbButton($cta, $textColor, $accent, $align) : '';
+
+        return $align === 'center' || $button === ''
+            ? $copy . $button
+            : $this->gbColumnsRow([[$copy, '66%'], [$button, '34%']], 'exito-cta');
+    }
+
+    private function gbTeam(array $data, array $items, array $photos, array $c, string $align, ?string $headingColor, string $accent): string
+    {
+        $cells = [];
+        foreach ($items as $itemIndex => $item) {
+            $cells[] = (isset($photos[$itemIndex])
+                    ? $this->gbImage($photos[$itemIndex], 'medium', $c['image_ratio'])
+                    : $this->gbParagraph(SectionContent::initials($item['title']), $headingColor, 'left', 'exito-monogram'))
+                . $this->gbHeading($item['title'], 3, null, 'left')
+                . ($item['role'] !== '' ? $this->gbParagraph($item['role'], $accent, 'left', 'exito-role') : '')
+                . ($item['text'] !== '' ? $this->gbParagraph($item['text'], null, 'left') : '');
+        }
+
+        return $this->gbHead($data, $align, $headingColor, $accent)
+            . $this->gbGrid($cells, max(1, min($c['columns'], count($cells) ?: 1)), 'exito-team');
+    }
+
+    private function gbPricing(array $data, array $items, string $align, ?string $headingColor, string $primary, string $accent, array $design): string
+    {
+        $featured = SectionContent::featuredIndex($items);
+        $button = $data['cta'] !== '' ? $data['cta'] : ($this->globalCta ?: 'Hubungi Kami');
+        $cells = [];
+
+        foreach (array_values($items) as $position => $item) {
+            $isFeatured = $position === $featured;
+            $inner = $this->gbHeading($item['title'], 3, $isFeatured ? Palette::textOn($primary) : null, 'left')
+                . ($item['price'] !== '' ? $this->gbParagraph($item['price'], $isFeatured ? Palette::textOn($primary) : null, 'left', 'exito-price') : '')
+                . ($item['text'] !== '' ? $this->gbParagraph($item['text'], $isFeatured ? Palette::textOn($primary) : null, 'left') : '')
+                . $this->gbList($item['features'])
+                . $this->gbButton($button, $accent, null, 'left');
+            $cells[] = $isFeatured ? $this->gbSection($inner, $primary) : $this->gbCard($inner);
+        }
+
+        return $this->gbHead($data, $align, $headingColor, $accent)
+            . $this->gbGrid($cells, max(1, min(4, count($cells) ?: 1)), 'exito-plans');
     }
 
     /**
@@ -418,23 +1013,33 @@ class ElementorPageBuilderService
         // photo just leaves a solid-color cover band (dim span still has
         // the brand color as its background) instead of losing the
         // headline/description/CTA that live inside the same block.
+        // core/cover's save() puts the background <img> BEFORE the dim span;
+        // the other order is flagged invalid in the Block Editor. The `url`
+        // attribute above carries the same token, and the importer replaces
+        // tokens outside the markers too (exito_client_apply_images()), so the
+        // attribute and the <img> agree after import.
         return "<!-- wp:cover {$attrs} -->\n"
             . "<div class=\"wp-block-cover\" style=\"min-height:{$coverHeight}px\">"
-            . "<span aria-hidden=\"true\" class=\"wp-block-cover__background has-background-dim-60 has-background-dim\" style=\"background-color:{$primary}\"></span>"
             . "<!--EXITO_IMG_START:{$heroImage}-->"
             . "<img class=\"wp-block-cover__image-background\" alt=\"\" src=\"{$token}\" data-object-fit=\"cover\"/>"
             . "<!--EXITO_IMG_END:{$heroImage}-->"
+            . "<span aria-hidden=\"true\" class=\"wp-block-cover__background has-background-dim-60 has-background-dim\" style=\"background-color:{$primary}\"></span>"
             . "<div class=\"wp-block-cover__inner-container\">\n{$innerCopy}</div>"
             . "</div>\n<!-- /wp:cover -->\n\n";
     }
 
-    private function gbHeading(string $text, int $level = 2, ?string $color = null, string $align = 'center'): string
+    private function gbHeading(string $text, int $level = 2, ?string $color = null, string $align = 'center', ?string $className = null): string
     {
         $escaped = e($text);
         $align = $this->safeAlign($align);
         $attrs = ['level' => $level, 'textAlign' => $align];
         $class = 'wp-block-heading has-text-align-' . $align;
         $style = '';
+
+        if ($className) {
+            $attrs['className'] = $className;
+            $class .= ' ' . $className;
+        }
 
         if ($color) {
             $attrs['style'] = ['color' => ['text' => $color]];
@@ -449,13 +1054,18 @@ class ElementorPageBuilderService
             . "<!-- /wp:heading -->\n\n";
     }
 
-    private function gbParagraph(string $text, ?string $color = null, string $align = 'center'): string
+    private function gbParagraph(string $text, ?string $color = null, string $align = 'center', ?string $className = null): string
     {
         $escaped = e($text);
         $align = $this->safeAlign($align);
         $attrs = ['align' => $align];
         $class = 'has-text-align-' . $align;
         $style = '';
+
+        if ($className) {
+            $attrs['className'] = $className;
+            $class .= ' ' . $className;
+        }
 
         if ($color) {
             $attrs['style'] = ['color' => ['text' => $color]];
@@ -480,27 +1090,28 @@ class ElementorPageBuilderService
 
         $style = [];
         $classes = ['wp-block-button__link', 'wp-element-button'];
-        // Without this, the button renders as a plain underlined hyperlink
-        // instead of a solid button — Gutenberg's own editor CSS strips the
-        // underline via its stylesheet, but that stylesheet isn't loaded on
-        // the live site unless a theme explicitly enqueues it, so a
-        // generated theme's own CSS is the only thing that can do it. Set
-        // inline rather than relying on that CSS existing/being correct.
-        $inlineStyle = 'text-decoration:none;display:inline-block;';
+        // The inline style must be EXACTLY what core/button's save() emits for
+        // these attributes (text colour, then background), or the Block Editor
+        // marks the block invalid ("Attempt Block Recovery") — verified in a real
+        // WordPress 7.1 editor. The underline removal and inline-block display
+        // this used to inline live in the theme's block-content.css instead
+        // (BundleExporterService::blockContentCss()), which is enqueued on the
+        // live site and in the editor.
+        $inlineStyle = '';
 
-        if ($bgColor) {
-            $style['color']['background'] = $bgColor;
-            $classes[] = 'has-background';
-            $inlineStyle .= 'background-color:' . $bgColor . ';';
-        }
         if ($textColor) {
             $style['color']['text'] = $textColor;
             $classes[] = 'has-text-color';
             $inlineStyle .= 'color:' . $textColor . ';';
         }
+        if ($bgColor) {
+            $style['color']['background'] = $bgColor;
+            $classes[] = 'has-background';
+            $inlineStyle .= 'background-color:' . $bgColor . ';';
+        }
 
         $innerAttrs = $style ? json_encode(['style' => $style], JSON_UNESCAPED_SLASHES) : '';
-        $styleAttr = $inlineStyle ? ' style="' . $inlineStyle . '"' : '';
+        $styleAttr = $inlineStyle ? ' style="' . rtrim($inlineStyle, ';') . '"' : '';
         $classAttr = implode(' ', $classes);
 
         return "<!-- wp:buttons {\"layout\":{\"type\":\"flex\",\"justifyContent\":\"{$align}\"}} -->\n"
@@ -626,8 +1237,16 @@ class ElementorPageBuilderService
             'spacing' => ['padding' => ['top' => $padding, 'bottom' => $padding, 'left' => $padding, 'right' => $padding]],
         ]], JSON_UNESCAPED_SLASHES);
 
+        // Exactly the declarations core/group's save() derives from the attrs
+        // above, in its order — anything else (the old `overflow:hidden;
+        // padding:16px` shorthand) is flagged invalid in the Block Editor. The
+        // photo-clipping overflow lives in block-content.css instead.
+        $borderColor = MockupDesignSpec::token('card_border_color');
+        $style = "border-color:{$borderColor};border-width:{$border};border-radius:{$radius};"
+            . "padding-top:{$padding};padding-right:{$padding};padding-bottom:{$padding};padding-left:{$padding}";
+
         return "<!-- wp:group {$attrs} -->\n"
-            . "<div class=\"wp-block-group has-border-color\" style=\"border-color:#eae5dd;border-width:1px;border-radius:14px;overflow:hidden;padding:16px\">\n{$inner}</div>\n"
+            . "<div class=\"wp-block-group has-border-color\" style=\"{$style}\">\n{$inner}</div>\n"
             . "<!-- /wp:group -->\n\n";
     }
 
@@ -645,8 +1264,10 @@ class ElementorPageBuilderService
         $token = "__EXITO_IMAGE:{$filename}__";
         // The blueprint's aspect ratio, applied as the crop the approved mockup
         // used. wp:image supports aspectRatio natively, so the block still edits
-        // normally in the Block Editor.
-        $ratioAttr = $imageRatio ? ',"aspectRatio":"' . str_replace(':', '/', $imageRatio) . '"' : '';
+        // normally in the Block Editor. The object-fit in the style must come
+        // from the `scale` attribute, or core/image's save() omits it and the
+        // block is flagged invalid.
+        $ratioAttr = $imageRatio ? ',"aspectRatio":"' . str_replace(':', '/', $imageRatio) . '","scale":"cover"' : '';
         $ratioStyle = $imageRatio ? ' style="aspect-ratio:' . str_replace(':', '/', $imageRatio) . ';object-fit:cover"' : '';
 
         return "<!--EXITO_IMG_START:{$filename}-->"
@@ -716,18 +1337,13 @@ class ElementorPageBuilderService
     private function mapSectionsToElements(array $sections, array $design): array
     {
         $elements = [];
-        // Same restriction as renderGutenbergBlocks(): only the sections
-        // actually shown in the approved PNG (hero + the picked icon/photo
-        // sections), so switching a page to Elementor shows the same
-        // approved-looking page instead of a much longer one with every
-        // section from the mockup blueprint.
-        $picked = $this->pickIconPhotoIndexes($sections);
+        // Same sections as renderGutenbergBlocks(): exactly those the section
+        // plan renders, so switching a page to Elementor shows the approved
+        // page rather than a longer or shorter one.
+        $plan = $this->describeSections($sections, $design);
 
         foreach ($sections as $index => $section) {
-            if (!is_array($section)) {
-                continue;
-            }
-            if ($index !== 0 && $index !== $picked['icon'] && $index !== $picked['photo']) {
+            if (!is_array($section) || !($plan[$index]['rendered'] ?? false)) {
                 continue;
             }
 

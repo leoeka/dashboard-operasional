@@ -45,10 +45,15 @@ class AnalisisGeminiService
                 'error' => $e->getMessage(),
             ]);
 
-            $businessAnalysis = $this->fallbackProjectAnalysis($project);
+            return $this->fallbackProjectAnalysis($project);
         }
 
-        return $businessAnalysis;
+        // Hard content-integrity gate: nothing the client did not supply —
+        // testimonials, figures, prices, badges, competitor facts — may reach
+        // the sitemap every later stage treats as final. Outside the try on
+        // purpose: a failure here is a bug to surface, never a reason to fall
+        // back to a different analysis.
+        return app(ContentIntegrityService::class)->sanitize($businessAnalysis, $project, $client, $competitorContents);
     }
 
     /**
@@ -148,6 +153,10 @@ SITEMAP & COPYWRITING RULES (this is the actual website content, not a summary o
 - sitemap.pages: include Home, About, Services (or Products), and Contact where relevant to this Website Category — same as a real small-business site would have. Home needs the most sections; other pages can be shorter.
 - Every entry in content_benchmark.must_match must appear as an actual section somewhere in sitemap.pages (pick whichever page fits it best). Every entry in content_benchmark.must_exceed must also appear as a section, and that section's description must make the stated advantage concrete and visible (e.g. if the advantage is \"same-day size-exchange, competitors take a week\", say that in the copy — don't just imply quality).
 - Each section needs a real \"type\" (hero, about, services, features, portfolio, testimonial, pricing, faq, cta, contact, footer, ...), a \"headline\", a \"description\" (1-3 sentences of real copy, not a placeholder), and a \"cta\" where the section calls for one. Card/grid-style sections (services, features, portfolio, pricing, testimonials, faq) also need 3-6 \"items\", each with its own \"title\" and \"description\".
+- Give items the fields their section type naturally has, in addition to title/description: faq items {\"question\", \"answer\"}; testimonial items {\"quote\", \"author\", \"role\"}; stats items {\"value\", \"label\"}; pricing items {\"price\", \"features\": [...]}; team items {\"name\", \"role\"}; products/services may carry a \"price\" — but ONLY with facts the client supplied (see the next rule).
+- HARD RULE — NEVER INVENT FACTS ABOUT THIS CLIENT. Only the Client/Project details and User Story above are facts about this business. Do not write any testimonial, reviewer name or role, customer/guest/client count, rating, review count, success percentage, business statistic, years of experience or founding year, award, certification, partner or client logo, price, discount, transaction count, or any other number that is not stated there. Competitor websites and design references are context for structure and tone only; nothing stated on them (names, numbers, prices, quotes, destinations presented as the client's) is ever a fact about this client.
+- When real data for such a section is not given: leave the testimonial section out, leave the stats section out, and leave prices out (no dummy or 'from Rp …' figures). Do not badge any package as \"Most Popular\", \"Recommended\" or \"Best Value\" unless the client said so. Anything you write here is checked automatically and unsupported claims are deleted.
+- Home should read like a designed page, not a list of card rows: choose the section types THIS business needs (e.g. about/story, services, stats, testimonial, gallery/portfolio, faq, cta) rather than repeating features/services twice. Do not include header, navigation or footer sections — the theme draws those.
 - Every fact/number/name used in the copy (prices, class times, addresses, ...) must be something a reasonable business in this exact scenario would plausibly have, consistent with the User Story — never contradict it, and never invent a specific real competitor's name as if it were this client's own.
 
 Client / Company: {$client->company_name}

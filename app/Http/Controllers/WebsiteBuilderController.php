@@ -12,6 +12,7 @@ use App\Services\PipelineCheckpointService;
 use App\Services\CompetitorContentFetcher;
 use App\Services\CompetitorDiscoveryService;
 use App\Services\ScreenshotService;
+use App\Support\MockupSite;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -241,12 +242,16 @@ class WebsiteBuilderController extends Controller
 
         $mockup = $mockupCandidates[0];
 
-        $home = collect($mockup['pages'] ?? [])->first(fn ($page) => strtolower($page['name'] ?? '') === 'home');
-        $homeSections = $home['sections'] ?? [];
-        $hero = collect($homeSections)->first(fn ($section) => strtolower($section['type'] ?? $section['name'] ?? '') === 'hero') ?? ($homeSections[0] ?? []);
-        $newsletter = collect($homeSections)->first(fn ($section) => str_contains(strtolower((string) ($section['name'] ?? $section['type'] ?? '')), 'newsletter'));
         if (empty($mockup['screenshot_path'])) {
-            $mockupHtml = view('pdf.mockup-screenshot', compact('project', 'mockup', 'homeSections', 'hero', 'newsletter'))->render();
+            // Fallback picture through the same shared site renderer as every
+            // candidate PNG and the live demo — never a separate hard-coded
+            // template that would show a design nobody chose.
+            $mockupHtml = view('pdf.mockup-render', ['site' => MockupSite::build($mockup, [
+                'brand' => $project->client?->company_name ?? $project->name,
+                'fixed' => true,
+                'page' => 'home',
+                'images' => MockupSite::imagesFromManifest(is_array($mockup['assets'] ?? null) ? $mockup['assets'] : []),
+            ])])->render();
             $mockup['screenshot_path'] = app(ScreenshotService::class)->captureHtml($mockupHtml, 'mockups/' . $project->code . '.png');
         }
 

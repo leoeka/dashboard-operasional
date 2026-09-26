@@ -49,6 +49,87 @@ final class CompositionSpec
         'pricing',
     ];
 
+    /**
+     * Blueprints stamped with this version render EVERY section the content
+     * stage wrote, each through its own composition. Blueprints without the
+     * stamp were approved from a PNG that only ever showed hero + one feature
+     * band + one card grid, so they keep resolving to exactly that — building
+     * more than the client saw would ship a page nobody approved.
+     */
+    public const RENDERER_VERSION = 2;
+
+    /**
+     * The semantic role each section composition gives a section. `icon_band`
+     * and `card_grid` keep their original names because approved blueprints,
+     * asset manifests and the designer schema already store them; they are the
+     * feature band and the photographed services/showcase grid.
+     */
+    public const COMPOSITION_ROLES = [
+        'feature_grid' => 'icon_band',
+        'standard_cards' => 'card_grid',
+        'asymmetric_cards' => 'card_grid',
+        'editorial_text_image' => 'editorial_media',
+        'alternating_media' => 'editorial_media',
+        'stats_band' => 'stats',
+        'testimonial_grid' => 'testimonials',
+        'gallery' => 'gallery',
+        'logo_showcase' => 'logos',
+        'faq' => 'faq',
+        'cta' => 'cta',
+        'team' => 'team',
+        'pricing' => 'pricing',
+    ];
+
+    /** Which renderer draws each composition — the key both the Blade and the Gutenberg builders switch on. */
+    public const COMPOSITION_RENDERERS = [
+        'feature_grid' => 'features',
+        'standard_cards' => 'cards',
+        'asymmetric_cards' => 'cards',
+        'editorial_text_image' => 'editorial',
+        'alternating_media' => 'alternating',
+        'stats_band' => 'stats',
+        'testimonial_grid' => 'testimonials',
+        'gallery' => 'gallery',
+        'logo_showcase' => 'logos',
+        'faq' => 'faq',
+        'cta' => 'cta',
+        'team' => 'team',
+        'pricing' => 'pricing',
+    ];
+
+    /**
+     * Which full-bleed band each renderer sits on. `band` is the fixed neutral
+     * section colour, `primary`/`accent` the brand colours, `none` the page.
+     * Read by both the site renderer and the Gutenberg builder.
+     */
+    public const RENDERER_BACKGROUNDS = [
+        'cards' => 'band',
+        'testimonials' => 'band',
+        'pricing' => 'band',
+        'stats' => 'primary',
+        'cta' => 'accent',
+    ];
+
+    /**
+     * The compositions a designer may choose for a section of each content
+     * shape. Deliberately wider than compatibleSectionCompositions(), which
+     * also has to preserve a frozen section's photo usage; at design time no
+     * photograph exists yet, so only the content has to fit.
+     */
+    private const SHAPE_COMPOSITIONS = [
+        'faq' => ['faq'],
+        'pricing' => ['pricing', 'standard_cards'],
+        'testimonials' => ['testimonial_grid'],
+        'team' => ['team'],
+        'stats' => ['stats_band'],
+        'logos' => ['logo_showcase'],
+        'gallery' => ['gallery', 'asymmetric_cards', 'standard_cards'],
+        'text' => ['editorial_text_image', 'cta'],
+        'cta' => ['cta'],
+        'feature_items' => ['feature_grid', 'standard_cards', 'asymmetric_cards', 'alternating_media', 'editorial_text_image'],
+        'card_items' => ['standard_cards', 'asymmetric_cards', 'feature_grid', 'alternating_media', 'editorial_text_image'],
+    ];
+
     public const CONTAINERS = ['narrow', 'standard', 'wide', 'full'];
     public const HEADING_SCALES = ['display-xl', 'display-lg', 'h1', 'h2', 'h3'];
     public const SPACING = ['compact', 'normal', 'generous', 'editorial'];
@@ -182,6 +263,97 @@ final class CompositionSpec
         return $sameMedia;
     }
 
+    /** Whether this blueprint renders every section (V2) or only the legacy three roles. */
+    public static function isFullPage(array $design): bool
+    {
+        return (int) ($design['renderer_version'] ?? 1) >= self::RENDERER_VERSION;
+    }
+
+    /**
+     * contentShape(), plus the one distinction it cannot make: a section with no
+     * items is either prose worth an editorial layout (an About story, a
+     * founder's note) or a short call to action.
+     */
+    public static function sectionShape(array $section): string
+    {
+        $items = is_array($section['items'] ?? null) ? array_filter($section['items']) : [];
+
+        if ($items) {
+            $shape = self::contentShape($section, '');
+
+            // Products or destinations that merely carry a price are a
+            // catalogue, not a pricing table. A pricing table lists what each
+            // plan includes, or calls itself one.
+            if ($shape === 'pricing' && !self::looksLikePlans($section, $items)) {
+                return 'card_items';
+            }
+
+            return $shape;
+        }
+
+        $label = strtolower(trim((string) ($section['type'] ?? '') . ' ' . (string) ($section['name'] ?? '')));
+        foreach (['cta', 'contact', 'kontak', 'hubungi', 'newsletter', 'booking', 'reservasi', 'daftar', 'order', 'pesan'] as $word) {
+            if (str_contains($label, $word)) {
+                return 'cta';
+            }
+        }
+
+        return trim((string) ($section['description'] ?? '')) !== '' ? 'text' : 'cta';
+    }
+
+    private static function looksLikePlans(array $section, array $items): bool
+    {
+        $label = strtolower((string) ($section['type'] ?? '') . ' ' . (string) ($section['name'] ?? '') . ' ' . (string) ($section['headline'] ?? ''));
+        foreach (['pricing', 'harga', 'paket', 'plan', 'langganan', 'membership'] as $word) {
+            if (str_contains($label, $word)) {
+                return true;
+            }
+        }
+
+        foreach ($items as $item) {
+            if (is_array($item) && array_intersect(['features', 'benefits', 'includes', 'fitur'], array_map('strtolower', array_keys($item)))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** @return array<int, string> the compositions a designer may choose for content of this shape. */
+    public static function compositionsForShape(string $shape): array
+    {
+        return self::SHAPE_COMPOSITIONS[$shape] ?? self::SHAPE_COMPOSITIONS['card_items'];
+    }
+
+    /** The composition a section gets when the blueprint states none (or one its content cannot fill). */
+    public static function defaultCompositionForShape(string $shape, int $genericSeen = 0): string
+    {
+        return match ($shape) {
+            'faq' => 'faq',
+            'pricing' => 'pricing',
+            'testimonials' => 'testimonial_grid',
+            'team' => 'team',
+            'stats' => 'stats_band',
+            'logos' => 'logo_showcase',
+            'gallery' => 'gallery',
+            'text' => 'editorial_text_image',
+            'cta' => 'cta',
+            // The first generic band reads as "why us", the second as the
+            // photographed showcase — the arrangement legacy blueprints had.
+            default => $genericSeen === 1 ? 'standard_cards' : 'feature_grid',
+        };
+    }
+
+    public static function roleForComposition(string $composition): string
+    {
+        return self::COMPOSITION_ROLES[$composition] ?? 'card_grid';
+    }
+
+    public static function rendererForComposition(string $composition): string
+    {
+        return self::COMPOSITION_RENDERERS[$composition] ?? 'cards';
+    }
+
     /** Container token -> max content width in px. `full` means edge to edge. */
     private const CONTAINER_WIDTHS = [
         'narrow' => 860,
@@ -241,9 +413,9 @@ final class CompositionSpec
         'feature_grid' => ['family' => 'grid', 'columns' => 3, 'card_treatment' => 'plain', 'photo_slots' => false],
         'gallery' => ['family' => 'grid', 'columns' => 4, 'card_treatment' => 'flush', 'photo_slots' => true, 'image_ratio' => '1:1'],
         'team' => ['family' => 'grid', 'columns' => 4, 'card_treatment' => 'plain', 'photo_slots' => true, 'image_ratio' => '1:1'],
-        'pricing' => ['family' => 'grid', 'columns' => 3, 'card_treatment' => 'bordered', 'photo_slots' => false],
+        'pricing' => ['family' => 'grid', 'columns' => 3, 'card_treatment' => 'bordered', 'photo_slots' => false, 'text_align' => 'center'],
         'testimonial_grid' => ['family' => 'grid', 'columns' => 3, 'card_treatment' => 'shadowed', 'photo_slots' => false],
-        'logo_showcase' => ['family' => 'grid', 'columns' => 5, 'card_treatment' => 'flush', 'photo_slots' => false],
+        'logo_showcase' => ['family' => 'grid', 'columns' => 5, 'card_treatment' => 'flush', 'photo_slots' => false, 'text_align' => 'center'],
         'stats_band' => ['family' => 'band', 'columns' => 4, 'card_treatment' => 'plain', 'photo_slots' => false, 'text_align' => 'center'],
         'faq' => ['family' => 'list', 'columns' => 1, 'card_treatment' => 'plain', 'photo_slots' => false, 'text_align' => 'left'],
         'editorial_text_image' => ['family' => 'media', 'columns' => 1, 'card_treatment' => 'plain', 'photo_slots' => true, 'image_position' => 'right', 'image_ratio' => '4:5', 'text_align' => 'left'],

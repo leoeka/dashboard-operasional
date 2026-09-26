@@ -30,12 +30,9 @@ class BundleBuilderService
         $mockup = $proposalData['mockup'] ?? [];
         $mockupPages = $mockup['pages'] ?? [];
 
-        // TEMPORARY, per explicit request: build only the Home page for now
-        // so the layout can be verified/matched against the approved
-        // mockup one page at a time, instead of every page (About/Services/
-        // Contact/...) at once. Remove this slice to build the full
-        // sitemap again once Home looks right.
-        $mockupPages = array_slice($mockupPages, 0, 1);
+        // The whole approved sitemap is built. Home is always first and the
+        // front page, and every slug is unique — see SitemapPages, which the
+        // page builder, the manifest and the live demo all share.
 
         // The exact photo files the client approved, read back off disk — no
         // image generation happens after approval at all. Deliberately NOT
@@ -59,7 +56,12 @@ class BundleBuilderService
             // builder, so every page is actually populated & editable in
             // the built-in Block Editor after install — see
             // ElementorPageBuilderService and BundleExporterService.
-            'elementor_pages' => $this->elementorPageBuilder->buildPages($mockupPages, $mockup['design'] ?? [], $sectionImages['map']),
+            'elementor_pages' => $this->elementorPageBuilder->buildPages(
+                is_array($mockupPages) ? $mockupPages : [],
+                $mockup['design'] ?? [],
+                $sectionImages['map'],
+                is_string($mockup['global_cta'] ?? null) ? $mockup['global_cta'] : ''
+            ),
             // filename => raw JPEG bytes, embedded into the theme and
             // uploaded to the Media Library the first time the theme is
             // activated.

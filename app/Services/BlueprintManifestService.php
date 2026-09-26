@@ -2,8 +2,9 @@
 
 namespace App\Services;
 
+use App\Support\CompositionSpec;
 use App\Support\MockupDesignSpec;
-use Illuminate\Support\Str;
+use App\Support\SitemapPages;
 
 /**
  * Builds Claude's implementation manifest deterministically from the mockup
@@ -36,19 +37,14 @@ class BlueprintManifestService
         $sections = [];
         $assets = [];
 
-        foreach ($pages as $pageIndex => $page) {
-            if (!is_array($page)) {
-                continue;
-            }
+        foreach (SitemapPages::ordered($pages) as $entry) {
+            $page = $entry['page'];
+            $name = $entry['name'];
 
-            $name = trim((string) ($page['name'] ?? ''));
-            if ($name === '') {
-                continue;
-            }
-
-            // Same slug rule as ElementorPageBuilderService::buildPages(), so
-            // an asset slot below lines up with the page the build creates.
-            $slug = $pageIndex === 0 ? 'home' : (Str::slug($name) ?: 'page-' . ($pageIndex + 1));
+            // Same slug rule as ElementorPageBuilderService::buildPages() and the
+            // live demo, so an asset slot below lines up with the page the build
+            // creates.
+            $slug = $entry['slug'];
             $pageAssets = is_array($mockup['assets']['pages'][$slug] ?? null) ? $mockup['assets']['pages'][$slug] : [];
             $pageSections = is_array($page['sections'] ?? null) ? array_values($page['sections']) : [];
             $plan = $this->pageBuilder->describeSections($pageSections, $design);
@@ -72,6 +68,8 @@ class BlueprintManifestService
                     'page' => $slug,
                     'order' => $index,
                     'role' => $sectionPlan['role'],
+                    'renderer' => $sectionPlan['renderer'],
+                    'composition' => $sectionPlan['composition']['composition'] ?? null,
                     'type' => $this->sectionType($section, $sectionPlan['role']),
                     'heading' => $this->text($section['headline'] ?? $section['name'] ?? ''),
                     'copy' => $this->text($section['description'] ?? ''),
@@ -80,7 +78,7 @@ class BlueprintManifestService
                         'variant' => $sectionPlan['layout_variant'],
                         'heading_align' => $sectionPlan['heading_align'],
                         'body_align' => $sectionPlan['body_align'],
-                        'background' => $this->sectionBackground($sectionPlan['role'], $design),
+                        'background' => $this->sectionBackground($sectionPlan, $design),
                     ],
                     'items' => array_values($this->items($section)),
                     'asset_slots' => array_column($slots, 'slot'),
@@ -138,14 +136,27 @@ class BlueprintManifestService
         ];
     }
 
-    /** Only the hero and the showcase band get a full-bleed background in the approved PNG. */
-    private function sectionBackground(string $role, array $design): ?string
+    /**
+     * The full-bleed band each section sits on — the same mapping the site
+     * renderer and the Gutenberg builder use (CompositionSpec::RENDERER_BACKGROUNDS).
+     * Legacy pages: only the hero and the showcase band had one.
+     */
+    private function sectionBackground(array $plan, array $design): ?string
     {
-        if ($role === 'card_grid') {
-            return MockupDesignSpec::token('section_band_color');
+        if ($plan['role'] === 'hero') {
+            return $this->text($design['primary_color'] ?? '') ?: null;
         }
 
-        return $role === 'hero' ? ($this->text($design['primary_color'] ?? '') ?: null) : null;
+        $band = CompositionSpec::isFullPage($design)
+            ? (CompositionSpec::RENDERER_BACKGROUNDS[$plan['renderer']] ?? 'none')
+            : ($plan['role'] === 'card_grid' ? 'band' : 'none');
+
+        return match ($band) {
+            'band' => (string) MockupDesignSpec::token('section_band_color'),
+            'primary' => $this->text($design['primary_color'] ?? '') ?: null,
+            'accent' => $this->text($design['accent_color'] ?? '') ?: null,
+            default => null,
+        };
     }
 
     /**
@@ -167,10 +178,8 @@ class BlueprintManifestService
             return is_array($hero) ? [$this->assetEntry($hero)] : [];
         }
 
-        if ($role !== 'card_grid') {
-            return [];
-        }
-
+        // Any photographed section: the card grid on legacy pages, and on V2
+        // pages every photo-led composition MockupAssetService photographed.
         $items = $pageAssets['sections'][$sectionIndex]['items'] ?? [];
 
         return array_values(array_map(

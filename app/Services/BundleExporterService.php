@@ -460,7 +460,7 @@ function exito_client_import_images() {
 // uploaded URL, or removes the whole marked block if that photo isn't
 // available (so a failed/skipped photo never leaves a broken <img>).
 function exito_client_apply_images(\$html, \$image_urls) {
-    return preg_replace_callback(
+    \$html = preg_replace_callback(
         '/<!--EXITO_IMG_START:(.*?)-->(.*?)<!--EXITO_IMG_END:\\1-->/s',
         function (\$matches) use (\$image_urls) {
             \$filename = \$matches[1];
@@ -468,6 +468,18 @@ function exito_client_apply_images(\$html, \$image_urls) {
                 return '';
             }
             return str_replace('__EXITO_IMAGE:' . \$filename . '__', esc_url(\$image_urls[\$filename]), \$matches[2]);
+        },
+        \$html
+    );
+
+    // Tokens outside the markers — a cover block's `url` attribute in its
+    // block comment — must match the <img> the markers produced, or the Block
+    // Editor flags the block invalid. A photo that never arrived becomes an
+    // empty url, which cover renders as a plain colour band.
+    return preg_replace_callback(
+        '/__EXITO_IMAGE:(.*?)__/',
+        function (\$matches) use (\$image_urls) {
+            return isset(\$image_urls[\$matches[1]]) ? esc_url(\$image_urls[\$matches[1]]) : '';
         },
         \$html
     );
@@ -672,7 +684,37 @@ PHP;
 .wp-block-separator { border-color: #e5e7eb; margin: 40px auto; max-width: 1100px; }
 .wp-block-image img { border-radius: 12px; object-fit: cover; width: 100%; height: auto; }
 .wp-block-column .wp-block-image { margin-bottom: 12px; }
+.wp-block-group.has-border-color { overflow: hidden; }
 .entry-content, .site-content, main { max-width: 1100px; margin-left: auto; margin-right: auto; padding: 0 24px; }
+
+/* Full-page sections (design renderer v2) — the finishing the approved live demo shows. */
+.exito-section { margin: 0; padding-left: 24px; padding-right: 24px; }
+.entry-content > .exito-section, main > .exito-section { max-width: none; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); padding-left: max(24px, calc(50vw - 550px)); padding-right: max(24px, calc(50vw - 550px)); }
+.exito-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+.exito-num { font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
+.exito-feature-grid .wp-block-column { border-top: 2px solid {$primary}; padding-top: 18px; }
+.exito-lead { font-size: 1.2em; line-height: 1.7; }
+.exito-editorial-list { padding-left: 1.2em; }
+.exito-editorial-list li { padding: 8px 0; border-top: 1px solid #e5e7eb; }
+.exito-stat-value { font-size: clamp(34px, 4.4vw, 56px); line-height: 1; margin: 0; }
+.exito-stat-label { opacity: .85; margin-top: 8px; }
+.exito-stats-grid .wp-block-column { border-left: 1px solid currentColor; padding-left: 18px; }
+.exito-quote-lead p { font-size: clamp(22px, 2.4vw, 32px); line-height: 1.35; }
+.exito-quote-small { border-left: 3px solid {$accent}; padding-left: 18px; }
+.exito-gallery img { aspect-ratio: 1 / 1; object-fit: cover; }
+.exito-tiles .wp-block-group { min-height: 180px; display: flex; align-items: flex-end; border-radius: 8px; }
+.exito-logos .exito-logo { font-weight: 700; font-size: 18px; opacity: .7; margin: 0 20px; }
+.wp-block-details { border-bottom: 1px solid #e5e7eb; padding: 18px 0; }
+.wp-block-details summary { font-weight: 700; cursor: pointer; }
+.exito-monogram { display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; background: #F6F4F0; font-size: 42px; font-weight: 700; border-radius: 8px; }
+.exito-role { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+.exito-price { font-size: 1.6em; font-weight: 700; }
+.exito-panel-number { font-size: 64px; }
+@media (max-width: 781px) {
+  .exito-alt-row { flex-direction: column; }
+  .exito-stats-grid { flex-wrap: wrap !important; }
+  .exito-stats-grid .wp-block-column { flex-basis: 45% !important; }
+}
 CSS;
     }
 

@@ -83,7 +83,12 @@ it('renders the mockup PNG from the shared measurements', function () {
 });
 
 it('keeps no second copy of the shared measurements in the mockup template', function () {
+    // The PNG template now delegates to the shared site renderer, so the guard
+    // covers every partial that renderer is made of, not just the wrapper.
     $blade = file_get_contents(resource_path('views/pdf/mockup-render.blade.php'));
+    foreach (\Illuminate\Support\Facades\File::allFiles(resource_path('views/mockup')) as $partial) {
+        $blade .= file_get_contents($partial->getPathname());
+    }
 
     // If any of these reappear as literals, a value has been duplicated back
     // out of the spec and the three consumers can drift again.
