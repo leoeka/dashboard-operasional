@@ -180,6 +180,16 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/proposal/mockup/select', [WebsiteBuilderController::class, 'selectMockup'])
         ->name('pages.projects.proposal.mockup.select');
 
+    // Live website demo of a mockup candidate (0-based index into
+    // mockup_candidates) — rendered from the same blueprint as the PNG and
+    // the WordPress build. See MockupPreviewController.
+    Route::get('/projects/{project}/mockup/{candidate}/preview', [\App\Http\Controllers\MockupPreviewController::class, 'show'])
+        ->whereNumber('candidate')
+        ->name('pages.projects.mockup.preview');
+    Route::get('/projects/{project}/mockup/{candidate}/demo', [\App\Http\Controllers\MockupPreviewController::class, 'demo'])
+        ->whereNumber('candidate')
+        ->name('pages.projects.mockup.demo');
+
     // WordPress bundle workflow
     Route::get('/projects/{project}/bundle', [\App\Http\Controllers\BundleController::class, 'index'])->name('pages.projects.bundle');
     Route::post('/projects/{project}/bundle/build', [\App\Http\Controllers\BundleController::class, 'build'])->name('pages.projects.bundle.build');

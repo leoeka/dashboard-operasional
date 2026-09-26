@@ -180,6 +180,13 @@
                             Download Proposal PDF
                         </a>
                     @endif
+                    @if (count($mockupCandidates) === 1)
+                        <a href="{{ route('pages.projects.mockup.demo', [$project, 0]) }}" target="_blank" rel="noopener"
+                            class="mt-2 w-full inline-flex items-center justify-center gap-2 border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold px-4 py-2.5 rounded-lg transition">
+                            <i class='bx bx-desktop'></i>
+                            Open Live Demo
+                        </a>
+                    @endif
                     @if (count($mockupCandidates) > 1)
                         <div class="mt-5 border-t border-slate-100 pt-5">
                             <p class="text-sm font-bold text-slate-700">Pilih mockup untuk client</p>
@@ -194,6 +201,11 @@
                                             </a>
                                         @endif
                                         <p class="px-1 pt-2 text-xs font-semibold text-slate-700">Option {{ $index + 1 }}</p>
+                                        {{-- Live, responsive website demo of this same blueprint (the PNG above stays for the PDF). --}}
+                                        <a href="{{ route('pages.projects.mockup.demo', [$project, $index]) }}" target="_blank" rel="noopener"
+                                            class="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+                                            <i class='bx bx-desktop'></i> Open Demo
+                                        </a>
                                         <form method="POST" action="{{ route('pages.projects.proposal.mockup.select', $project) }}" class="mt-2 js-mockup-select-form">
                                             @csrf
                                             <input type="hidden" name="mockup_index" value="{{ $index }}">
