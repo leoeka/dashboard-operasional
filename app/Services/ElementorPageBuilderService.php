@@ -1013,12 +1013,17 @@ class ElementorPageBuilderService
         // photo just leaves a solid-color cover band (dim span still has
         // the brand color as its background) instead of losing the
         // headline/description/CTA that live inside the same block.
+        // core/cover's save() puts the background <img> BEFORE the dim span;
+        // the other order is flagged invalid in the Block Editor. The `url`
+        // attribute above carries the same token, and the importer replaces
+        // tokens outside the markers too (exito_client_apply_images()), so the
+        // attribute and the <img> agree after import.
         return "<!-- wp:cover {$attrs} -->\n"
             . "<div class=\"wp-block-cover\" style=\"min-height:{$coverHeight}px\">"
-            . "<span aria-hidden=\"true\" class=\"wp-block-cover__background has-background-dim-60 has-background-dim\" style=\"background-color:{$primary}\"></span>"
             . "<!--EXITO_IMG_START:{$heroImage}-->"
             . "<img class=\"wp-block-cover__image-background\" alt=\"\" src=\"{$token}\" data-object-fit=\"cover\"/>"
             . "<!--EXITO_IMG_END:{$heroImage}-->"
+            . "<span aria-hidden=\"true\" class=\"wp-block-cover__background has-background-dim-60 has-background-dim\" style=\"background-color:{$primary}\"></span>"
             . "<div class=\"wp-block-cover__inner-container\">\n{$innerCopy}</div>"
             . "</div>\n<!-- /wp:cover -->\n\n";
     }
@@ -1085,27 +1090,28 @@ class ElementorPageBuilderService
 
         $style = [];
         $classes = ['wp-block-button__link', 'wp-element-button'];
-        // Without this, the button renders as a plain underlined hyperlink
-        // instead of a solid button — Gutenberg's own editor CSS strips the
-        // underline via its stylesheet, but that stylesheet isn't loaded on
-        // the live site unless a theme explicitly enqueues it, so a
-        // generated theme's own CSS is the only thing that can do it. Set
-        // inline rather than relying on that CSS existing/being correct.
-        $inlineStyle = 'text-decoration:none;display:inline-block;';
+        // The inline style must be EXACTLY what core/button's save() emits for
+        // these attributes (text colour, then background), or the Block Editor
+        // marks the block invalid ("Attempt Block Recovery") — verified in a real
+        // WordPress 7.1 editor. The underline removal and inline-block display
+        // this used to inline live in the theme's block-content.css instead
+        // (BundleExporterService::blockContentCss()), which is enqueued on the
+        // live site and in the editor.
+        $inlineStyle = '';
 
-        if ($bgColor) {
-            $style['color']['background'] = $bgColor;
-            $classes[] = 'has-background';
-            $inlineStyle .= 'background-color:' . $bgColor . ';';
-        }
         if ($textColor) {
             $style['color']['text'] = $textColor;
             $classes[] = 'has-text-color';
             $inlineStyle .= 'color:' . $textColor . ';';
         }
+        if ($bgColor) {
+            $style['color']['background'] = $bgColor;
+            $classes[] = 'has-background';
+            $inlineStyle .= 'background-color:' . $bgColor . ';';
+        }
 
         $innerAttrs = $style ? json_encode(['style' => $style], JSON_UNESCAPED_SLASHES) : '';
-        $styleAttr = $inlineStyle ? ' style="' . $inlineStyle . '"' : '';
+        $styleAttr = $inlineStyle ? ' style="' . rtrim($inlineStyle, ';') . '"' : '';
         $classAttr = implode(' ', $classes);
 
         return "<!-- wp:buttons {\"layout\":{\"type\":\"flex\",\"justifyContent\":\"{$align}\"}} -->\n"
@@ -1231,8 +1237,16 @@ class ElementorPageBuilderService
             'spacing' => ['padding' => ['top' => $padding, 'bottom' => $padding, 'left' => $padding, 'right' => $padding]],
         ]], JSON_UNESCAPED_SLASHES);
 
+        // Exactly the declarations core/group's save() derives from the attrs
+        // above, in its order — anything else (the old `overflow:hidden;
+        // padding:16px` shorthand) is flagged invalid in the Block Editor. The
+        // photo-clipping overflow lives in block-content.css instead.
+        $borderColor = MockupDesignSpec::token('card_border_color');
+        $style = "border-color:{$borderColor};border-width:{$border};border-radius:{$radius};"
+            . "padding-top:{$padding};padding-right:{$padding};padding-bottom:{$padding};padding-left:{$padding}";
+
         return "<!-- wp:group {$attrs} -->\n"
-            . "<div class=\"wp-block-group has-border-color\" style=\"border-color:#eae5dd;border-width:1px;border-radius:14px;overflow:hidden;padding:16px\">\n{$inner}</div>\n"
+            . "<div class=\"wp-block-group has-border-color\" style=\"{$style}\">\n{$inner}</div>\n"
             . "<!-- /wp:group -->\n\n";
     }
 
@@ -1250,8 +1264,10 @@ class ElementorPageBuilderService
         $token = "__EXITO_IMAGE:{$filename}__";
         // The blueprint's aspect ratio, applied as the crop the approved mockup
         // used. wp:image supports aspectRatio natively, so the block still edits
-        // normally in the Block Editor.
-        $ratioAttr = $imageRatio ? ',"aspectRatio":"' . str_replace(':', '/', $imageRatio) . '"' : '';
+        // normally in the Block Editor. The object-fit in the style must come
+        // from the `scale` attribute, or core/image's save() omits it and the
+        // block is flagged invalid.
+        $ratioAttr = $imageRatio ? ',"aspectRatio":"' . str_replace(':', '/', $imageRatio) . '","scale":"cover"' : '';
         $ratioStyle = $imageRatio ? ' style="aspect-ratio:' . str_replace(':', '/', $imageRatio) . ';object-fit:cover"' : '';
 
         return "<!--EXITO_IMG_START:{$filename}-->"

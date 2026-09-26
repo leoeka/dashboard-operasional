@@ -460,7 +460,7 @@ function exito_client_import_images() {
 // uploaded URL, or removes the whole marked block if that photo isn't
 // available (so a failed/skipped photo never leaves a broken <img>).
 function exito_client_apply_images(\$html, \$image_urls) {
-    return preg_replace_callback(
+    \$html = preg_replace_callback(
         '/<!--EXITO_IMG_START:(.*?)-->(.*?)<!--EXITO_IMG_END:\\1-->/s',
         function (\$matches) use (\$image_urls) {
             \$filename = \$matches[1];
@@ -468,6 +468,18 @@ function exito_client_apply_images(\$html, \$image_urls) {
                 return '';
             }
             return str_replace('__EXITO_IMAGE:' . \$filename . '__', esc_url(\$image_urls[\$filename]), \$matches[2]);
+        },
+        \$html
+    );
+
+    // Tokens outside the markers — a cover block's `url` attribute in its
+    // block comment — must match the <img> the markers produced, or the Block
+    // Editor flags the block invalid. A photo that never arrived becomes an
+    // empty url, which cover renders as a plain colour band.
+    return preg_replace_callback(
+        '/__EXITO_IMAGE:(.*?)__/',
+        function (\$matches) use (\$image_urls) {
+            return isset(\$image_urls[\$matches[1]]) ? esc_url(\$image_urls[\$matches[1]]) : '';
         },
         \$html
     );
@@ -672,6 +684,7 @@ PHP;
 .wp-block-separator { border-color: #e5e7eb; margin: 40px auto; max-width: 1100px; }
 .wp-block-image img { border-radius: 12px; object-fit: cover; width: 100%; height: auto; }
 .wp-block-column .wp-block-image { margin-bottom: 12px; }
+.wp-block-group.has-border-color { overflow: hidden; }
 .entry-content, .site-content, main { max-width: 1100px; margin-left: auto; margin-right: auto; padding: 0 24px; }
 
 /* Full-page sections (design renderer v2) — the finishing the approved live demo shows. */
