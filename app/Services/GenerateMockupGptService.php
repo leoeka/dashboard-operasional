@@ -32,8 +32,10 @@ class GenerateMockupGptService
      * $analysis['sitemap']) already wrote the actual website content —
      * sitemap, headlines, copy, CTAs, language. GPT here does not write,
      * rewrite, or touch that content at all: it only picks the visual
-     * language (colors, typography, style mood) for ONE design direction,
-     * which is then merged with Gemini's untouched content in PHP. This is
+     * language (colors, typography, style mood) and, per section, a named
+     * composition from the closed list that section's content can fill, for ONE
+     * design direction. That is merged with Gemini's untouched content in PHP
+     * (design fields only — see designFields()). This is
      * why the 3 mockup candidates the client sees always show identical
      * content and differ ONLY in design — previously each candidate ran an
      * independent content-writing pass too, so options could show different
@@ -81,6 +83,7 @@ class GenerateMockupGptService
         $radiusTokens = $quote(CompositionSpec::RADIUS);
         $shadowTokens = $quote(CompositionSpec::SHADOWS);
         $profileSection = $this->designProfileSection($designProfile);
+        $sectionBrief = $this->sectionBrief($sitemap);
 
         // Resolve once per call, unless the caller already resolved it
         // (generateMockupCandidates() does this ONCE and reuses it across
@@ -91,7 +94,7 @@ class GenerateMockupGptService
         $designSourceLine = $reference['line'];
 
         $prompt = <<<PROMPT
-You are a senior website designer. The website's content is already final (written by a separate content stage) — your ONLY job is to choose the visual design for it: colors, typography, and style mood for one design option.
+You are a senior website designer. The website's content is already final (written by a separate content stage) — your ONLY job is to choose the visual design for it: colors, typography, style mood, and the composition of every section, for one design option.
 
 Client: {$project->client_name}
 Project: {$project->name}
@@ -113,6 +116,14 @@ COLOR GROUNDING — avoid the single most common mockup mistake: defaulting to a
 {$profileSection}
 COMPOSITION — this is the part that decides whether the page looks designed or looks like a template. Choose compositions that suit THIS business, its audience and the reference above. Do not default to the same arrangement every time, and do not pick a photography-led composition for a business with no photography worth showing.
 
+ART DIRECTION — Do not design a generic WordPress page. Every page must have a deliberate visual rhythm, the way a premium editorial or travel site alternates immersive imagery, dense information, quiet whitespace, social proof and a promotional band.
+Avoid: repeated 3-column card rows; every section inside rounded cards; heavy shadows; large border radius everywhere; a generic SaaS hero; left-text/right-image heroes on every project; gradients everywhere; identical image ratios on every section; centred text on every section.
+Cards are optional. Where the content suits them, prefer: asymmetric composition, editorial text/image splits, full-bleed imagery, alternating media rows, stats bands, a led testimonial, galleries, FAQ lists, promotional CTA bands, generous whitespace, varied image ratios (e.g. 4:5 portrait beside 16:9 landscape) and a strong type hierarchy.
+Two neighbouring sections should not share a composition. Before settling each one, ask: "Would a professional designer intentionally make this layout decision?" If not, choose another composition from that section's list.
+
+SECTIONS TO DESIGN — every section of every page, identified by page and index. You may only choose a composition from that section's own list (the list is what its content can actually fill); never invent one:
+{$sectionBrief}
+
 Return ONLY valid JSON with this exact shape — design decisions only, never content, never HTML or CSS:
 {
   "style": "1 sentence describing this design option's overall mood",
@@ -129,7 +140,7 @@ Return ONLY valid JSON with this exact shape — design decisions only, never co
   "typography_scale": "compact | standard | expressive",
   "sections": [
     {
-      "role": "hero",
+      "page": 0, "index": 0,
       "composition": {$heroCompositions},
       "text_align": "left | center | right",
       "container": {$containerTokens},
@@ -142,28 +153,23 @@ Return ONLY valid JSON with this exact shape — design decisions only, never co
       "spacing_bottom": {$spacingTokens}
     },
     {
-      "role": "icon_band",
-      "composition": {$sectionCompositions},
+      "page": 0, "index": 1,
+      "composition": "one name from THIS section's list above (any of {$sectionCompositions})",
       "text_align": "left | center | right",
-      "columns": 3,
-      "heading_scale": {$headingScales},
-      "spacing_top": {$spacingTokens},
-      "spacing_bottom": {$spacingTokens}
-    },
-    {
-      "role": "card_grid",
-      "composition": {$sectionCompositions},
-      "text_align": "left | center | right",
+      "container": {$containerTokens},
       "columns": 3,
       "card_treatment": "plain | bordered | shadowed | flush",
+      "image_position": "left | right",
       "image_ratio": "1:1 | 4:3 | 3:4 | 4:5 | 5:4 | 16:9 | 3:2",
-      "image_required": true,
+      "image_required": false,
       "heading_scale": {$headingScales},
       "spacing_top": {$spacingTokens},
       "spacing_bottom": {$spacingTokens}
     }
   ]
 }
+
+Include one entry per section listed above (index 0 of every page is that page's hero).
 
 `image_required` means: this composition is broken without a photograph there. Say true only when that is genuinely so — a composition that reads fine as type alone must say false, because a candidate that declares an image it cannot supply is rejected rather than quietly shipped as text.
 PROMPT;
@@ -214,30 +220,55 @@ PROMPT;
      */
     private function mergeDesignIntoSitemap(array $sitemap, array $design): array
     {
-        // The designer states per-section decisions against a structural ROLE
-        // ("hero", "icon_band", "card_grid"), never an array index, so it cannot
-        // attach a hero composition to the wrong section of somebody's sitemap.
-        $sectionDesigns = [];
-        foreach ($design['sections'] ?? [] as $entry) {
-            if (is_array($entry) && is_string($entry['role'] ?? null)) {
-                $role = strtolower(trim($entry['role']));
-                unset($entry['role']);
-                $sectionDesigns[$role] = $entry;
-            }
-        }
+        $entries = is_array($design['sections'] ?? null) ? $design['sections'] : [];
         unset($design['sections']);
 
+        // Every blueprint designed from here on renders every section it has —
+        // see CompositionSpec::RENDERER_VERSION.
+        $design['renderer_version'] = CompositionSpec::RENDERER_VERSION;
+
         $pages = is_array($sitemap['pages'] ?? null) ? array_values($sitemap['pages']) : [];
+
+        // Addressed entries: {page, index, composition, ...}. A composition the
+        // section's content cannot fill is dropped here, so a designer mistake
+        // becomes that section's default rather than a broken layout.
+        $byRole = [];
+        foreach ($entries as $entry) {
+            if (!is_array($entry)) {
+                continue;
+            }
+
+            if (is_numeric($entry['page'] ?? null) && is_numeric($entry['index'] ?? null)) {
+                $pageIndex = (int) $entry['page'];
+                $sectionIndex = (int) $entry['index'];
+                $section = $pages[$pageIndex]['sections'][$sectionIndex] ?? null;
+
+                if (is_array($section)) {
+                    $pages[$pageIndex]['sections'] = array_values($pages[$pageIndex]['sections']);
+                    $pages[$pageIndex]['sections'][$sectionIndex] = array_merge(
+                        $section,
+                        $this->designFields($entry, $section, $sectionIndex === 0)
+                    );
+                }
+                continue;
+            }
+
+            // The pre-V2 shape: decisions keyed by structural role, Home only.
+            if (is_string($entry['role'] ?? null)) {
+                $byRole[strtolower(trim($entry['role']))] = $entry;
+            }
+        }
+
         $homeIndex = $this->homePageIndex($pages);
 
-        if ($sectionDesigns && $homeIndex !== null) {
+        if ($byRole && $homeIndex !== null) {
             $sections = array_values($pages[$homeIndex]['sections'] ?? []);
             $plan = $this->pageBuilder->describeSections($sections, $design);
 
             foreach ($plan as $index => $sectionPlan) {
-                $forRole = $sectionDesigns[$sectionPlan['role']] ?? null;
-                if ($forRole && is_array($sections[$index] ?? null)) {
-                    $sections[$index] = array_merge($sections[$index], $forRole);
+                $forRole = $byRole[$sectionPlan['role']] ?? null;
+                if ($forRole && is_array($sections[$index] ?? null) && !isset($sections[$index]['composition'])) {
+                    $sections[$index] = array_merge($sections[$index], $this->designFields($forRole, $sections[$index], $index === 0));
                 }
             }
 
@@ -251,6 +282,74 @@ PROMPT;
             'global_cta' => $sitemap['global_cta'] ?? '',
             'seo' => $sitemap['seo'] ?? [],
         ];
+    }
+
+    /**
+     * Only design decisions may reach a section from the designer — never
+     * content. A response that echoed a headline back would otherwise overwrite
+     * the copy the content stage wrote and the client reviews.
+     */
+    private function designFields(array $entry, array $section, bool $isHero): array
+    {
+        $fields = array_intersect_key($entry, array_flip(array_merge(['composition'], CompositionSpec::COMPOSITION_DERIVED_KEYS)));
+        $composition = strtolower(trim((string) ($fields['composition'] ?? '')));
+
+        $allowed = $isHero
+            ? CompositionSpec::HERO_COMPOSITIONS
+            : CompositionSpec::compositionsForShape(CompositionSpec::sectionShape($section));
+
+        if (!in_array($composition, $allowed, true)) {
+            // Settings chosen for a composition we are not using would only
+            // contradict whichever composition the section ends up with.
+            return [];
+        }
+
+        $fields['composition'] = $composition;
+
+        return $fields;
+    }
+
+    /**
+     * The designer's view of the sitemap: every section, where it sits, what it
+     * holds, and the compositions its content can fill.
+     */
+    private function sectionBrief(array $sitemap): string
+    {
+        $lines = [];
+
+        foreach (array_values(is_array($sitemap['pages'] ?? null) ? $sitemap['pages'] : []) as $pageIndex => $page) {
+            if (!is_array($page)) {
+                continue;
+            }
+
+            $lines[] = "Page {$pageIndex} \"" . $this->flattenToString($page['name'] ?? '') . '":';
+
+            foreach (array_values(is_array($page['sections'] ?? null) ? $page['sections'] : []) as $index => $section) {
+                if (!is_array($section)) {
+                    continue;
+                }
+
+                $type = strtolower($this->flattenToString($section['type'] ?? ''));
+                if (in_array($type, ['footer', 'header', 'navigation', 'nav', 'menu'], true)) {
+                    continue; // site chrome, drawn by the theme
+                }
+
+                $label = $this->flattenToString($section['headline'] ?? '') ?: $this->flattenToString($section['name'] ?? '');
+                $itemCount = is_array($section['items'] ?? null) ? count($section['items']) : 0;
+
+                if ($index === 0) {
+                    $options = CompositionSpec::HERO_COMPOSITIONS;
+                    $shape = 'hero';
+                } else {
+                    $shape = CompositionSpec::sectionShape($section);
+                    $options = CompositionSpec::compositionsForShape($shape);
+                }
+
+                $lines[] = "  [{$index}] {$type} \"" . mb_substr($label, 0, 70) . "\" — {$shape}, {$itemCount} items → " . implode(' | ', $options);
+            }
+        }
+
+        return implode("\n", $lines);
     }
 
     /** Same "first page called Home, else the first page" rule the renderers use. */
@@ -398,9 +497,9 @@ PROMPT;
         // warm palette every single time. Color now comes ONLY from the
         // brand-specific instruction below (see colorGroundingLine).
         $visualDirections = [
-            'Option 1 - Editorial: elegant editorial composition, expressive serif headings, generous whitespace, premium photography-led hero.',
-            'Option 2 - Modern & confident: clean conversion-focused composition, strong grid, crisp sans-serif typography, bold decisive layout choices.',
-            'Option 3 - Calm & approachable: soft rounded cards, friendly approachable hierarchy, understated photography, airy layout.',
+            'Option 1 - Editorial: elegant editorial composition, expressive serif headings, generous whitespace, immersive photography-led hero (full-bleed or background image), editorial text/image splits, a single led testimonial, a composed gallery; almost no boxed cards.',
+            'Option 2 - Modern & confident: clean conversion-focused composition, strong grid, crisp sans-serif typography, bold decisive layout choices — an asymmetric split hero, an asymmetric showcase, stats and promotional bands, high contrast, small radius.',
+            'Option 3 - Calm & approachable: friendly approachable hierarchy, understated photography, airy layout, alternating media rows instead of card rows, soft colour bands, restrained radius and shadow, centred text only where it earns it.',
         ];
 
         // Composition is now the designer's decision, not a fixed rotation.
