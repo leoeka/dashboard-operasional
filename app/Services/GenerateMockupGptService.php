@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Exceptions\ProviderException;
 use App\Models\Project;
 use App\Support\CompositionSpec;
+use App\Support\MockupSite;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -798,46 +799,23 @@ PROMPT;
         // has to guess or re-check.
         $mockup = $this->normalizeMockupForRender($mockup);
 
-        $pages = is_array($mockup['pages'] ?? null) ? $mockup['pages'] : [];
-        $home = collect($pages)->first(fn ($page) => is_array($page) && strtolower((string) ($page['name'] ?? '')) === 'home') ?? ($pages[0] ?? []);
-        $homeSections = is_array($home['sections'] ?? null) ? array_values($home['sections']) : [];
-        $hero = $homeSections[0] ?? [];
-
-        // Which section is the icon band and which is the photo/card grid comes
-        // from the page builder's plan — the same decision that drives the
-        // WordPress page and the implementation manifest. This class used to
-        // keep its own copy of that heuristic, which is how item photos ended up
+        // The Home page through the shared site renderer — the same partials and
+        // the same section plan (describeSections()) the live demo and the
+        // WordPress page are built from. This class used to keep its own copy of
+        // which section is which, which is how item photos once ended up
         // generated from one section's titles and shown against another's.
-        $plan = $this->pageBuilder->describeSections($homeSections, is_array($mockup['design'] ?? null) ? $mockup['design'] : []);
-        $picked = ['icon' => null, 'photo' => null];
-        $compositions = ['hero' => null, 'icon' => null, 'photo' => null];
-        foreach ($plan as $sectionIndex => $sectionPlan) {
-            if ($sectionPlan['role'] === 'hero') {
-                $compositions['hero'] = $sectionPlan['composition'];
-            } elseif ($sectionPlan['role'] === 'icon_band') {
-                $picked['icon'] = $homeSections[$sectionIndex];
-                $compositions['icon'] = $sectionPlan['composition'];
-            } elseif ($sectionPlan['role'] === 'card_grid') {
-                $picked['photo'] = $homeSections[$sectionIndex];
-                $compositions['photo'] = $sectionPlan['composition'];
-            }
-        }
-
         $html = view('pdf.mockup-render', [
-            'project' => $project,
-            'mockup' => $mockup,
-            'design' => is_array($mockup['design'] ?? null) ? $mockup['design'] : [],
-            'pages' => $pages,
-            'homeSections' => $homeSections,
-            'hero' => $hero,
-            'iconSection' => $picked['icon'],
-            'photoSection' => $picked['photo'],
-            'heroComposition' => $compositions['hero'],
-            'iconComposition' => $compositions['icon'],
-            'photoComposition' => $compositions['photo'],
-            'heroPhoto' => $images['hero'] ?? null,
-            'itemPhotos' => $images['items'] ?? [],
-            'logoDataUrl' => $this->clientLogoDataUrl($project),
+            'site' => MockupSite::build($mockup, [
+                'brand' => $project->client?->company_name ?? $project->name,
+                'logo' => $this->clientLogoDataUrl($project),
+                'fixed' => true,
+                'page' => 'home',
+                'images' => ['home' => [
+                    'hero' => $images['hero'] ?? null,
+                    'items' => $images['items'] ?? [],
+                    'sections' => $images['sections'] ?? [],
+                ]],
+            ]),
         ])->render();
 
         $path = 'mockups/' . $project->code . '-gpt-option-' . $candidateNumber . '.png';

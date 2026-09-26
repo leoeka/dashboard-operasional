@@ -83,11 +83,153 @@ class ElementorPageBuilderService
      * renderGutenbergBlocks() consumes the same method, so the manifest and
      * the shipped markup cannot describe different layouts.
      *
-     * @return array<int, array{index:int, role:string, heading_align:string, body_align:string, layout_variant:string, rendered:bool}>
+     * Two regimes, chosen by the blueprint itself (CompositionSpec::isFullPage()):
+     * - full page (renderer_version 2): every section with content renders,
+     *   through the composition the designer chose for it — or, when it chose
+     *   none that the content can fill, the default for that content shape.
+     * - legacy: hero + first items-bearing section (icon band) + second (card
+     *   grid), everything else skipped — exactly what the PNGs approved before
+     *   V2 showed, so an old approved project still builds what it approved.
+     *
+     * `renderer` is the one key the Blade site renderer and the Gutenberg
+     * builder both switch on, so a section cannot be drawn as one thing in the
+     * live preview and another in WordPress.
+     *
+     * @return array<int, array{index:int, role:string, renderer:?string, heading_align:string, body_align:string, layout_variant:string, composition:?array, item_limit:int, rendered:bool}>
      */
     public function describeSections(array $sections, array $design = []): array
     {
         $sections = array_values($sections);
+
+        return CompositionSpec::isFullPage($design)
+            ? $this->describeFullPage($sections, $design)
+            : $this->describeLegacy($sections, $design);
+    }
+
+    /** Item caps per renderer — shared by the live/PNG renderer and Gutenberg so both show the same items. */
+    private const ITEM_LIMITS = [
+        'features' => 6,
+        'cards' => 6,
+        'editorial' => 5,
+        'alternating' => 4,
+        'stats' => 4,
+        'testimonials' => 3,
+        'gallery' => 6,
+        'logos' => 8,
+        'faq' => 8,
+        'team' => 8,
+        'pricing' => 4,
+        'cta' => 0,
+    ];
+
+    /** Sections that describe site chrome the theme already draws, never page content. */
+    private const CHROME_TYPES = ['footer', 'header', 'navigation', 'nav', 'navbar', 'menu'];
+
+    private function describeFullPage(array $sections, array $design): array
+    {
+        $layoutVariant = $this->layoutVariant($design);
+        $plan = [];
+        $genericSeen = 0;
+
+        foreach ($sections as $index => $section) {
+            if (!is_array($section)) {
+                continue;
+            }
+
+            if ($index === 0) {
+                $composition = CompositionSpec::resolve($section, $design, 'hero');
+                $plan[$index] = [
+                    'index' => $index,
+                    'role' => 'hero',
+                    'renderer' => 'hero',
+                    'shape' => 'hero',
+                    'heading_align' => $composition['text_align'],
+                    'body_align' => $composition['text_align'],
+                    'layout_variant' => $layoutVariant,
+                    'composition' => $composition,
+                    'item_limit' => 0,
+                    'rendered' => true,
+                ];
+                continue;
+            }
+
+            if (!$this->hasContent($section)) {
+                $plan[$index] = $this->skippedPlan($index, $layoutVariant, $section);
+                continue;
+            }
+
+            $shape = CompositionSpec::sectionShape($section);
+            $declared = strtolower(trim((string) ($section['composition'] ?? '')));
+            $generic = in_array($shape, ['feature_items', 'card_items'], true);
+
+            // A declared composition is honoured only when the content can
+            // actually fill it — a band of plain features never becomes an FAQ
+            // just because a designer said so.
+            $name = in_array($declared, CompositionSpec::compositionsForShape($shape), true)
+                ? $declared
+                : CompositionSpec::defaultCompositionForShape($shape, $genericSeen);
+
+            if ($generic) {
+                $genericSeen++;
+            }
+
+            $role = CompositionSpec::roleForComposition($name);
+            $renderer = CompositionSpec::rendererForComposition($name);
+            $composition = CompositionSpec::resolve(array_merge($section, ['composition' => $name]), $design, $role);
+
+            $plan[$index] = [
+                'index' => $index,
+                'role' => $role,
+                'renderer' => $renderer,
+                'shape' => $shape,
+                'heading_align' => $composition['text_align'],
+                'body_align' => $composition['text_align'],
+                'layout_variant' => $layoutVariant,
+                'composition' => $composition,
+                'item_limit' => self::ITEM_LIMITS[$renderer] ?? 6,
+                'rendered' => true,
+            ];
+        }
+
+        return $plan;
+    }
+
+    private function hasContent(array $section): bool
+    {
+        $type = strtolower(trim((string) ($section['type'] ?? '')));
+        if (in_array($type, self::CHROME_TYPES, true)) {
+            return false;
+        }
+
+        foreach (['headline', 'name', 'description'] as $key) {
+            if (is_string($section[$key] ?? null) && trim($section[$key]) !== '') {
+                return true;
+            }
+        }
+
+        return !empty($section['items']) && is_array($section['items']);
+    }
+
+    private function skippedPlan(int $index, string $layoutVariant, array $section): array
+    {
+        $align = $this->resolveAlign($section, 'center');
+
+        return [
+            'index' => $index,
+            'role' => 'skipped',
+            'renderer' => null,
+            'shape' => null,
+            'heading_align' => $align,
+            'body_align' => $align,
+            'layout_variant' => $layoutVariant,
+            'composition' => null,
+            'item_limit' => 0,
+            'rendered' => false,
+        ];
+    }
+
+    private function describeLegacy(array $sections, array $design): array
+    {
         $layoutVariant = $this->layoutVariant($design);
         $picked = $this->pickIconPhotoIndexes($sections);
         $plan = [];
@@ -142,10 +284,27 @@ class ElementorPageBuilderService
             $plan[$index] = [
                 'index' => $index,
                 'role' => $role,
+                // Legacy rendering never looked at a band's composition to decide
+                // what to draw: the icon band was always the numbered feature row
+                // and the photo section always the card grid.
+                'renderer' => match ($role) {
+                    'hero' => 'hero',
+                    'icon_band' => 'features',
+                    'card_grid' => 'cards',
+                    default => null,
+                },
+                'shape' => null,
                 'heading_align' => $headingAlign,
                 'body_align' => $bodyAlign,
                 'layout_variant' => $layoutVariant,
                 'composition' => $composition,
+                // What the approved legacy PNG actually showed: three feature
+                // badges and up to four photographed cards.
+                'item_limit' => match ($role) {
+                    'icon_band' => 3,
+                    'card_grid' => 4,
+                    default => 0,
+                },
                 'rendered' => $role !== 'skipped',
             ];
         }
