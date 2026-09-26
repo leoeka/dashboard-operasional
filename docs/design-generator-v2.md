@@ -110,3 +110,17 @@ projects/mockup-live.blade.php  → @include('mockup.site', responsif, URL foto 
 (`group`, `columns`, `heading`, `paragraph`, `list`, `quote`, `details`, `image`, `buttons`)
 sehingga tetap bisa diedit di Block Editor. Seluruh sitemap dibangun; Home selalu halaman
 pertama & front page; slug dijamin unik.
+
+## 4. Status & batasan yang diketahui
+
+- `php artisan test`: 411 lulus (termasuk `MockupLivePreviewTest`, `DesignGeneratorV2Test`,
+  `BlueprintParityTest`). `npm run build` sukses.
+- Overflow horizontal mobile dicek manual dengan Puppeteer pada 1440 / 768 / 390 px untuk
+  fixture `tests/Fixtures/v2-blueprint.php` — belum otomatis di suite PHP.
+- Foto hanya dibuat untuk halaman **Home** (hero + section berfoto, maks. 9 foto section per
+  kandidat, dialokasikan per section utuh). Halaman lain memakai bentuk tanpa foto
+  (monogram, tile warna, editorial tipografis) — identik di demo dan WordPress.
+- Validitas block Gutenberg diuji secara struktural (pembuka/penutup seimbang), belum
+  dibuka di Block Editor sungguhan. Perlu satu kali uji manual di WordPress staging.
+- Proposal lama (tanpa `renderer_version`) tetap 3 section; generate ulang untuk layout V2.
+- `pdf/mockup-screenshot.blade.php` dihapus; fallback PNG pipeline kini memakai renderer bersama.
