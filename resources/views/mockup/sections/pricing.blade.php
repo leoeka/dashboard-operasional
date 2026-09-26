@@ -1,6 +1,6 @@
 @php
     $count = count($section['items']);
-    $featured = \App\Support\SectionContent::featuredIndex($count);
+    $featured = \App\Support\SectionContent::featuredIndex($section['items']);
 @endphp
 @include('mockup.partials.head')
 <div class="plans" style="--cols:{{ max(1, min(4, $count ?: 1)) }}">

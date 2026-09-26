@@ -79,10 +79,23 @@ final class SectionContent
         }, $items));
     }
 
-    /** The pricing plan drawn as the highlighted one: the middle of three or more. */
-    public static function featuredIndex(int $count): ?int
+    /**
+     * The pricing plan drawn as highlighted: only one the blueprint explicitly
+     * flags as featured — which ContentIntegrityService keeps only when the
+     * client singled that plan out. Never a tier picked by position; the
+     * always-highlighted middle card is a template habit, not a fact.
+     *
+     * @param array<int, array{featured?:bool}> $items normalised items, in display order
+     */
+    public static function featuredIndex(array $items): ?int
     {
-        return $count >= 3 ? intdiv($count, 2) : null;
+        foreach (array_values($items) as $position => $item) {
+            if (!empty($item['featured'])) {
+                return $position;
+            }
+        }
+
+        return null;
     }
 
     /** Two-letter monogram for a person or brand shown without a photograph. */
@@ -135,6 +148,10 @@ final class SectionContent
             'label' => $value !== '' ? ($first(['label']) ?: $title ?: $text) : $text,
             'price' => $first(['price', 'harga', 'amount', 'monthly']),
             'features' => $features,
+            'featured' => (bool) array_filter(
+                array_intersect_key($item, array_flip(['featured', 'is_featured', 'highlight', 'highlighted', 'recommended', 'popular'])),
+                fn ($flag) => $flag === true || $flag === 1 || $flag === '1' || $flag === 'true'
+            ),
         ];
     }
 }

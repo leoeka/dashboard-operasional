@@ -71,7 +71,7 @@ return [
             ['type' => 'hero', 'name' => 'Hero', 'headline' => 'Paket Tur'],
             ['type' => 'pricing', 'name' => 'Harga', 'headline' => 'Pilih paket', 'items' => [
                 ['title' => 'Hemat', 'price' => 'Rp 2 jt', 'features' => ['Transport', 'Pemandu']],
-                ['title' => 'Favorit', 'price' => 'Rp 4 jt', 'features' => ['Transport', 'Pemandu', 'Hotel']],
+                ['title' => 'Favorit', 'price' => 'Rp 4 jt', 'features' => ['Transport', 'Pemandu', 'Hotel'], 'featured' => true],
                 ['title' => 'Premium', 'price' => 'Rp 8 jt', 'features' => ['Semua', 'Private']],
             ]],
             ['type' => 'partners', 'name' => 'Partner', 'headline' => 'Mitra kami', 'items' => [['title' => 'Garuda'], ['title' => 'Traveloka'], ['title' => 'Kemenparekraf']]],

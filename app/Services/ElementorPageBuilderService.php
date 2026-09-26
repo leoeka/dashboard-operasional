@@ -867,7 +867,7 @@ class ElementorPageBuilderService
 
     private function gbPricing(array $data, array $items, string $align, ?string $headingColor, string $primary, string $accent, array $design): string
     {
-        $featured = SectionContent::featuredIndex(count($items));
+        $featured = SectionContent::featuredIndex($items);
         $button = $data['cta'] !== '' ? $data['cta'] : ($this->globalCta ?: 'Hubungi Kami');
         $cells = [];
 
