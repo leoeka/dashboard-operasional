@@ -9,6 +9,42 @@ riwayat chat. Baca juga [design-generator-v2.md](design-generator-v2.md) untuk a
 
 ---
 
+### Update lanjutan — 29 September 2026
+
+- Perbaikan §6.1 diterapkan: ketika AI aktif, kegagalan Gemini diteruskan sebagai
+  `ProviderException`; checkpoint analisis tetap gagal dan bisa di-retry. Fallback
+  lokal hanya untuk AI yang sengaja dinonaktifkan. Checkpoint lama project #28
+  tidak diubah; instruksi untuk tidak langsung me-retry project tersebut tetap berlaku.
+- Perbaikan kode §6.2 diterapkan: body error dan exception Google Places disanitasi
+  sebelum masuk log, termasuk pesan error analisis bisnis Gemini. Log lama dan
+  rotasi credential belum ditangani.
+- Sanitizer existing diperluas untuk query key, API key, Bearer, access token,
+  secret, dan credential dalam teks maupun nilai JSON berpetik.
+- `tests/Feature/ProviderFailureRecoveryTest.php` mencakup 27 kasus: sukses Gemini
+  tersimpan dan dipakai ulang, kegagalan menghentikan pipeline sebelum GPT/foto,
+  checkpoint failed tanpa payload fallback, retry memanggil Gemini kembali,
+  AI nonaktif, serta 12 format secret pada HTTP error dan transport error.
+- Audit lanjutan: contoh teks biasa `secret destination`, `credential management`,
+  dan `monkey=value` tetap utuh. ProviderException yang sudah terklasifikasi tetap
+  instance yang sama; konstruktor menyamarkan custom message/detail, context
+  menyimpan provider, error_code, HTTP status, status SDK Gemini, dan retryability.
+- Checkpoint hanya reuse `completed`; tes membuktikan `failed` dengan payload
+  lama tetap dieksekusi ulang. Throwable mentah di boundary checkpoint/PDF dan
+  Google property discovery dikonversi ke ProviderException tanpa raw previous.
+- Audit log mencakup Gemini, Google Places/Analytics/Search Console/PageSpeed,
+  GPT/OpenAI, screenshot dan reference fetcher, serta Fonnte. Pesan error/URL
+  disanitasi; raw payload Gemini invalid dan raw response Fonnte tidak dicatat.
+  Pemakaian body/json untuk parsing data tetap ada. Jalur OpenAI image dan Claude
+  sudah memakai ProviderException. `throw $e` controller proposal hanya menerima
+  ProviderException. Stage tetap disimpan pada checkpoint dan log pipeline.
+- Regresi audit ada di `tests/Feature/ProviderSafetyAuditTest.php`; gabungan kedua
+  file regresi provider **56 lulus / 198 assertions**.
+- Verifikasi terbaru: `php artisan test` **483 lulus / 1820 assertions**;
+  `php artisan test --group=browser` **1 lulus / 98 assertions** (16 kombinasi
+  halaman/viewport); `npm.cmd run build` sukses. `npm.cmd` digunakan karena
+  execution policy PowerShell memblokir `npm.ps1`.
+- Belum melakukan real AI run, push, atau PR pada sesi lanjutan ini.
+
 ## 1. Tujuan
 
 Prinsip utama: **LIVE PREVIEW = APPROVED BLUEPRINT = WORDPRESS RESULT.**

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -56,7 +57,7 @@ class CompetitorDiscoveryService
             if (!$response->successful()) {
                 Log::warning('CompetitorDiscoveryService: request gagal.', [
                     'status' => $response->status(),
-                    'body' => $response->body(),
+                    'provider_error' => ProviderException::fromResponse('google_places', $response)->context(),
                     'query' => $query,
                 ]);
                 return [];
@@ -94,7 +95,7 @@ class CompetitorDiscoveryService
                 ->toArray();
 
         } catch (\Throwable $e) {
-            Log::error('CompetitorDiscoveryService Exception: ' . $e->getMessage());
+            Log::error('CompetitorDiscoveryService Exception: ' . ProviderException::sanitise($e->getMessage()));
             return [];
         }
     }

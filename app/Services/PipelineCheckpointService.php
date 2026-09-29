@@ -56,9 +56,10 @@ class PipelineCheckpointService
         try {
             $result = $work();
         } catch (\Throwable $e) {
-            $this->recordFailure($project, $stage, ProviderException::fromThrowable($this->providerFor($stage), $e));
+            $failure = ProviderException::fromThrowable($this->providerFor($stage), $e);
+            $this->recordFailure($project, $stage, $failure);
 
-            throw $e;
+            throw $failure;
         }
 
         $this->recordSuccess($project, $stage, $result);

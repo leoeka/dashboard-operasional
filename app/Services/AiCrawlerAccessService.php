@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -335,7 +336,7 @@ class AiCrawlerAccessService
             // diparse sebagai robots.txt raksasa.
             return $body === '' ? null : mb_substr($body, 0, 512 * 1024);
         } catch (\Throwable $e) {
-            Log::info('AiCrawlerAccessService: gagal mengambil ' . $url, ['error' => $e->getMessage()]);
+            Log::info('AiCrawlerAccessService: gagal mengambil ' . ProviderException::sanitise($url), ['error' => ProviderException::sanitise($e->getMessage())]);
             return null;
         }
     }

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -408,7 +409,7 @@ class StructuredDataService
 
             return trim($body) === '' ? null : mb_substr($body, 0, 2 * 1024 * 1024);
         } catch (\Throwable $e) {
-            Log::info('StructuredDataService: gagal mengambil ' . $url, ['error' => $e->getMessage()]);
+            Log::info('StructuredDataService: gagal mengambil ' . ProviderException::sanitise($url), ['error' => ProviderException::sanitise($e->getMessage())]);
             return null;
         }
     }

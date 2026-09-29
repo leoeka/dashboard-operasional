@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use App\Models\Project;
 use Illuminate\Support\Facades\Log;
 
@@ -49,7 +50,7 @@ class ContentExtractabilityService
                 $raw = $this->gemini->callJson($this->buildPrompt($project, $content));
                 $pages[] = $this->normalisePageResult($url, $raw);
             } catch (\Throwable $e) {
-                Log::warning('ContentExtractabilityService: penilaian Gemini gagal.', ['url' => $url, 'error' => $e->getMessage()]);
+                Log::warning('ContentExtractabilityService: penilaian Gemini gagal.', ['url' => ProviderException::sanitise($url), 'error' => ProviderException::sanitise($e->getMessage())]);
                 $pages[] = ['url' => $url, 'status' => 'error', 'score' => null, 'criteria' => [], 'suggestions' => ['Penilaian AI gagal untuk halaman ini.']];
             }
         }

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -57,10 +58,10 @@ class PageSpeedService
                     : 'Google PageSpeed API mengembalikan respons gagal (HTTP ' . $response->status() . ').';
 
                 Log::warning('PageSpeedService: request gagal.', [
-                    'url' => $url,
+                    'url' => ProviderException::sanitise($url),
                     'strategy' => $strategy,
                     'status' => $response->status(),
-                    'body' => $response->body(),
+                    'provider_error' => ProviderException::fromResponse('google', $response)->context(),
                 ]);
                 return null;
             }
@@ -71,7 +72,7 @@ class PageSpeedService
             $this->lastError = 'Tidak dapat terhubung ke Google PageSpeed API. Periksa koneksi internet, proxy, atau firewall.';
 
             Log::error('PageSpeedService Exception.', [
-                'url' => $url,
+                'url' => ProviderException::sanitise($url),
                 'strategy' => $strategy,
                 'exception' => get_class($e),
             ]);

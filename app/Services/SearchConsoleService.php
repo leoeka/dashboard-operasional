@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -37,13 +38,13 @@ class SearchConsoleService
                 ]);
 
                 if (!$response->successful()) {
-                    Log::error('SearchConsoleService: gagal refresh access token.', ['body' => $response->body()]);
+                    Log::error('SearchConsoleService: gagal refresh access token.', ['provider_error' => ProviderException::fromResponse('google', $response)->context()]);
                     return null;
                 }
 
                 return $response->json('access_token');
             } catch (\Throwable $e) {
-                Log::error('SearchConsoleService: exception saat refresh token: ' . $e->getMessage());
+                Log::error('SearchConsoleService: exception saat refresh token: ' . ProviderException::sanitise($e->getMessage()));
                 return null;
             }
         });
@@ -67,7 +68,7 @@ class SearchConsoleService
 
         $property = $this->resolveVerifiedProperty($accessToken, $siteUrl);
         if (!$property) {
-            Log::warning('SearchConsoleService: URL ini tidak ketemu di daftar property terverifikasi akun.', ['url' => $siteUrl]);
+            Log::warning('SearchConsoleService: URL ini tidak ketemu di daftar property terverifikasi akun.', ['url' => ProviderException::sanitise($siteUrl)]);
             return null;
         }
 
@@ -89,7 +90,7 @@ class SearchConsoleService
                 'period' => ['start' => $startDate, 'end' => $endDate],
             ];
         } catch (\Throwable $e) {
-            Log::error('SearchConsoleService Exception: ' . $e->getMessage(), ['site' => $siteUrl]);
+            Log::error('SearchConsoleService Exception: ' . ProviderException::sanitise($e->getMessage()), ['site' => ProviderException::sanitise($siteUrl)]);
             return null;
         }
     }
@@ -104,7 +105,7 @@ class SearchConsoleService
 
         $property = $this->resolveVerifiedProperty($accessToken, $siteUrl);
         if (!$property) {
-            Log::info('SearchConsoleService: property tidak ditemukan untuk getTopQueries.', ['url' => $siteUrl]);
+            Log::info('SearchConsoleService: property tidak ditemukan untuk getTopQueries.', ['url' => ProviderException::sanitise($siteUrl)]);
             return [];
         }
 
@@ -126,7 +127,7 @@ class SearchConsoleService
                 ->values()
                 ->all();
         } catch (\Throwable $e) {
-            Log::error('SearchConsoleService Exception (getTopQueries): ' . $e->getMessage(), ['site' => $siteUrl]);
+            Log::error('SearchConsoleService Exception (getTopQueries): ' . ProviderException::sanitise($e->getMessage()), ['site' => ProviderException::sanitise($siteUrl)]);
             return [];
         }
     }
@@ -145,14 +146,18 @@ class SearchConsoleService
         $host = parse_url($siteUrl, PHP_URL_HOST) ?? $siteUrl;
         $host = preg_replace('/^www\./', '', strtolower($host));
 
-        $response = Http::withToken($accessToken)
-            ->timeout(15)
-            ->get('https://www.googleapis.com/webmasters/v3/sites');
+        try {
+            $response = Http::withToken($accessToken)
+                ->timeout(15)
+                ->get('https://www.googleapis.com/webmasters/v3/sites');
+        } catch (\Throwable $e) {
+            throw ProviderException::fromThrowable('google', $e);
+        }
 
         if (!$response->successful()) {
             Log::warning('SearchConsoleService: gagal ambil daftar site.', [
                 'status' => $response->status(),
-                'body' => $response->body(),
+                'provider_error' => ProviderException::fromResponse('google', $response)->context(),
             ]);
             return null;
         }
@@ -190,7 +195,7 @@ class SearchConsoleService
                 'property' => $property,
                 'dimensions' => $dimensions,
                 'status' => $response->status(),
-                'body' => $response->body(),
+                'provider_error' => ProviderException::fromResponse('google', $response)->context(),
             ]);
             return [];
         }

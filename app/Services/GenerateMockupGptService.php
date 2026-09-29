@@ -422,7 +422,7 @@ PROMPT;
         } catch (\Throwable $e) {
             Log::warning('Ekstraksi design profile dari referensi gagal; lanjut tanpa profile.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
 
             return null;
@@ -792,6 +792,8 @@ PROMPT;
             . implode('; ', $failures) . '.' . ($cause ? ' ' . $cause->getMessage() : '')
             . ' Opsi yang sudah jadi tetap tersimpan — retry hanya melengkapi yang kurang.',
             $cause?->detail,
+            $cause?->httpStatus,
+            $cause?->providerStatus,
         );
     }
 
@@ -1002,8 +1004,8 @@ PROMPT;
             return 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($fullPath));
         } catch (\Throwable $e) {
             Log::warning('GenerateMockupGptService: gagal mengambil screenshot referensi desain.', [
-                'url' => $url,
-                'error' => $e->getMessage(),
+                'url' => ProviderException::sanitise($url),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
 
             return null;
@@ -1147,7 +1149,7 @@ PROMPT;
         } catch (\Throwable $e) {
             Log::warning('Design reference image could not be attached to AI mockup request.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
 
             return null;

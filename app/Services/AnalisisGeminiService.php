@@ -37,16 +37,7 @@ class AnalisisGeminiService
         // =====================================================
         // TAHAP 1: GEMINI -> Analisis Bisnis & Target Pasar
         // =====================================================
-        try {
-            $businessAnalysis = $this->analyzeBusinessWithGemini($project, $client, $competitorContents);
-        } catch (\Throwable $e) {
-            Log::warning('Gemini tidak tersedia, memakai analisis bisnis fallback.', [
-                'project_id' => $project->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return $this->fallbackProjectAnalysis($project);
-        }
+        $businessAnalysis = $this->analyzeBusinessWithGemini($project, $client, $competitorContents);
 
         // Hard content-integrity gate: nothing the client did not supply —
         // testimonials, figures, prices, badges, competitor facts — may reach
@@ -57,11 +48,8 @@ class AnalisisGeminiService
     }
 
     /**
-     * Used both when Gemini is disabled entirely and when a live call fails
-     * — includes a minimal `language`/`sitemap` (not just the business
-     * analysis fields) since generateMockup() now reads content from here
-     * unconditionally; without it, a Gemini outage would crash mockup
-     * generation instead of degrading to a plain generic site.
+     * Local analysis for explicitly disabled AI only. Live provider failures
+     * must propagate so the pipeline can retry instead of caching fallback.
      */
     private function fallbackProjectAnalysis(Project $project): array
     {
@@ -244,12 +232,11 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                 }
 
                 if (json_last_error() !== JSON_ERROR_NONE) {
-                    Log::warning('Gemini Business Analysis: Invalid JSON, raw response logged', [
+                    Log::warning('Gemini Business Analysis: Invalid JSON, response omitted', [
                         'project_id' => $project->id,
                         'attempt' => $attempt,
                         'json_error' => json_last_error_msg(),
                         'raw_length' => strlen($responseText),
-                        'raw_response' => $responseText,
                     ]);
                     throw new \RuntimeException('Format JSON Gemini tidak valid: ' . json_last_error_msg());
                 }
@@ -273,7 +260,8 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
 
                 // Jika error sementara dan masih ada jatah retry
                 if ($isTransientError && $attempt < $maxRetries) {
-                    Log::warning("Gemini Analysis Attempt {$attempt} failed: {$e->getMessage()}. Retrying...", [
+                    Log::warning("Gemini Analysis Attempt {$attempt} failed. Retrying...", [
+                        'error' => ProviderException::sanitise($e->getMessage()),
                         'project_id' => $project->id
                     ]);
 
@@ -284,7 +272,8 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                 }
 
                 // Catat error fatal (sudah habis jatah retry / error permanen)
-                Log::error('Gemini Business Analysis Error Final: ' . $e->getMessage(), [
+                Log::error('Gemini Business Analysis Error Final', [
+                    'error' => ProviderException::sanitise($e->getMessage()),
                     'project_id' => $project->id,
                     'attempts' => $attempt,
                 ]);
@@ -434,7 +423,7 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                     continue;
                 }
 
-                Log::error('callGeminiJson gagal final, pesan asli: ' . $e->getMessage(), [
+                Log::error('callGeminiJson gagal final, pesan asli: ' . ProviderException::sanitise($e->getMessage()), [
                     'model' => $model,
                     'is_transient' => $isTransientError,
                     'attempts' => $attempt,
@@ -479,7 +468,7 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
         } catch (\Throwable $e) {
             Log::warning('extractCompetitorSearchContext: gagal, fallback ke Website Category.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
             return ['business_type' => $project->type ?? '', 'topics' => []];
         }
@@ -528,7 +517,7 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
         } catch (\Throwable $e) {
             Log::warning('identifyTopicsFromWebsite: gagal setelah retry, pakai fallback.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
             $result = null;
         }
@@ -586,7 +575,7 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
         } catch (\Throwable $e) {
             Log::warning('expandSeedKeywords: gagal setelah retry, pakai fallback seed asli.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
             $result = null;
         }
@@ -673,9 +662,9 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
         } catch (\Throwable $e) {
             Log::warning('selectFinalKeywords: gagal mendapatkan hasil dari Gemini setelah retry.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
-            throw $e;
+            throw ProviderException::fromThrowable('gemini', $e);
         }
 
         $result['generated_at'] = now()->toDateTimeString();
