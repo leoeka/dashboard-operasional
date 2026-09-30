@@ -233,3 +233,84 @@ it('runs on every live Gemini response before the sitemap is final', function ()
     expect($analysis['content_integrity']['checked'])->toBeTrue()
         ->and(json_encode($analysis['sitemap']))->not->toContain('Rina')->not->toContain('12,000');
 });
+
+it('does not treat "Curated" as the unsupported claim "rated"', function () {
+    $clean = sanitize(slopAnalysis([
+        [
+            'type' => 'portfolio',
+            'name' => 'Destinations',
+            'headline' => 'Curated Bali Experiences',
+            'description' => 'Explore Bali at your own pace.',
+            'items' => [],
+        ],
+    ]));
+
+    $section = collect(homeSections($clean))
+        ->firstWhere('type', 'portfolio');
+
+    expect($section)->not->toBeNull()
+        ->and($section['headline'])->toBe('Curated Bali Experiences');
+});
+
+it('still removes a real unsupported "rated" claim', function () {
+    $clean = sanitize(slopAnalysis([
+        [
+            'type' => 'about',
+            'name' => 'About',
+            'headline' => 'Why Choose Us',
+            'description' => 'Rated as one of the best private tour services in Bali. Personal journeys built around your pace.',
+            'items' => [],
+        ],
+    ]));
+
+    $section = collect(homeSections($clean))
+        ->firstWhere('type', 'about');
+
+    expect($section)->not->toBeNull()
+        ->and($section['description'])
+        ->toBe('Personal journeys built around your pace.');
+});
+
+it('removes an unsupported service capability claim', function () {
+    $clean = sanitize(slopAnalysis([
+        [
+            'type' => 'services',
+            'name' => 'Airport Transfer',
+            'headline' => 'Airport Transfer',
+            'description' => 'We track your flight in real time. Private airport transfers in Bali.',
+            'items' => [],
+        ],
+    ]));
+
+    $section = collect(homeSections($clean))
+        ->firstWhere('type', 'services');
+
+    expect($section)->not->toBeNull()
+        ->and($section['description'])
+        ->toBe('Private airport transfers in Bali.');
+});
+
+it('keeps a service capability claim the client actually supplied', function () {
+    $project = integrityProject([
+        'description' => 'Private airport transfers in Bali with real-time flight tracking.',
+    ]);
+
+    $clean = sanitize(slopAnalysis([
+        [
+            'type' => 'services',
+            'name' => 'Airport Transfer',
+            'headline' => 'Airport Transfer',
+            'description' => 'We offer real-time flight tracking for airport pickups.',
+            'items' => [],
+        ],
+    ]), $project);
+
+    $section = collect(homeSections($clean))
+        ->firstWhere('type', 'services');
+
+    expect($section)->not->toBeNull()
+        ->and($section['description'])
+        ->toBe('We offer real-time flight tracking for airport pickups.');
+});
+
+

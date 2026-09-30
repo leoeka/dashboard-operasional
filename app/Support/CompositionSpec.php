@@ -165,6 +165,15 @@ final class CompositionSpec
         'spacing_bottom',
         'card_treatment',
         'columns',
+        'focal_point',
+    ];
+
+    public const IMAGE_FOCAL_POINTS = [
+        'center',
+        'left',
+        'right',
+        'top',
+        'bottom',
     ];
 
     /**
@@ -198,8 +207,8 @@ final class CompositionSpec
             }
         }
 
-        $hasKey = fn (array $names) => (bool) array_intersect($names, $keys);
-        $named = fn (array $words) => (bool) array_filter($words, fn ($word) => str_contains($label, $word));
+        $hasKey = fn(array $names) => (bool) array_intersect($names, $keys);
+        $named = fn(array $words) => (bool) array_filter($words, fn($word) => str_contains($label, $word));
 
         return match (true) {
             $hasKey(['question', 'answer', 'pertanyaan', 'jawaban']) || $named(['faq', 'tanya']) => 'faq',
@@ -253,7 +262,7 @@ final class CompositionSpec
         // Keep the section's photographic behaviour exactly as it is.
         $sameMedia = array_values(array_filter(
             $allowed,
-            fn (string $composition) => self::usesPhotos($composition) === self::usesPhotos($current)
+            fn(string $composition) => self::usesPhotos($composition) === self::usesPhotos($current)
         ));
 
         if (!in_array($current, $sameMedia, true)) {
@@ -515,7 +524,14 @@ final class CompositionSpec
             'columns' => 1,
             'card_treatment' => 'plain',
             'photo_slots' => false,
+            'focal_point' => self::oneOf(
+                $section['focal_point'] ?? null,
+                self::IMAGE_FOCAL_POINTS,
+                'center'
+            ),
         ];
+
+
     }
 
     private static function resolveSection(array $section, array $design, string $role): array

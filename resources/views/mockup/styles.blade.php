@@ -290,6 +290,11 @@ h1,h2,h3,h4{font-family:'{{ $fh }}',Georgia,serif;line-height:1.15;margin:0}
   .plans{grid-template-columns:repeat(2,minmax(0,1fr))}
   .plan--featured{transform:none}
   .grid[style*="repeat(4"],.grid[style*="repeat(5"],.grid[style*="repeat(6"]{grid-template-columns:repeat(2,minmax(0,1fr)) !important}
+  .hero--split{flex-direction:column;align-items:stretch;gap:32px}
+  .hero--split .hero-copy,.hero--split .hero-photo{flex:1 1 auto !important;max-width:100% !important}
+  .hero--split .hero-photo img{width:100%;height:auto;max-height:520px}
+  .hero--c-asymmetric_split .hero-photo{margin-top:0}
+  .hero--c-overlapping .hero-photo{margin-bottom:0
 }
 @media (max-width:860px){
   .nav{min-height:68px}

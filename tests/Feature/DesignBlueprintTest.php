@@ -293,3 +293,50 @@ it('ignores a composition or token the designer invented', function () {
         ->and($resolved['text_align'])->toBe('left')
         ->and($resolved['container'])->toBe('standard');
 });
+
+it('keeps a valid hero focal point', function () {
+    $resolved = \App\Support\CompositionSpec::resolve([
+        'composition' => 'split',
+        'focal_point' => 'right',
+    ], [
+        'renderer_version' => 2,
+    ], 'hero');
+
+    expect($resolved['focal_point'])->toBe('right');
+});
+
+it('falls back to center for an invalid hero focal point', function () {
+    $resolved = \App\Support\CompositionSpec::resolve([
+        'composition' => 'split',
+        'focal_point' => 'banana',
+    ], [
+        'renderer_version' => 2,
+    ], 'hero');
+
+    expect($resolved['focal_point'])->toBe('center');
+});
+
+it('renders the hero focal point as object-position', function () {
+    $composition = \App\Support\CompositionSpec::resolve([
+        'composition' => 'split',
+        'focal_point' => 'right',
+    ], [
+        'renderer_version' => 2,
+    ], 'hero');
+
+    $html = view('mockup.hero', [
+        'section' => [
+            'c' => $composition,
+            'photo' => '/test-hero.jpg',
+            'headline' => 'Explore Bali',
+            'description' => 'Private journeys across Bali.',
+            'cta' => 'Book Now',
+        ],
+        'site' => [
+            'brand' => 'Bali Tour',
+            'cta' => 'Contact Us',
+        ],
+    ])->render();
+
+    expect($html)->toContain('object-position:75% 50%');
+});

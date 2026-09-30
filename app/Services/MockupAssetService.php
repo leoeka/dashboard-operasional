@@ -107,6 +107,9 @@ class MockupAssetService
                     'required' => $composition['image_required'],
                     'subject' => (string) ($hero['headline'] ?? $hero['name'] ?? $project->name),
                     'context' => is_string($hero['description'] ?? null) ? $hero['description'] : null,
+                    'image_ratio' => $composition['image_ratio'],
+                    'focal_point' => $composition['focal_point'] ?? 'center',
+                    'image_position' => $composition['image_position'],
                 ];
             }
         }
@@ -270,6 +273,8 @@ class MockupAssetService
                 'section_index' => $sectionIndex,
                 'section_role' => $sectionRole,
                 'item_index' => $itemIndex,
+                'image_ratio' => $composition['image_ratio'] ?? '4:3',
+                'focal_point' => 'center',
             ];
         }
 
@@ -687,20 +692,71 @@ class MockupAssetService
                 $requests = [];
 
                 foreach ($slots as $key => $slot) {
-                    $context = $slot['context'] ? " Context: {$slot['context']}." : '';
+                    $context = !empty($slot['context'])
+                        ? " Context: {$slot['context']}."
+                        : '';
+
+                    $ratio = $slot['image_ratio'] ?? '4:3';
+
+                    $size = match ($ratio) {
+                        '16:9', '3:2', '4:3', '5:4' => '1536x1024',
+                        '4:5', '3:4' => '1024x1536',
+                        default => '1024x1024',
+                    };
+                    $focalPoint = $slot['focal_point'] ?? 'center';
+                    $imagePosition = $slot['image_position'] ?? 'none';
+                    $role = $slot['role'] ?? 'content';
+
+                    $layoutInstruction = match ($role) {
+                        'hero' => match ($imagePosition) {
+                                'background' => "Use a cinematic website hero composition with aspect ratio {$ratio}. Preserve clean negative space for HTML website copy and keep the scene uncluttered.",
+                                'right' => "Use a website hero composition with aspect ratio {$ratio}. Keep the main visual subject toward the right side and preserve clean negative space on the left for website copy.",
+                                'left' => "Use a website hero composition with aspect ratio {$ratio}. Keep the main visual subject toward the left side and preserve clean negative space on the right for website copy.",
+                                'above', 'below' => "Use a wide website hero composition with aspect ratio {$ratio}. Keep the main subject clearly framed and suitable for a large hero image.",
+                                default => "Use a clean website hero composition with aspect ratio {$ratio}.",
+                            },
+
+                        'editorial' => "Use an editorial website composition with aspect ratio {$ratio}. Keep the subject visually strong, natural, and suitable beside website copy.",
+
+                        'portrait' => "Use a portrait-oriented website composition with aspect ratio {$ratio}. Keep the subject fully visible and avoid awkward cropping.",
+
+                        default => "Use a clean website content image composition with aspect ratio {$ratio}. Keep the subject clearly visible and suitable for cards or content sections.",
+                    };
+
+                    $focalInstruction = match ($focalPoint) {
+                        'left' => 'Keep the primary subject toward the left side of the frame.',
+                        'right' => 'Keep the primary subject toward the right side of the frame.',
+                        'top' => 'Keep the primary subject toward the upper part of the frame.',
+                        'bottom' => 'Keep the primary subject toward the lower part of the frame.',
+                        default => 'Keep the primary subject near the center of the frame.',
+                    };
+
                     $prompt = $this->toSafeAscii(
-                        "A single professional, photorealistic marketing photo for a {$businessType} website. Subject: \"{$slot['subject']}\".{$context}{$styleLine} "
-                        . 'Natural lighting, clean uncluttered composition, no text, no watermark, no logo, no UI elements or browser chrome, square framing suitable for a website card.'
+                        "A single professional, photorealistic marketing photo for a {$businessType} website. "
+                        . "Subject: \"{$slot['subject']}\"."
+                        . $context
+                        . $styleLine . ' '
+                        . $layoutInstruction . ' '
+                        . $focalInstruction . ' '
+                        . 'Natural lighting, realistic materials, clean uncluttered composition. '
+                        . 'Do not generate readable text, letters, numbers, captions, typography, logos, watermarks, UI elements, browser chrome, labels, posters, billboards, or readable signage. '
+                        . 'Do not bake marketing claims, prices, ratings, badges, or promotional text into the image. '
+                        . 'Avoid cropped faces, cut-off heads, awkward limb crops, and important subjects touching the image edges.'
                     );
 
-                    $requests[] = $pool->as($key)->timeout(60)->withToken($apiKey)->asJson()->post('https://api.openai.com/v1/images/generations', [
-                        'model' => config('services.openai.image_model', 'gpt-image-1'),
-                        'prompt' => $prompt,
-                        'size' => '1024x1024',
-                        'quality' => 'low',
-                        'output_format' => 'jpeg',
-                        'output_compression' => 70,
-                    ]);
+                    $requests[] = $pool
+                        ->as($key)
+                        ->timeout(60)
+                        ->withToken($apiKey)
+                        ->asJson()
+                        ->post('https://api.openai.com/v1/images/generations', [
+                            'model' => config('services.openai.image_model', 'gpt-image-1'),
+                            'prompt' => $prompt,
+                            'size' => $size,
+                            'quality' => 'low',
+                            'output_format' => 'jpeg',
+                            'output_compression' => 70,
+                        ]);
                 }
 
                 return $requests;

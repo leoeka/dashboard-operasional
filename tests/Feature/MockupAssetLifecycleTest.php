@@ -250,3 +250,241 @@ it('keeps the image token and its markers working on top of approved assets', fu
             ->and($matches[2][$index])->toContain("__EXITO_IMAGE:{$filename}__");
     }
 });
+
+it('sends hero ratio focal point and no-text constraints to the image generator', function () {
+    $prompts = [];
+
+    Http::fake([
+        'api.openai.com/*' => function ($request) use (&$prompts) {
+            $prompt = (string) ($request->data()['prompt'] ?? '');
+            $prompts[] = $prompt;
+
+            preg_match('/Subject: "(.*?)"/', $prompt, $matches);
+
+            return Http::response([
+                'data' => [[
+                    'b64_json' => base64_encode(
+                        'PHOTO:' . ($matches[1] ?? 'unknown')
+                    ),
+                ]],
+            ]);
+        },
+    ]);
+
+    $mockup = lifecycleMockup();
+
+    $mockup['design']['renderer_version'] = 2;
+    $mockup['pages'][0]['sections'][0]['composition'] = 'split';
+    $mockup['pages'][0]['sections'][0]['focal_point'] = 'right';
+
+    assetService()->generateForCandidate(
+        lifecycleProject(),
+        $mockup,
+        1
+    );
+
+    $heroPrompt = collect($prompts)->first(
+        fn (string $prompt) =>
+            str_contains($prompt, 'Subject: "Kopi Nusantara Pilihan"')
+    );
+
+    expect($heroPrompt)
+        ->not->toBeNull()
+        ->and($heroPrompt)->toContain(
+            'website hero composition with aspect ratio 4:3'
+        )
+        ->and($heroPrompt)->toContain(
+            'main visual subject toward the right side'
+        )
+        ->and($heroPrompt)->toContain(
+            'Do not generate readable text, letters, numbers'
+        )
+        ->and($heroPrompt)->not->toContain(
+            'square framing suitable for a website card'
+        );
+});
+
+it('requests a landscape image size for a landscape hero ratio', function () {
+    $requestedSizes = [];
+
+    Http::fake([
+        'api.openai.com/*' => function ($request) use (&$requestedSizes) {
+            $data = $request->data();
+
+            $requestedSizes[] = [
+                'prompt' => (string) ($data['prompt'] ?? ''),
+                'size' => (string) ($data['size'] ?? ''),
+            ];
+
+            return Http::response([
+                'data' => [[
+                    'b64_json' => base64_encode('FAKE-IMAGE'),
+                ]],
+            ]);
+        },
+    ]);
+
+    $mockup = lifecycleMockup();
+
+    $mockup['design']['renderer_version'] = 2;
+    $mockup['pages'][0]['sections'][0]['composition'] = 'split';
+    $mockup['pages'][0]['sections'][0]['image_ratio'] = '4:3';
+
+    assetService()->generateForCandidate(
+        lifecycleProject(),
+        $mockup,
+        1
+    );
+
+    $heroRequest = collect($requestedSizes)->first(
+        fn (array $request) =>
+            str_contains(
+                $request['prompt'],
+                'Subject: "Kopi Nusantara Pilihan"'
+            )
+    );
+
+    expect($heroRequest)
+        ->not->toBeNull()
+        ->and($heroRequest['size'])->toBe('1536x1024');
+});
+
+it('requests a portrait image size for a portrait hero ratio', function () {
+    $requestedSizes = [];
+
+    Http::fake([
+        'api.openai.com/*' => function ($request) use (&$requestedSizes) {
+            $data = $request->data();
+
+            $requestedSizes[] = [
+                'prompt' => (string) ($data['prompt'] ?? ''),
+                'size' => (string) ($data['size'] ?? ''),
+            ];
+
+            return Http::response([
+                'data' => [[
+                    'b64_json' => base64_encode('FAKE-IMAGE'),
+                ]],
+            ]);
+        },
+    ]);
+
+    $mockup = lifecycleMockup();
+
+    $mockup['design']['renderer_version'] = 2;
+    $mockup['pages'][0]['sections'][0]['composition'] = 'asymmetric_split';
+    $mockup['pages'][0]['sections'][0]['image_ratio'] = '4:5';
+
+    assetService()->generateForCandidate(
+        lifecycleProject(),
+        $mockup,
+        1
+    );
+
+    $heroRequest = collect($requestedSizes)->first(
+        fn (array $request) =>
+            str_contains(
+                $request['prompt'],
+                'Subject: "Kopi Nusantara Pilihan"'
+            )
+    );
+
+    expect($heroRequest)
+        ->not->toBeNull()
+        ->and($heroRequest['size'])->toBe('1024x1536');
+});
+
+it('requests a square image size for a square ratio', function () {
+    $requestedSizes = [];
+
+    Http::fake([
+        'api.openai.com/*' => function ($request) use (&$requestedSizes) {
+            $data = $request->data();
+
+            $requestedSizes[] = [
+                'prompt' => (string) ($data['prompt'] ?? ''),
+                'size' => (string) ($data['size'] ?? ''),
+            ];
+
+            return Http::response([
+                'data' => [[
+                    'b64_json' => base64_encode('FAKE-IMAGE'),
+                ]],
+            ]);
+        },
+    ]);
+
+    $mockup = lifecycleMockup();
+
+    $mockup['design']['renderer_version'] = 2;
+    $mockup['pages'][0]['sections'][0]['composition'] = 'split';
+    $mockup['pages'][0]['sections'][0]['image_ratio'] = '1:1';
+
+    assetService()->generateForCandidate(
+        lifecycleProject(),
+        $mockup,
+        1
+    );
+
+    $heroRequest = collect($requestedSizes)->first(
+        fn (array $request) =>
+            str_contains(
+                $request['prompt'],
+                'Subject: "Kopi Nusantara Pilihan"'
+            )
+    );
+
+    expect($heroRequest)
+        ->not->toBeNull()
+        ->and($heroRequest['size'])->toBe('1024x1024');
+});
+
+it('requests a portrait image size for section item slots with a portrait ratio', function () {
+    $requestedSizes = [];
+
+    Http::fake([
+        'api.openai.com/*' => function ($request) use (&$requestedSizes) {
+            $data = $request->data();
+
+            $requestedSizes[] = [
+                'prompt' => (string) ($data['prompt'] ?? ''),
+                'size' => (string) ($data['size'] ?? ''),
+            ];
+
+            return Http::response([
+                'data' => [[
+                    'b64_json' => base64_encode('FAKE-IMAGE'),
+                ]],
+            ]);
+        },
+    ]);
+
+    $mockup = lifecycleMockup();
+
+    $mockup['design']['renderer_version'] = 2;
+
+    // Hero valid tanpa gambar.
+    $mockup['pages'][0]['sections'][0]['composition'] = 'centered_minimal';
+
+    // Section Menu adalah card section yang memang memakai foto.
+    $mockup['pages'][0]['sections'][2]['composition'] = 'asymmetric_cards';
+    $mockup['pages'][0]['sections'][2]['image_ratio'] = '4:5';
+
+    assetService()->generateForCandidate(
+        lifecycleProject(),
+        $mockup,
+        1
+    );
+
+    $itemRequest = collect($requestedSizes)->first(
+        fn (array $request) =>
+            str_contains(
+                $request['prompt'],
+                'Subject: "Kopi Gayo"'
+            )
+    );
+
+    expect($itemRequest)
+        ->not->toBeNull()
+        ->and($itemRequest['size'])->toBe('1024x1536');
+});
