@@ -710,6 +710,13 @@ PHP;
 .exito-role { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
 .exito-price { font-size: 1.6em; font-weight: 700; }
 .exito-panel-number { font-size: 64px; }
+.exito-listing-grid .wp-block-group.has-border-color { display: flex; flex-direction: column; height: 100%; border-radius: 16px !important; }
+.exito-listing-grid .wp-block-image img { border-radius: 10px; }
+.exito-listing-meta { font-size: 13px; opacity: .75; margin: 4px 0 6px; }
+.exito-listing-grid h3 { font-size: 20px; margin: 0 0 8px; }
+.exito-listing-text { font-size: 14px; opacity: .8; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.exito-listing-grid .exito-price { font-size: 1.25em; margin: auto 0 10px; padding-top: 12px; }
+.exito-listing-grid .wp-block-button__link { background: transparent; color: inherit; box-shadow: inset 0 0 0 1.5px currentColor; }
 @media (max-width: 781px) {
   .exito-alt-row { flex-direction: column; }
   .exito-stats-grid { flex-wrap: wrap !important; }

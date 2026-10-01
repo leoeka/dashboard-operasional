@@ -1,5 +1,5 @@
 @include('mockup.partials.head')
-<div class="mosaic">
+<div class="mosaic mosaic--{{ min(6, count($section['items'])) }}">
     @foreach ($section['items'] as $itemIndex => $item)
         @php $photo = $section['photos'][$itemIndex] ?? null; @endphp
         <figure class="tile tile--{{ $loop->index }} {{ $photo ? '' : 'tile--empty' }}">

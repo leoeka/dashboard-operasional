@@ -12,7 +12,9 @@
         default => '50% 50%',
     };
 
-    $heroInline = "padding-top:{$heroC['spacing_top']}px;padding-bottom:{$heroC['spacing_bottom']}px;text-align:{$heroC['text_align']}";
+    // --pt lets a full page add the floating navbar's height on top of the
+    // composition's own spacing (styles.blade.php), without a second number.
+    $heroInline = "--pt:{$heroC['spacing_top']}px;padding-top:{$heroC['spacing_top']}px;padding-bottom:{$heroC['spacing_bottom']}px;text-align:{$heroC['text_align']}";
 
     $heroCopyInline = $heroC['family'] === 'split'
         ? "flex:0 0 {$heroC['content_width']}%;max-width:{$heroC['content_width']}%"

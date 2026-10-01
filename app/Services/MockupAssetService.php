@@ -9,6 +9,7 @@ use App\Support\CompositionSpec;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 
 /**
@@ -232,6 +233,7 @@ class MockupAssetService
                         'section_index' => $index,
                         'section_role' => $sectionPlan['role'],
                         'item_index' => 0,
+                        'image_ratio' => $composition['image_ratio'] ?? '4:5',
                     ],
                 ] : [];
             } else {
@@ -665,9 +667,16 @@ class MockupAssetService
     }
 
     /**
-     * Fires every remaining photo prompt concurrently (Http::pool()). Doing this
-     * serially — up to 5 photos per candidate across 3 candidates — used to push
-     * proposal generation past the queue worker's timeout.
+     * Sends the remaining photo prompts, as many at a time as the OpenAI
+     * account allows (services.openai.images_per_minute).
+     *
+     * Firing every prompt at once (Http::pool()) kept proposal generation
+     * inside the queue timeout, but an account limited to 5 images a minute
+     * then rejected everything past the fifth with HTTP 429 — so a candidate
+     * needing 9 photos could never be complete. Prompts now go out in waves
+     * that fit the limit; a 429 rate limit puts the slot back for another
+     * wave. When the time budget runs out the rest stay missing, and the retry
+     * the client is offered fills only those (reusePersisted()).
      *
      * @return array<string, array{bytes:string, extension:string, source:string}>
      */
@@ -685,95 +694,69 @@ class MockupAssetService
         }
 
         $businessType = $project->type ?: 'business';
-        $styleLine = trim($visualDirection) !== '' ? " Visual treatment: {$visualDirection}." : '';
-
-        try {
-            $responses = Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($slots, $apiKey, $businessType, $styleLine) {
-                $requests = [];
-
-                foreach ($slots as $key => $slot) {
-                    $context = !empty($slot['context'])
-                        ? " Context: {$slot['context']}."
-                        : '';
-
-                    $ratio = $slot['image_ratio'] ?? '4:3';
-
-                    $size = match ($ratio) {
-                        '16:9', '3:2', '4:3', '5:4' => '1536x1024',
-                        '4:5', '3:4' => '1024x1536',
-                        default => '1024x1024',
-                    };
-                    $focalPoint = $slot['focal_point'] ?? 'center';
-                    $imagePosition = $slot['image_position'] ?? 'none';
-                    $role = $slot['role'] ?? 'content';
-
-                    $layoutInstruction = match ($role) {
-                        'hero' => match ($imagePosition) {
-                                'background' => "Use a cinematic website hero composition with aspect ratio {$ratio}. Preserve clean negative space for HTML website copy and keep the scene uncluttered.",
-                                'right' => "Use a website hero composition with aspect ratio {$ratio}. Keep the main visual subject toward the right side and preserve clean negative space on the left for website copy.",
-                                'left' => "Use a website hero composition with aspect ratio {$ratio}. Keep the main visual subject toward the left side and preserve clean negative space on the right for website copy.",
-                                'above', 'below' => "Use a wide website hero composition with aspect ratio {$ratio}. Keep the main subject clearly framed and suitable for a large hero image.",
-                                default => "Use a clean website hero composition with aspect ratio {$ratio}.",
-                            },
-
-                        'editorial' => "Use an editorial website composition with aspect ratio {$ratio}. Keep the subject visually strong, natural, and suitable beside website copy.",
-
-                        'portrait' => "Use a portrait-oriented website composition with aspect ratio {$ratio}. Keep the subject fully visible and avoid awkward cropping.",
-
-                        default => "Use a clean website content image composition with aspect ratio {$ratio}. Keep the subject clearly visible and suitable for cards or content sections.",
-                    };
-
-                    $focalInstruction = match ($focalPoint) {
-                        'left' => 'Keep the primary subject toward the left side of the frame.',
-                        'right' => 'Keep the primary subject toward the right side of the frame.',
-                        'top' => 'Keep the primary subject toward the upper part of the frame.',
-                        'bottom' => 'Keep the primary subject toward the lower part of the frame.',
-                        default => 'Keep the primary subject near the center of the frame.',
-                    };
-
-                    $prompt = $this->toSafeAscii(
-                        "A single professional, photorealistic marketing photo for a {$businessType} website. "
-                        . "Subject: \"{$slot['subject']}\"."
-                        . $context
-                        . $styleLine . ' '
-                        . $layoutInstruction . ' '
-                        . $focalInstruction . ' '
-                        . 'Natural lighting, realistic materials, clean uncluttered composition. '
-                        . 'Do not generate readable text, letters, numbers, captions, typography, logos, watermarks, UI elements, browser chrome, labels, posters, billboards, or readable signage. '
-                        . 'Do not bake marketing claims, prices, ratings, badges, or promotional text into the image. '
-                        . 'Avoid cropped faces, cut-off heads, awkward limb crops, and important subjects touching the image edges.'
-                    );
-
-                    $requests[] = $pool
-                        ->as($key)
-                        ->timeout(60)
-                        ->withToken($apiKey)
-                        ->asJson()
-                        ->post('https://api.openai.com/v1/images/generations', [
-                            'model' => config('services.openai.image_model', 'gpt-image-1'),
-                            'prompt' => $prompt,
-                            'size' => $size,
-                            'quality' => 'low',
-                            'output_format' => 'jpeg',
-                            'output_compression' => 70,
-                        ]);
-                }
-
-                return $requests;
-            });
-        } catch (\Throwable $e) {
-            $this->lastFailure = ProviderException::fromThrowable('openai', $e);
-            Log::warning('MockupAssetService: pool generate foto mockup gagal total.', $this->lastFailure->context());
-
-            return [];
-        }
-
+        $photography = $this->photographyDirection($visualDirection);
+        $pending = $slots;
+        $attempts = [];
         $generated = [];
 
-        foreach (array_keys($slots) as $key) {
-            $response = $responses[$key] ?? null;
+        while ($pending) {
+            $this->imageRunStartedAt ??= $this->clock();
 
-            if (!$response instanceof \Illuminate\Http\Client\Response || !$response->successful()) {
+            // Checked after any wait for the rate limit, which is where the time goes.
+            $capacity = $this->imageCapacity(count($pending));
+
+            if ($this->imageBudgetSpent()) {
+                Log::warning('MockupAssetService: batas waktu foto habis, sisa foto dilengkapi saat retry.', ['remaining' => array_keys($pending)]);
+                break;
+            }
+
+            $wave = array_slice($pending, 0, $capacity, true);
+
+            try {
+                $responses = Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($wave, $apiKey, $businessType, $photography) {
+                    $requests = [];
+
+                    foreach ($wave as $key => $slot) {
+                        $requests[] = $pool
+                            ->as($key)
+                            ->timeout(150)
+                            ->withToken($apiKey)
+                            ->asJson()
+                            ->post('https://api.openai.com/v1/images/generations', [
+                                'model' => config('services.openai.image_model', 'gpt-image-1'),
+                                'prompt' => $this->photoPrompt($slot, $businessType, $photography),
+                                'size' => $this->photoSize($slot['image_ratio'] ?? '4:3'),
+                                'quality' => config('services.openai.image_quality', 'medium'),
+                                'output_format' => 'jpeg',
+                                'output_compression' => 82,
+                            ]);
+                    }
+
+                    return $requests;
+                });
+            } catch (\Throwable $e) {
+                $this->lastFailure = ProviderException::fromThrowable('openai', $e);
+                Log::warning('MockupAssetService: pool generate foto mockup gagal total.', $this->lastFailure->context());
+
+                break;
+            }
+
+            $this->recordImageRequests(count($wave));
+
+            foreach (array_keys($wave) as $key) {
+                $response = $responses[$key] ?? null;
+
+                if ($response instanceof \Illuminate\Http\Client\Response && $response->successful()) {
+                    unset($pending[$key]);
+                    $base64 = $response->json('data.0.b64_json');
+                    $bytes = $base64 ? base64_decode($base64, true) : null;
+
+                    if (is_string($bytes) && $bytes !== '') {
+                        $generated[$key] = ['bytes' => $bytes, 'extension' => 'jpg', 'source' => 'generated'];
+                    }
+                    continue;
+                }
+
                 $this->lastFailure = $response instanceof \Illuminate\Http\Client\Response
                     ? ProviderException::fromResponse('openai', $response)
                     : ProviderException::fromThrowable('openai', $response instanceof \Throwable ? $response : new \RuntimeException('Tidak ada respons.'));
@@ -784,18 +767,180 @@ class MockupAssetService
                     ['slot' => $key],
                     $this->lastFailure->context()
                 ));
-                continue;
-            }
 
-            $base64 = $response->json('data.0.b64_json');
-            $bytes = $base64 ? base64_decode($base64, true) : null;
+                $attempts[$key] = ($attempts[$key] ?? 0) + 1;
 
-            if (is_string($bytes) && $bytes !== '') {
-                $generated[$key] = ['bytes' => $bytes, 'extension' => 'jpg', 'source' => 'generated'];
+                if ($this->lastFailure->errorCode === ProviderException::RATE_LIMITED && $attempts[$key] < 3) {
+                    // The account's minute is used up: the slot waits out a full window.
+                    $this->saturateImageWindow();
+                    continue;
+                }
+
+                unset($pending[$key]);
             }
         }
 
         return $generated;
+    }
+
+    /** @var array<int, float> when each recent image request went out, across every candidate of this run */
+    private array $imageRequestTimes = [];
+
+    private ?float $imageRunStartedAt = null;
+
+    /**
+     * How many prompts may go out now, waiting first if the account's
+     * per-minute allowance is already used. 0 in config means no limit.
+     */
+    private function imageCapacity(int $wanted): int
+    {
+        $limit = (int) config('services.openai.images_per_minute', 5);
+        if ($limit <= 0) {
+            return $wanted;
+        }
+
+        $window = $this->openImageWindow();
+
+        if (count($window) >= $limit) {
+            $wait = (int) ceil(60 - ($this->clock() - min($window))) + 1;
+            Sleep::for(max(1, $wait))->seconds();
+            $window = $this->openImageWindow();
+        }
+
+        return max(1, min($wanted, $limit - count($window)));
+    }
+
+    /** The request times still inside the last minute. */
+    private function openImageWindow(): array
+    {
+        $now = $this->clock();
+
+        return $this->imageRequestTimes = array_values(array_filter(
+            $this->imageRequestTimes,
+            fn (float $at) => $now - $at < 60
+        ));
+    }
+
+    private function recordImageRequests(int $count): void
+    {
+        $now = $this->clock();
+        array_push($this->imageRequestTimes, ...array_fill(0, $count, $now));
+    }
+
+    private function saturateImageWindow(): void
+    {
+        $limit = max(1, (int) config('services.openai.images_per_minute', 5));
+        $this->imageRequestTimes = array_fill(0, $limit, $this->clock());
+    }
+
+    /** True once this run has spent its photo time budget — the queue job has a hard timeout. */
+    private function imageBudgetSpent(): bool
+    {
+        $budget = (int) config('services.openai.image_time_budget', 300);
+
+        return $budget > 0 && $this->imageRunStartedAt !== null && $this->clock() - $this->imageRunStartedAt >= $budget;
+    }
+
+    /** Carbon's clock, so Sleep::fake(syncWithCarbon: true) drives the throttle in tests. */
+    private function clock(): float
+    {
+        return now()->getPreciseTimestamp(3) / 1000;
+    }
+
+    /**
+     * The prompt for one photograph.
+     *
+     * Two things used to wreck the pictures, and both are avoided here:
+     * - the slot's headline went in as `Subject: "Experience Bali in …"`; an
+     *   image model reads quoted copy as words to print, so the photos came
+     *   back as posters with garbled headlines across them;
+     * - the candidate's LAYOUT brief ("expressive serif headings, a composed
+     *   gallery…") went in as the visual treatment, which produced typography,
+     *   collages and split screens inside the photograph.
+     * So the copy is described as a scene, and only a photographic direction
+     * (light, colour, lens) is passed on.
+     */
+    private function photoPrompt(array $slot, string $businessType, string $photography): string
+    {
+        $ratio = $slot['image_ratio'] ?? '4:3';
+        $orientation = match ($ratio) {
+            '16:9', '3:2', '4:3', '5:4' => 'landscape',
+            '4:5', '3:4' => 'portrait',
+            default => 'square',
+        };
+
+        $framing = match ($slot['role'] ?? 'product') {
+            'hero' => match ($slot['image_position'] ?? 'none') {
+                'background' => 'Wide establishing shot used full-bleed behind website copy: keep the left half calm and low in detail (open sky, water, soft background), put the subject to the right third.',
+                'left' => 'Hero photograph: subject toward the left third, the rest of the frame calm.',
+                'right' => 'Hero photograph: subject toward the right third, the rest of the frame calm.',
+                default => 'Wide hero photograph with one clear subject and a calm, uncluttered background.',
+            },
+            'editorial' => 'Editorial photograph with one clear subject, photographed close enough to feel personal.',
+            'team' => 'Natural portrait of one person at work, head and shoulders, plain softly blurred background.',
+            'gallery' => 'Atmospheric photograph of the place or moment, as a professional travel or documentary photographer would frame it.',
+            default => 'Photograph of exactly this one thing or place, well framed, suitable as a listing or card image.',
+        };
+
+        $focal = match ($slot['focal_point'] ?? 'center') {
+            'left' => ' Main subject in the left third.',
+            'right' => ' Main subject in the right third.',
+            'top' => ' Main subject in the upper part of the frame.',
+            'bottom' => ' Main subject in the lower part of the frame.',
+            default => '',
+        };
+
+        return $this->toSafeAscii(
+            "A real photograph for the website of a {$businessType} business. "
+            . 'Scene: ' . $this->photoScene($slot) . ' '
+            . 'The scene description is something to photograph, never words to show in the image. '
+            . "{$framing}{$focal} {$orientation} orientation. "
+            . "Photographic style: {$photography}. "
+            . 'It is one continuous photograph taken with a real camera: not a graphic design, poster, flyer, magazine page, advertisement, collage, split screen, grid of photos, frame within a frame or illustration. '
+            . 'No text anywhere in the image: no letters, words, numbers, captions, titles, logos, watermarks, signs, labels, badges, UI or borders. '
+            . 'People, if any, are candid and natural with correct faces and hands, and nobody is cut off at the edge of the frame.'
+        );
+    }
+
+    /** The slot's copy restated as something a photographer could shoot: no quotes, no marketing punctuation, bounded length. */
+    private function photoScene(array $slot): string
+    {
+        $title = trim(preg_replace('/["“”\'‘’!?:|]+/u', ' ', (string) ($slot['subject'] ?? '')) ?? '');
+        $context = trim(preg_replace('/["“”]+/u', '', (string) ($slot['context'] ?? '')) ?? '');
+
+        // The first two sentences carry the visual; the rest is usually sales copy.
+        $sentences = preg_split('/(?<=[.!?])\s+/u', $context) ?: [];
+        $context = Str::limit(implode(' ', array_slice($sentences, 0, 2)), 320, '');
+
+        $scene = preg_replace('/\s+/u', ' ', $title) ?? '';
+
+        return rtrim($scene . ($context !== '' ? ' - ' . $context : ''), ' .') . '.';
+    }
+
+    /**
+     * Light, colour and lens for a candidate, taken from its direction brief.
+     * The brief itself describes layout and type, which an image model would
+     * draw INTO the photograph, so it is never sent.
+     */
+    private function photographyDirection(string $visualDirection): string
+    {
+        $brief = Str::lower($visualDirection);
+
+        return match (true) {
+            str_contains($brief, 'editorial') => 'cinematic natural light, rich true-to-life colour, gentle shadows, shallow depth of field, full-frame camera with a 35mm lens',
+            str_contains($brief, 'calm') || str_contains($brief, 'approachable') => 'soft diffused daylight, airy bright tones, natural colour, 50mm lens, relaxed and honest',
+            str_contains($brief, 'confident') || str_contains($brief, 'modern') => 'crisp clear daylight, clean contrast, vivid but natural colour, sharp focus, 28mm lens',
+            default => 'natural light, true-to-life colour, sharp focus, 35mm lens',
+        };
+    }
+
+    private function photoSize(string $ratio): string
+    {
+        return match ($ratio) {
+            '16:9', '3:2', '4:3', '5:4' => '1536x1024',
+            '4:5', '3:4' => '1024x1536',
+            default => '1024x1024',
+        };
     }
 
     private function candidateDirectory(Project $project, int $candidateNumber): string

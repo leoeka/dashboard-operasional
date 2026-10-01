@@ -51,7 +51,7 @@ function lifecycleMockup(string $layoutVariant = 'split-right'): array
 function fakePhotoApi(): void
 {
     Http::fake(['api.openai.com/*' => function ($request) {
-        preg_match('/Subject: "(.*?)"/', (string) ($request->data()['prompt'] ?? ''), $m);
+        preg_match('/Scene: (.+?)(?: - |\. The scene)/', (string) ($request->data()['prompt'] ?? ''), $m);
 
         return Http::response(['data' => [['b64_json' => base64_encode('PHOTO:' . ($m[1] ?? 'unknown'))]]]);
     }]);
@@ -259,7 +259,7 @@ it('sends hero ratio focal point and no-text constraints to the image generator'
             $prompt = (string) ($request->data()['prompt'] ?? '');
             $prompts[] = $prompt;
 
-            preg_match('/Subject: "(.*?)"/', $prompt, $matches);
+            preg_match('/Scene: (.+?)(?: - |\. The scene)/', $prompt, $matches);
 
             return Http::response([
                 'data' => [[
@@ -285,23 +285,49 @@ it('sends hero ratio focal point and no-text constraints to the image generator'
 
     $heroPrompt = collect($prompts)->first(
         fn (string $prompt) =>
-            str_contains($prompt, 'Subject: "Kopi Nusantara Pilihan"')
+            str_contains($prompt, 'Scene: Kopi Nusantara Pilihan')
     );
 
     expect($heroPrompt)
         ->not->toBeNull()
-        ->and($heroPrompt)->toContain(
-            'website hero composition with aspect ratio 4:3'
-        )
-        ->and($heroPrompt)->toContain(
-            'main visual subject toward the right side'
-        )
-        ->and($heroPrompt)->toContain(
-            'Do not generate readable text, letters, numbers'
-        )
-        ->and($heroPrompt)->not->toContain(
-            'square framing suitable for a website card'
-        );
+        ->and($heroPrompt)->toContain('landscape orientation')
+        ->and($heroPrompt)->toContain('subject toward the right third')
+        ->and($heroPrompt)->toContain('Main subject in the right third')
+        ->and($heroPrompt)->toContain('No text anywhere in the image')
+        ->and($heroPrompt)->toContain('not a graphic design, poster')
+        // A quoted headline is what made the model print it across the photo.
+        ->and($heroPrompt)->not->toContain('"Kopi Nusantara Pilihan"');
+});
+
+it('never sends the candidate layout brief to the image generator', function () {
+    $prompts = [];
+
+    Http::fake([
+        'api.openai.com/*' => function ($request) use (&$prompts) {
+            $prompts[] = (string) ($request->data()['prompt'] ?? '');
+
+            return Http::response(['data' => [['b64_json' => base64_encode('FAKE-IMAGE')]]]);
+        },
+    ]);
+
+    $mockup = lifecycleMockup();
+    $mockup['design']['renderer_version'] = 2;
+
+    assetService()->generateForCandidate(
+        lifecycleProject(),
+        $mockup,
+        1,
+        'Option 1 - Editorial: elegant editorial composition, expressive serif headings, a composed gallery; almost no boxed cards.'
+    );
+
+    expect($prompts)->not->toBeEmpty();
+
+    foreach ($prompts as $prompt) {
+        // Layout and typography words get drawn INTO the photo as type and collages.
+        expect($prompt)->not->toContain('serif headings')
+            ->and($prompt)->not->toContain('composed gallery')
+            ->and($prompt)->toContain('cinematic natural light');
+    }
 });
 
 it('requests a landscape image size for a landscape hero ratio', function () {
@@ -340,7 +366,7 @@ it('requests a landscape image size for a landscape hero ratio', function () {
         fn (array $request) =>
             str_contains(
                 $request['prompt'],
-                'Subject: "Kopi Nusantara Pilihan"'
+                'Scene: Kopi Nusantara Pilihan'
             )
     );
 
@@ -385,7 +411,7 @@ it('requests a portrait image size for a portrait hero ratio', function () {
         fn (array $request) =>
             str_contains(
                 $request['prompt'],
-                'Subject: "Kopi Nusantara Pilihan"'
+                'Scene: Kopi Nusantara Pilihan'
             )
     );
 
@@ -430,7 +456,7 @@ it('requests a square image size for a square ratio', function () {
         fn (array $request) =>
             str_contains(
                 $request['prompt'],
-                'Subject: "Kopi Nusantara Pilihan"'
+                'Scene: Kopi Nusantara Pilihan'
             )
     );
 
@@ -480,7 +506,7 @@ it('requests a portrait image size for section item slots with a portrait ratio'
         fn (array $request) =>
             str_contains(
                 $request['prompt'],
-                'Subject: "Kopi Gayo"'
+                'Scene: Kopi Gayo'
             )
     );
 

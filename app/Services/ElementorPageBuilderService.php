@@ -46,9 +46,10 @@ class ElementorPageBuilderService
      *         every other slug is unique (see SitemapPages), so two pages whose
      *         names slug alike can no longer overwrite each other.
      */
-    public function buildPages(array $mockupPages, array $design = [], array $imageMap = [], string $globalCta = ''): array
+    public function buildPages(array $mockupPages, array $design = [], array $imageMap = [], string $globalCta = '', string $language = 'id'): array
     {
         $this->globalCta = trim($globalCta);
+        $this->language = $language === 'en' ? 'en' : 'id';
         $pages = [];
 
         foreach (SitemapPages::ordered($mockupPages) as $entry) {
@@ -71,6 +72,9 @@ class ElementorPageBuilderService
 
     /** Site-wide CTA label for the page currently being built. */
     private string $globalCta = '';
+
+    /** The site's language, for the few labels the builder writes itself — MockupSite's `lang` rule. */
+    private string $language = 'id';
 
     /**
      * The structural decisions this builder actually applies to one page's
@@ -160,7 +164,7 @@ class ElementorPageBuilderService
 
             $shape = CompositionSpec::sectionShape($section);
             $declared = strtolower(trim((string) ($section['composition'] ?? '')));
-            $generic = in_array($shape, ['feature_items', 'card_items'], true);
+            $generic = in_array($shape, ['feature_items', 'card_items', 'listing'], true);
 
             // A declared composition is honoured only when the content can
             // actually fill it — a band of plain features never becomes an FAQ
@@ -636,6 +640,15 @@ class ElementorPageBuilderService
 
     private function gbCardRows(array $items, array $photos, array $c, string $align): string
     {
+        if (!empty($c['listing'])) {
+            $cards = [];
+            foreach ($items as $itemIndex => $item) {
+                $cards[] = $this->gbListingCard($item, $photos[$itemIndex] ?? null, $c);
+            }
+
+            return $cards ? $this->gbGrid($cards, max(1, min($c['columns'], count($cards))), 'exito-cards exito-listing-grid') : '';
+        }
+
         $cards = [];
         foreach ($items as $itemIndex => $item) {
             $inner = isset($photos[$itemIndex]) ? $this->gbImage($photos[$itemIndex], 'medium', $c['image_ratio']) : '';
@@ -665,6 +678,38 @@ class ElementorPageBuilderService
         }
 
         return $this->gbGrid($cards, max(1, min($c['columns'], count($cards))), 'exito-cards');
+    }
+
+    /**
+     * A tour, room or product card — the same facts, in the same order, as
+     * resources/views/mockup/partials/listing-card.blade.php. Each fact is a
+     * plain core block, so the client edits a price or a duration in the
+     * Block Editor like any other text.
+     */
+    private function gbListingCard(array $item, ?string $photo, array $c): string
+    {
+        $labels = SectionContent::listingLabels($this->language);
+        $inner = $photo ? $this->gbImage($photo, 'medium', $c['image_ratio']) : '';
+
+        $facts = array_values(array_filter([$item['location'], $item['duration']]));
+        $rating = $item['rating'] !== ''
+            ? '★ ' . $item['rating'] . ($item['reviews'] !== '' ? ' (' . $item['reviews'] . ')' : '')
+            : '';
+        $meta = implode('  ·  ', array_filter([implode('  ·  ', $facts), $rating]));
+        if ($meta !== '') {
+            $inner .= $this->gbParagraph($meta, null, 'left', 'exito-listing-meta');
+        }
+
+        $inner .= $this->gbHeading($item['title'], 3, null, 'left');
+        if ($item['text'] !== '') {
+            $inner .= $this->gbParagraph($item['text'], null, 'left', 'exito-listing-text');
+        }
+        if ($item['price'] !== '') {
+            $inner .= $this->gbParagraph(trim($item['price'] . ' ' . $item['price_unit']), null, 'left', 'exito-price');
+        }
+        $inner .= $this->gbButton($labels['details'], null, null, 'left');
+
+        return $this->gbCard($inner);
     }
 
     private function gbEditorial(array $data, array $items, array $photos, array $c, ?string $headingColor, string $accent): string

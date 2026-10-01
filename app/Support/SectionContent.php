@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 final class SectionContent
 {
     /**
-     * @return array<int, array{title:string, text:string, quote:string, author:string, role:string, value:string, label:string, price:string, features:array<int,string>}>
+     * @return array<int, array{title:string, text:string, quote:string, author:string, role:string, value:string, label:string, price:string, features:array<int,string>, location:string, duration:string, rating:string, reviews:string, price_unit:string}>
      *         keyed by the item's ORIGINAL index, because photographs are
      *         assigned to items by that index.
      */
@@ -98,6 +98,14 @@ final class SectionContent
         return null;
     }
 
+    /** The listing card's own button, in the site's language — the same words in the demo and in WordPress. */
+    public static function listingLabels(string $lang): array
+    {
+        return $lang === 'en'
+            ? ['details' => 'View details', 'rating' => 'Rating']
+            : ['details' => 'Lihat detail', 'rating' => 'Rating'];
+    }
+
     /** Two-letter monogram for a person or brand shown without a photograph. */
     public static function initials(string $name): string
     {
@@ -148,6 +156,14 @@ final class SectionContent
             'label' => $value !== '' ? ($first(['label']) ?: $title ?: $text) : $text,
             'price' => $first(['price', 'harga', 'amount', 'monthly']),
             'features' => $features,
+            // Catalogue facts for a tour, room or product card. Each is shown
+            // only when present — ContentIntegrityService has already removed
+            // any figure the client never gave.
+            'location' => $first(['location', 'lokasi', 'category', 'kategori']),
+            'duration' => $first(['duration', 'durasi']),
+            'rating' => $first(['rating']),
+            'reviews' => $first(['reviews', 'review_count', 'ulasan_count']),
+            'price_unit' => $first(['price_unit', 'unit']),
             'featured' => (bool) array_filter(
                 array_intersect_key($item, array_flip(['featured', 'is_featured', 'highlight', 'highlighted', 'recommended', 'popular'])),
                 fn ($flag) => $flag === true || $flag === 1 || $flag === '1' || $flag === 'true'

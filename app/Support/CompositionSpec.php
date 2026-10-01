@@ -39,6 +39,7 @@ final class CompositionSpec
         'feature_grid',
         'asymmetric_cards',
         'standard_cards',
+        'listing_cards',
         'stats_band',
         'testimonial_grid',
         'gallery',
@@ -68,6 +69,7 @@ final class CompositionSpec
         'feature_grid' => 'icon_band',
         'standard_cards' => 'card_grid',
         'asymmetric_cards' => 'card_grid',
+        'listing_cards' => 'card_grid',
         'editorial_text_image' => 'editorial_media',
         'alternating_media' => 'editorial_media',
         'stats_band' => 'stats',
@@ -85,6 +87,7 @@ final class CompositionSpec
         'feature_grid' => 'features',
         'standard_cards' => 'cards',
         'asymmetric_cards' => 'cards',
+        'listing_cards' => 'cards',
         'editorial_text_image' => 'editorial',
         'alternating_media' => 'alternating',
         'stats_band' => 'stats',
@@ -128,7 +131,20 @@ final class CompositionSpec
         'cta' => ['cta'],
         'feature_items' => ['feature_grid', 'standard_cards', 'asymmetric_cards', 'alternating_media', 'editorial_text_image'],
         'card_items' => ['standard_cards', 'asymmetric_cards', 'feature_grid', 'alternating_media', 'editorial_text_image'],
+        // A superset of card_items: a section that reads as a catalogue keeps
+        // every composition it could have had before, so approved blueprints
+        // resolve unchanged.
+        'listing' => ['listing_cards', 'standard_cards', 'asymmetric_cards', 'feature_grid', 'alternating_media', 'editorial_text_image'],
     ];
+
+    /**
+     * Item fields that make a section a catalogue of things a visitor books or
+     * buys — tours, rooms, rentals, products — rather than a list of features.
+     */
+    public const LISTING_KEYS = ['location', 'lokasi', 'duration', 'durasi', 'rating', 'reviews', 'review_count', 'ulasan_count', 'price', 'harga', 'price_unit', 'unit', 'category', 'kategori'];
+
+    /** What a catalogue section tends to call itself. */
+    private const LISTING_WORDS = ['tour', 'trip', 'wisata', 'itinerary', 'activities', 'aktivitas', 'destinasi', 'destination', 'excursion', 'villa', 'kamar', 'rental', 'sewa', 'katalog', 'catalog'];
 
     public const CONTAINERS = ['narrow', 'standard', 'wide', 'full'];
     public const HEADING_SCALES = ['display-xl', 'display-lg', 'h1', 'h2', 'h3'];
@@ -256,7 +272,7 @@ final class CompositionSpec
             'gallery' => ['gallery', 'standard_cards'],
             'stats' => ['stats_band', 'feature_grid'],
             'feature_items' => ['feature_grid', 'stats_band'],
-            default => ['standard_cards', 'asymmetric_cards', 'feature_grid'],
+            default => ['standard_cards', 'asymmetric_cards', 'listing_cards', 'feature_grid'],
         };
 
         // Keep the section's photographic behaviour exactly as it is.
@@ -293,8 +309,12 @@ final class CompositionSpec
             // Products or destinations that merely carry a price are a
             // catalogue, not a pricing table. A pricing table lists what each
             // plan includes, or calls itself one.
-            if ($shape === 'pricing' && !self::looksLikePlans($section, $items)) {
-                return 'card_items';
+            if ($shape === 'pricing' && (!self::looksLikePlans($section, $items) || self::looksLikeListing($section, $items, false))) {
+                return 'listing';
+            }
+
+            if ($shape === 'card_items' && self::looksLikeListing($section, $items)) {
+                return 'listing';
             }
 
             return $shape;
@@ -308,6 +328,39 @@ final class CompositionSpec
         }
 
         return trim((string) ($section['description'] ?? '')) !== '' ? 'text' : 'cta';
+    }
+
+    /**
+     * Tours, rooms, rentals or products: items carrying listing facts
+     * (location, duration, rating, price), or a section that names itself a
+     * catalogue. A tier list with "what's included" bullets stays pricing.
+     */
+    private static function looksLikeListing(array $section, array $items, bool $priceCounts = true): bool
+    {
+        // A section that calls itself a price table is not turned into a
+        // catalogue by its prices alone — only by tour/room facts or its name.
+        $keys = $priceCounts ? self::LISTING_KEYS : array_diff(self::LISTING_KEYS, ['price', 'harga', 'price_unit', 'unit']);
+
+        foreach ($items as $item) {
+            if (is_array($item) && array_intersect(['features', 'benefits', 'includes', 'fitur'], array_map('strtolower', array_keys($item)))) {
+                return false;
+            }
+        }
+
+        foreach ($items as $item) {
+            if (is_array($item) && array_intersect($keys, array_map('strtolower', array_keys($item)))) {
+                return true;
+            }
+        }
+
+        $label = strtolower((string) ($section['type'] ?? '') . ' ' . (string) ($section['name'] ?? '') . ' ' . (string) ($section['headline'] ?? ''));
+        foreach (self::LISTING_WORDS as $word) {
+            if (str_contains($label, $word)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static function looksLikePlans(array $section, array $items): bool
@@ -345,6 +398,7 @@ final class CompositionSpec
             'stats' => 'stats_band',
             'logos' => 'logo_showcase',
             'gallery' => 'gallery',
+            'listing' => 'listing_cards',
             'text' => 'editorial_text_image',
             'cta' => 'cta',
             // The first generic band reads as "why us", the second as the
@@ -419,6 +473,7 @@ final class CompositionSpec
     private const SECTION_RULES = [
         'standard_cards' => ['family' => 'grid', 'columns' => 3, 'card_treatment' => 'bordered', 'photo_slots' => true, 'image_ratio' => '4:3'],
         'asymmetric_cards' => ['family' => 'grid', 'columns' => 3, 'card_treatment' => 'shadowed', 'photo_slots' => true, 'image_ratio' => '3:4', 'feature_first' => true],
+        'listing_cards' => ['family' => 'grid', 'columns' => 3, 'card_treatment' => 'bordered', 'photo_slots' => true, 'image_ratio' => '4:3', 'listing' => true],
         'feature_grid' => ['family' => 'grid', 'columns' => 3, 'card_treatment' => 'plain', 'photo_slots' => false],
         'gallery' => ['family' => 'grid', 'columns' => 4, 'card_treatment' => 'flush', 'photo_slots' => true, 'image_ratio' => '1:1'],
         'team' => ['family' => 'grid', 'columns' => 4, 'card_treatment' => 'plain', 'photo_slots' => true, 'image_ratio' => '1:1'],
@@ -572,6 +627,7 @@ final class CompositionSpec
             'card_treatment' => self::oneOf($section['card_treatment'] ?? null, ['plain', 'bordered', 'shadowed', 'flush'], $rules['card_treatment']),
             'photo_slots' => (bool) $rules['photo_slots'],
             'feature_first' => (bool) ($rules['feature_first'] ?? false),
+            'listing' => (bool) ($rules['listing'] ?? false),
         ];
     }
 

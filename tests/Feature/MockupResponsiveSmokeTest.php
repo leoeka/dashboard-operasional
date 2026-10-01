@@ -29,6 +29,20 @@ function responsivePages(): array
         ]]],
     ];
 
+    $listing = [
+        'language' => 'id',
+        'global_cta' => 'Pesan via WhatsApp',
+        'design' => ['renderer_version' => 2, 'primary_color' => '#04293A', 'accent_color' => '#FF8A00'],
+        'pages' => [['name' => 'Home', 'sections' => [
+            ['type' => 'hero', 'headline' => 'Jelajahi Bali bersama sopir pribadi', 'composition' => 'background_image'],
+            ['type' => 'tours', 'name' => 'Tur Populer', 'headline' => 'Tur favorit tamu kami', 'composition' => 'listing_cards', 'items' => [
+                ['title' => 'Ayung River Rafting', 'description' => 'Arung jeram melewati ngarai hutan tropis bersama pemandu berpengalaman.', 'location' => 'Bali Activities', 'duration' => '6 Jam', 'rating' => '4,9', 'reviews' => '1.280 ulasan', 'price' => 'IDR 1.600.000', 'price_unit' => '/orang'],
+                ['title' => 'Uluwatu Sunset & Kecak', 'description' => 'Pura di tebing saat senja.', 'location' => 'Uluwatu', 'duration' => '5 Jam', 'price' => 'IDR 450.000', 'price_unit' => '/orang'],
+                ['title' => 'Istana Air Bali Timur', 'description' => 'Tirta Gangga dan pantai pasir hitam.', 'location' => 'Karangasem'],
+            ]],
+        ]]],
+    ];
+
     $render = fn (array $mockup, string $page, array $images = []) => view('mockup.site', ['site' => MockupSite::build($mockup, [
         'brand' => 'Nusa Trails', 'page' => $page, 'fixed' => false, 'images' => $images,
     ])])->render();
@@ -38,6 +52,9 @@ function responsivePages(): array
         'v2-tentang' => $render($v2, 'tentang'),
         'v2-paket' => $render($v2, 'paket'),
         'legacy-home' => $render($legacy, 'home', ['home' => ['hero' => $photo, 'items' => [$photo, $photo, $photo, $photo]]]),
+        // Listing cards carry the longest single row of facts (place, time,
+        // rating, price, button) — the first thing to overflow on a phone.
+        'v2-listing' => $render($listing, 'home', ['home' => ['hero' => $photo, 'sections' => [1 => [$photo, $photo, $photo]]]]),
     ];
 }
 
@@ -63,8 +80,8 @@ it('never scrolls horizontally and never renders blank, from phone to desktop', 
 
         $results = array_map(fn (string $line) => json_decode($line, true), array_filter(explode("\n", trim($process->getOutput()))));
 
-        // 4 pages × 4 widths, every one measured.
-        expect($results)->toHaveCount(16);
+        // 5 pages × 4 widths, every one measured.
+        expect($results)->toHaveCount(20);
 
         foreach ($results as $r) {
             $where = "{$r['file']} @ {$r['width']}px";

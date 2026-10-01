@@ -1,5 +1,13 @@
 # Catatan Serah-Terima — Design Generator V2 & Live Demo
 
+> **Review visual baru, 1 Oktober 2026:** proyek **#34 / `REVIEW-PELLET-20261001`**
+> dibuat dari brief Supplier Wood Pellet #30. Tiga kandidat dan proposal #34 berhasil
+> dibuat; proposal masih pending. Lihat [review desain proyek #34](REVIEW-PELLET-34.md)
+> untuk screenshot, perbandingan kandidat, dan arahan implementasi untuk Claude.
+> Codex hanya menjalankan proyek uji dan menilai desain; kode aplikasi tidak diubah.
+> Rekomendasi: opsi 2 sebagai dasar revisi, belum layak approval. Run pertama terkena
+> batas internal 300 detik; run kedua selesai memakai checkpoint.
+
 Terakhir diperbarui: **26 September 2026**
 Branch: **`feature/design-generator-v2-live-demo`** (lokal, **belum di-push**, belum ada PR)
 Repo: `github.com/leoeka/dashboard-operasional` — branch utama `master` (jangan commit langsung ke master)
@@ -8,6 +16,32 @@ Dokumen ini untuk siapa pun (manusia atau AI lain) yang melanjutkan pekerjaan in
 riwayat chat. Baca juga [design-generator-v2.md](design-generator-v2.md) untuk arsitektur detail.
 
 ---
+
+### Update lanjutan — 1 Oktober 2026 (kualitas visual mockup)
+
+- **Foto berantakan, penyebab ditemukan dari real run #30/#33:** prompt foto mengirim headline
+  dalam tanda kutip (`Subject: "Experience Bali…"`) dan brief LAYOUT kandidat ("expressive serif
+  headings, a composed gallery…"). Model gambar mencetak teks itu ke foto → poster/kolase bertulisan.
+  `MockupAssetService::photoPrompt()` kini mendeskripsikan adegan, hanya mengirim arah fotografi
+  (cahaya/warna/lensa, `photographyDirection()`), dan melarang poster/kolase/teks.
+  Kualitas gambar default `medium` (`OPENAI_IMAGE_QUALITY`, dulu hard-coded `low`): biaya per foto naik.
+  Foto lama di `storage/app/public/mockup-assets` masih versi lama; perlu generate ulang untuk melihat hasilnya.
+- **Kartu listing** (tur/kamar/produk): komposisi baru `listing_cards`, shape `listing`
+  (`CompositionSpec::sectionShape()`), partial `mockup/partials/listing-card.blade.php` +
+  `ElementorPageBuilderService::gbListingCard()`. Field item: `location, duration, rating, reviews,
+  price, price_unit`. Daftar komposisi `listing` adalah superset `card_items` → blueprint lama tidak berubah.
+  Rating/durasi/harga tetap lewat integrity gate: hanya tampil kalau ada di brief klien.
+- **Anti-slop (V2 / `.full-page` saja, PNG legacy tidak berubah):** navbar mengambang di atas hero,
+  orb dekoratif & blok offset di belakang foto dihapus, shadow kartu diringankan, hero overlay
+  kini menampilkan foto (dulu opacity .55 + scrim warna primary), mosaic galeri terisi untuk 2–6 item.
+  Bug CSS dari commit 106fa15 (`{margin-bottom:0` tak ditutup → media query 860px rusak) diperbaiki.
+- **Rate limit foto:** akun OpenAI tier 1 = 5 gambar/menit; semua foto dulu dikirim serentak → 429 →
+  "Baru 1 dari 3 opsi mockup yang lengkap". `MockupAssetService::generate()` kini mengirim per gelombang
+  (`OPENAI_IMAGES_PER_MINUTE`, default 5), me-retry 429 rate limit, dan berhenti di
+  `OPENAI_IMAGE_TIME_BUDGET` (default 300 dtk); sisanya dilengkapi saat retry. Timeout job proposal
+  dinaikkan ke 900 dtk (`GenerateProposalJob`, `composer.json` queue:listen, `DB_QUEUE_RETRY_AFTER` 960).
+- Verifikasi: `php artisan test` **505 lulus**; `--group=browser` lulus (20 kombinasi). Belum diuji di
+  Block Editor WordPress asli untuk kartu listing (hanya memakai block yang sudah tervalidasi).
 
 ### Update lanjutan — 29 September 2026
 
