@@ -60,7 +60,8 @@ class BundleBuilderService
                 is_array($mockupPages) ? $mockupPages : [],
                 $mockup['design'] ?? [],
                 $sectionImages['map'],
-                is_string($mockup['global_cta'] ?? null) ? $mockup['global_cta'] : ''
+                is_string($mockup['global_cta'] ?? null) ? $mockup['global_cta'] : '',
+                ($mockup['language'] ?? 'id') === 'en' ? 'en' : 'id'
             ),
             // filename => raw JPEG bytes, embedded into the theme and
             // uploaded to the Media Library the first time the theme is

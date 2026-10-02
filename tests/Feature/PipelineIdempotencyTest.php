@@ -77,7 +77,7 @@ function imageApi(int $budget): ArrayObject
     $api = new ArrayObject(['budget' => $budget, 'asked' => []]);
 
     Http::fake(['api.openai.com/v1/images/generations' => function ($request) use ($api) {
-        preg_match('/Subject: "(.*?)"/', (string) ($request->data()['prompt'] ?? ''), $m);
+        preg_match('/Scene: (.+?)(?: - |\. The scene)/', (string) ($request->data()['prompt'] ?? ''), $m);
         $subject = $m[1] ?? 'unknown';
 
         $asked = $api['asked'];

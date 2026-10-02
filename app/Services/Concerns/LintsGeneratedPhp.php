@@ -2,6 +2,7 @@
 
 namespace App\Services\Concerns;
 
+use App\Exceptions\ProviderException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 
@@ -33,7 +34,7 @@ trait LintsGeneratedPhp
             return $result->successful();
         } catch (\Throwable $e) {
             Log::info('PHP-lint AI-generated file dilewati (php -l tidak tersedia di environment ini).', [
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
             return true;
         } finally {

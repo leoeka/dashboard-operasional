@@ -36,13 +36,18 @@ class ProviderException extends \RuntimeException
         self::INVALID_RESPONSE,
     ];
 
+    public readonly ?string $detail;
+
     public function __construct(
         public readonly string $provider,
         public readonly string $errorCode,
         string $message = '',
-        public readonly ?string $detail = null,
+        ?string $detail = null,
+        public readonly ?int $httpStatus = null,
+        public readonly ?string $providerStatus = null,
     ) {
-        parent::__construct($message !== '' ? $message : self::messageFor($provider, $errorCode));
+        $this->detail = $detail === null ? null : self::sanitise($detail);
+        parent::__construct($message !== '' ? self::sanitise($message) : self::messageFor($provider, $errorCode));
     }
 
     public static function missingKey(string $provider): self
@@ -82,7 +87,7 @@ class ProviderException extends \RuntimeException
             default => self::INVALID_RESPONSE,
         };
 
-        return new self($provider, $code, '', self::sanitise('HTTP ' . $status . ': ' . $response->body()));
+        return new self($provider, $code, '', 'HTTP ' . $status . ': ' . $response->body(), $status);
     }
 
     /**
@@ -95,7 +100,13 @@ class ProviderException extends \RuntimeException
             return $e;
         }
 
-        $message = strtolower($e->getMessage());
+        if ($e instanceof \Illuminate\Http\Client\RequestException) {
+            return self::fromResponse($provider, $e->response);
+        }
+
+        $httpStatus = $e instanceof \Gemini\Exceptions\ErrorException ? $e->getErrorCode() : null;
+        $providerStatus = $e instanceof \Gemini\Exceptions\ErrorException ? $e->getErrorStatus() : null;
+        $message = strtolower($e->getMessage().' '.$httpStatus.' '.$providerStatus);
         $mentions = fn (array $needles) => (bool) array_filter($needles, fn ($n) => str_contains($message, $n));
 
         $code = match (true) {
@@ -106,7 +117,7 @@ class ProviderException extends \RuntimeException
             default => self::INVALID_RESPONSE,
         };
 
-        return new self($provider, $code, '', self::sanitise($e->getMessage()));
+        return new self($provider, $code, '', $e->getMessage(), $httpStatus, $providerStatus);
     }
 
     /** Whether trying again, unchanged, could plausibly succeed. */
@@ -122,7 +133,10 @@ class ProviderException extends \RuntimeException
             'provider' => $this->provider,
             'error_code' => $this->errorCode,
             'detail' => $this->detail,
-        ]);
+            'http_status' => $this->httpStatus,
+            'provider_status' => $this->providerStatus,
+            'retryable' => $this->isTransient(),
+        ], fn ($value) => $value !== null && $value !== '');
     }
 
     private static function messageFor(string $provider, string $code): string
@@ -153,11 +167,16 @@ class ProviderException extends \RuntimeException
     public static function sanitise(string $detail): string
     {
         $patterns = [
+            // Headers may omit ':' and tokens need not have a provider prefix.
+            '/\bBearer\s+[^\s"\',;}&]+/i',
+            // Query strings, plain text and quoted JSON values (including spaces).
+            <<<'REGEX'
+~\b(?:key|(?:x[-_](?:goog[-_])?)?api[-_ ]?key|authorization|access[-_ ]?token|refresh[-_ ]?token|token|(?:client[-_ ]?)?secret|credentials?)\b["']?\s*[:=]\s*(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s&,;}]+)~i
+REGEX,
             '/\bsk-[A-Za-z0-9_\-]{8,}/',          // OpenAI
             '/\bAIza[A-Za-z0-9_\-]{8,}/',          // Google
             '/\bsk-ant-[A-Za-z0-9_\-]{8,}/',       // Anthropic
             '/\bAQ\.[A-Za-z0-9_\-]{8,}/',          // Google OAuth-style token
-            '/(?i)(bearer|api[_-]?key|x-api-key|authorization)\s*[:=]\s*\S+/',
         ];
 
         $clean = preg_replace($patterns, '[redacted]', $detail) ?? '';

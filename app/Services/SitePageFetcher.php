@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -68,7 +69,7 @@ class SitePageFetcher
 
             return trim($body) === '' ? null : mb_substr($body, 0, 3 * 1024 * 1024);
         } catch (\Throwable $e) {
-            Log::info('SitePageFetcher: gagal mengambil ' . $url, ['error' => $e->getMessage()]);
+            Log::info('SitePageFetcher: gagal mengambil ' . ProviderException::sanitise($url), ['error' => ProviderException::sanitise($e->getMessage())]);
             return null;
         }
     }
@@ -86,7 +87,7 @@ class SitePageFetcher
                 ->withOptions(['allow_redirects' => false])
                 ->get($url);
         } catch (\Throwable $e) {
-            Log::info('SitePageFetcher: rawGet gagal ' . $url, ['error' => $e->getMessage()]);
+            Log::info('SitePageFetcher: rawGet gagal ' . ProviderException::sanitise($url), ['error' => ProviderException::sanitise($e->getMessage())]);
             return null;
         }
     }

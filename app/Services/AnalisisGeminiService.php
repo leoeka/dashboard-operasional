@@ -37,16 +37,7 @@ class AnalisisGeminiService
         // =====================================================
         // TAHAP 1: GEMINI -> Analisis Bisnis & Target Pasar
         // =====================================================
-        try {
-            $businessAnalysis = $this->analyzeBusinessWithGemini($project, $client, $competitorContents);
-        } catch (\Throwable $e) {
-            Log::warning('Gemini tidak tersedia, memakai analisis bisnis fallback.', [
-                'project_id' => $project->id,
-                'error' => $e->getMessage(),
-            ]);
-
-            return $this->fallbackProjectAnalysis($project);
-        }
+        $businessAnalysis = $this->analyzeBusinessWithGemini($project, $client, $competitorContents);
 
         // Hard content-integrity gate: nothing the client did not supply —
         // testimonials, figures, prices, badges, competitor facts — may reach
@@ -57,11 +48,8 @@ class AnalisisGeminiService
     }
 
     /**
-     * Used both when Gemini is disabled entirely and when a live call fails
-     * — includes a minimal `language`/`sitemap` (not just the business
-     * analysis fields) since generateMockup() now reads content from here
-     * unconditionally; without it, a Gemini outage would crash mockup
-     * generation instead of degrading to a plain generic site.
+     * Local analysis for explicitly disabled AI only. Live provider failures
+     * must propagate so the pipeline can retry instead of caching fallback.
      */
     private function fallbackProjectAnalysis(Project $project): array
     {
@@ -154,6 +142,7 @@ SITEMAP & COPYWRITING RULES (this is the actual website content, not a summary o
 - Every entry in content_benchmark.must_match must appear as an actual section somewhere in sitemap.pages (pick whichever page fits it best). Every entry in content_benchmark.must_exceed must also appear as a section, and that section's description must make the stated advantage concrete and visible (e.g. if the advantage is \"same-day size-exchange, competitors take a week\", say that in the copy — don't just imply quality).
 - Each section needs a real \"type\" (hero, about, services, features, portfolio, testimonial, pricing, faq, cta, contact, footer, ...), a \"headline\", a \"description\" (1-3 sentences of real copy, not a placeholder), and a \"cta\" where the section calls for one. Card/grid-style sections (services, features, portfolio, pricing, testimonials, faq) also need 3-6 \"items\", each with its own \"title\" and \"description\".
 - Give items the fields their section type naturally has, in addition to title/description: faq items {\"question\", \"answer\"}; testimonial items {\"quote\", \"author\", \"role\"}; stats items {\"value\", \"label\"}; pricing items {\"price\", \"features\": [...]}; team items {\"name\", \"role\"}; products/services may carry a \"price\" — but ONLY with facts the client supplied (see the next rule).
+- When the business sells or books individual things — tours, activities, trips, rooms, rentals, products, menu items — give that catalogue its own section whose items read like listings: {\"title\", \"description\", \"location\", \"duration\", \"price\", \"price_unit\", \"rating\", \"reviews\"}. Fill \"location\" (area or category, e.g. \"Ubud\" or \"Bali Activities\") from the brief; fill \"duration\", \"price\", \"price_unit\" (e.g. \"/person\", \"/malam\"), \"rating\" and \"reviews\" ONLY when the client stated them, otherwise omit those keys. Visitors compare listings, so give 3-6 concrete ones the client actually offers.
 - HARD RULE — NEVER INVENT FACTS ABOUT THIS CLIENT. Only the Client/Project details and User Story above are facts about this business. Do not write any testimonial, reviewer name or role, customer/guest/client count, rating, review count, success percentage, business statistic, years of experience or founding year, award, certification, partner or client logo, price, discount, transaction count, or any other number that is not stated there. Competitor websites and design references are context for structure and tone only; nothing stated on them (names, numbers, prices, quotes, destinations presented as the client's) is ever a fact about this client.
 - When real data for such a section is not given: leave the testimonial section out, leave the stats section out, and leave prices out (no dummy or 'from Rp …' figures). Do not badge any package as \"Most Popular\", \"Recommended\" or \"Best Value\" unless the client said so. Anything you write here is checked automatically and unsupported claims are deleted.
 - Home should read like a designed page, not a list of card rows: choose the section types THIS business needs (e.g. about/story, services, stats, testimonial, gallery/portfolio, faq, cta) rather than repeating features/services twice. Do not include header, navigation or footer sections — the theme draws those.
@@ -244,12 +233,11 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                 }
 
                 if (json_last_error() !== JSON_ERROR_NONE) {
-                    Log::warning('Gemini Business Analysis: Invalid JSON, raw response logged', [
+                    Log::warning('Gemini Business Analysis: Invalid JSON, response omitted', [
                         'project_id' => $project->id,
                         'attempt' => $attempt,
                         'json_error' => json_last_error_msg(),
                         'raw_length' => strlen($responseText),
-                        'raw_response' => $responseText,
                     ]);
                     throw new \RuntimeException('Format JSON Gemini tidak valid: ' . json_last_error_msg());
                 }
@@ -273,7 +261,8 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
 
                 // Jika error sementara dan masih ada jatah retry
                 if ($isTransientError && $attempt < $maxRetries) {
-                    Log::warning("Gemini Analysis Attempt {$attempt} failed: {$e->getMessage()}. Retrying...", [
+                    Log::warning("Gemini Analysis Attempt {$attempt} failed. Retrying...", [
+                        'error' => ProviderException::sanitise($e->getMessage()),
                         'project_id' => $project->id
                     ]);
 
@@ -284,7 +273,8 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                 }
 
                 // Catat error fatal (sudah habis jatah retry / error permanen)
-                Log::error('Gemini Business Analysis Error Final: ' . $e->getMessage(), [
+                Log::error('Gemini Business Analysis Error Final', [
+                    'error' => ProviderException::sanitise($e->getMessage()),
                     'project_id' => $project->id,
                     'attempts' => $attempt,
                 ]);
@@ -434,7 +424,7 @@ Respond with ONLY valid JSON, no markdown formatting, no explanation.
                     continue;
                 }
 
-                Log::error('callGeminiJson gagal final, pesan asli: ' . $e->getMessage(), [
+                Log::error('callGeminiJson gagal final, pesan asli: ' . ProviderException::sanitise($e->getMessage()), [
                     'model' => $model,
                     'is_transient' => $isTransientError,
                     'attempts' => $attempt,
@@ -479,7 +469,7 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
         } catch (\Throwable $e) {
             Log::warning('extractCompetitorSearchContext: gagal, fallback ke Website Category.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
             return ['business_type' => $project->type ?? '', 'topics' => []];
         }
@@ -528,7 +518,7 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
         } catch (\Throwable $e) {
             Log::warning('identifyTopicsFromWebsite: gagal setelah retry, pakai fallback.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
             $result = null;
         }
@@ -586,7 +576,7 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
         } catch (\Throwable $e) {
             Log::warning('expandSeedKeywords: gagal setelah retry, pakai fallback seed asli.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
             $result = null;
         }
@@ -673,9 +663,9 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
         } catch (\Throwable $e) {
             Log::warning('selectFinalKeywords: gagal mendapatkan hasil dari Gemini setelah retry.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
-            throw $e;
+            throw ProviderException::fromThrowable('gemini', $e);
         }
 
         $result['generated_at'] = now()->toDateTimeString();

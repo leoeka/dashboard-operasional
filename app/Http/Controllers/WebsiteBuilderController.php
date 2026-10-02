@@ -292,7 +292,7 @@ class WebsiteBuilderController extends Controller
                 Log::error('PDF Error: ' . ProviderException::sanitise($e->getMessage()));
                 $this->reportProgress($project, 'failed', 0, 'Failed to create PDF proposal: ' . ProviderException::sanitise($e->getMessage()));
 
-                throw $e;
+                throw ProviderException::fromThrowable('pipeline', $e);
             }
         });
 

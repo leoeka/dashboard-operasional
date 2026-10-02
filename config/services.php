@@ -39,6 +39,12 @@ return [
         'key' => env('OPENAI_API_KEY'),
         'mockup_model' => env('OPENAI_MOCKUP_MODEL', 'gpt-5-mini'),
         'image_model' => env('OPENAI_IMAGE_MODEL', 'gpt-image-1'),
+        // `low` is cheap but draws garbled text and soft detail into mockup photos.
+        'image_quality' => env('OPENAI_IMAGE_QUALITY', 'medium'),
+        // The account's image rate limit (OpenAI tier 1: 5/min). 0 = no limit.
+        'images_per_minute' => env('OPENAI_IMAGES_PER_MINUTE', 5),
+        // Seconds one proposal run may spend on photos; the rest are filled on retry.
+        'image_time_budget' => env('OPENAI_IMAGE_TIME_BUDGET', 300),
         'mockup_candidate_count' => env('OPENAI_MOCKUP_CANDIDATE_COUNT', 3),
     ],
 

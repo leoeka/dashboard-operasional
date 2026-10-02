@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Spatie\Browsershot\Browsershot;
@@ -26,7 +27,7 @@ class ScreenshotService
 
             return $relativePath;
         } catch (\Throwable $e) {
-            Log::warning('ScreenshotService: gagal merender mockup HTML - ' . $e->getMessage());
+            Log::warning('ScreenshotService: gagal merender mockup HTML - ' . ProviderException::sanitise($e->getMessage()));
             return null;
         }
     }
@@ -59,8 +60,8 @@ class ScreenshotService
 
             return $relativePath;
         } catch (\Throwable $e) {
-            Log::warning('ScreenshotService (Browsershot): gagal ambil screenshot - ' . $e->getMessage(), [
-                'url' => $url,
+            Log::warning('ScreenshotService (Browsershot): gagal ambil screenshot - ' . ProviderException::sanitise($e->getMessage()), [
+                'url' => ProviderException::sanitise($url),
             ]);
             return null;
         }

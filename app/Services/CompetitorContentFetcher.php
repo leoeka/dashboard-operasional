@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -69,7 +70,7 @@ class CompetitorContentFetcher
     public function fetch(string $url): ?array
     {
         if (!filter_var($url, FILTER_VALIDATE_URL) || !self::isSafeUrl($url)) {
-            Log::warning('CompetitorContentFetcher: URL tidak valid atau tidak diizinkan.', ['url' => $url]);
+            Log::warning('CompetitorContentFetcher: URL tidak valid atau tidak diizinkan.', ['url' => ProviderException::sanitise($url)]);
             return null;
         }
 
@@ -85,7 +86,7 @@ class CompetitorContentFetcher
 
             if (!$response->successful()) {
                 Log::warning('CompetitorContentFetcher: request gagal.', [
-                    'url' => $url,
+                    'url' => ProviderException::sanitise($url),
                     'status' => $response->status(),
                 ]);
                 return null;
@@ -100,7 +101,7 @@ class CompetitorContentFetcher
             return $this->extractContent($html, $url);
 
         } catch (\Throwable $e) {
-            Log::error('CompetitorContentFetcher Exception: ' . $e->getMessage(), ['url' => $url]);
+            Log::error('CompetitorContentFetcher Exception: ' . ProviderException::sanitise($e->getMessage()), ['url' => ProviderException::sanitise($url)]);
             return null;
         }
     }

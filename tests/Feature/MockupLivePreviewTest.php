@@ -142,7 +142,7 @@ it('renders each section in the form its content calls for', function () {
         ->toContain('class="quote-lead"')
         ->toContain('Tur terbaik yang pernah saya ikuti.')
         // The gallery is a composed mosaic.
-        ->toContain('class="mosaic"')
+        ->toContain('class="mosaic mosaic--')
         ->toContain('tile--0')
         ->toContain('class="stats-grid"')
         ->toContain('12.000+');

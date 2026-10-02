@@ -121,7 +121,7 @@ it('photographs every photo-led V2 section and ships each photo under its own na
     Storage::fake('public');
     config(['services.openai.key' => 'test-key', 'services.anthropic.key' => 'test-anthropic-key']);
     Http::fake(['api.openai.com/*' => function ($request) {
-        preg_match('/Subject: "(.*?)"/', (string) ($request->data()['prompt'] ?? ''), $m);
+        preg_match('/Scene: (.+?)(?: - |\. The scene)/', (string) ($request->data()['prompt'] ?? ''), $m);
 
         return Http::response(['data' => [['b64_json' => base64_encode('PHOTO:' . ($m[1] ?? '?'))]]]);
     }]);

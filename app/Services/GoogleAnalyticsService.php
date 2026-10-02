@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -42,13 +43,13 @@ class GoogleAnalyticsService
                 ]);
 
                 if (!$response->successful()) {
-                    Log::error('GoogleAnalyticsService: gagal refresh access token.', ['body' => $response->body()]);
+                    Log::error('GoogleAnalyticsService: gagal refresh access token.', ['provider_error' => ProviderException::fromResponse('google', $response)->context()]);
                     return null;
                 }
 
                 return $response->json('access_token');
             } catch (\Throwable $e) {
-                Log::error('GoogleAnalyticsService: exception saat refresh token: ' . $e->getMessage());
+                Log::error('GoogleAnalyticsService: exception saat refresh token: ' . ProviderException::sanitise($e->getMessage()));
                 return null;
             }
         });
@@ -70,7 +71,7 @@ class GoogleAnalyticsService
             if (!$response->successful()) {
                 Log::warning('GoogleAnalyticsService: gagal ambil accountSummaries.', [
                     'status' => $response->status(),
-                    'body' => $response->body(),
+                    'provider_error' => ProviderException::fromResponse('google', $response)->context(),
                 ]);
                 return [];
             }
@@ -126,7 +127,11 @@ class GoogleAnalyticsService
         $host = parse_url($siteUrl, PHP_URL_HOST) ?? $siteUrl;
         $host = preg_replace('/^www\./', '', strtolower($host));
 
-        $properties = $this->listPropertiesWithUrls($accessToken);
+        try {
+            $properties = $this->listPropertiesWithUrls($accessToken);
+        } catch (\Throwable $e) {
+            throw ProviderException::fromThrowable('google', $e);
+        }
         $matches = array_values(array_filter($properties, fn($p) => $p['host'] === $host));
 
         if (count($matches) === 1) {
@@ -237,7 +242,7 @@ class GoogleAnalyticsService
             ];
 
         } catch (\Throwable $e) {
-            Log::error('GoogleAnalyticsService Exception: ' . $e->getMessage(), ['property_id' => $propertyId]);
+            Log::error('GoogleAnalyticsService Exception: ' . ProviderException::sanitise($e->getMessage()), ['property_id' => $propertyId]);
             return null;
         }
     }
@@ -252,7 +257,7 @@ class GoogleAnalyticsService
             Log::warning('GoogleAnalyticsService: runReport gagal.', [
                 'property_id' => $propertyId,
                 'status' => $response->status(),
-                'body' => $response->body(),
+                'provider_error' => ProviderException::fromResponse('google', $response)->context(),
             ]);
             return [];
         }

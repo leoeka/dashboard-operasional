@@ -30,10 +30,45 @@ class ContentIntegrityService
 {
     /** Sentence-level claims that need no digit to be a factual assertion. */
     private const CLAIM_PHRASES = [
-        'award', 'penghargaan', 'certified', 'certification', 'bersertifikat', 'sertifikasi', 'tersertifikasi',
-        'accredited', 'terakreditasi', 'licensed', 'berlisensi', 'trusted by', 'dipercaya oleh', 'rated',
-        'rating', 'five-star', 'five star', 'bintang lima', '#1', 'nomor satu', 'number one', 'terbaik di',
-        'best in', 'official partner', 'mitra resmi', 'partner resmi', 'as seen on', 'featured in', 'diliput',
+        'award',
+        'penghargaan',
+        'certified',
+        'certification',
+        'bersertifikat',
+        'sertifikasi',
+        'tersertifikasi',
+        'accredited',
+        'terakreditasi',
+        'licensed',
+        'berlisensi',
+        'trusted by',
+        'dipercaya oleh',
+        'rated',
+        'rating',
+        'five-star',
+        'five star',
+        'bintang lima',
+        '#1',
+        'nomor satu',
+        'number one',
+        'terbaik di',
+        'best in',
+        'official partner',
+        'mitra resmi',
+        'partner resmi',
+        'as seen on',
+        'featured in',
+        'diliput',
+    ];
+
+    private const OPERATIONAL_CLAIM_PHRASES = [
+        'flight tracking',
+        'track your flight',
+        'track flights',
+        'waiting fee',
+        'waiting fees',
+        'additional waiting fee',
+        'additional waiting fees',
     ];
 
     /**
@@ -42,13 +77,31 @@ class ContentIntegrityService
      * copy ("Destinasi Unggulan") and must not be stripped from text.
      */
     private const BADGE_PHRASES = [
-        'most popular', 'paling populer', 'best value', 'best seller', 'bestseller', 'terlaris', 'paling laris',
+        'most popular',
+        'paling populer',
+        'best value',
+        'best seller',
+        'bestseller',
+        'terlaris',
+        'paling laris',
     ];
 
     /** Words by which the client may single out a tier themselves. */
     private const HIGHLIGHT_PHRASES = [
-        'most popular', 'paling populer', 'recommended', 'rekomendasi', 'direkomendasikan', 'best value',
-        'best seller', 'bestseller', 'terlaris', 'paling laris', 'favorit', 'favorite', 'featured', 'unggulan',
+        'most popular',
+        'paling populer',
+        'recommended',
+        'rekomendasi',
+        'direkomendasikan',
+        'best value',
+        'best seller',
+        'bestseller',
+        'terlaris',
+        'paling laris',
+        'favorit',
+        'favorite',
+        'featured',
+        'unggulan',
     ];
 
     private const HIGHLIGHT_KEYS = ['featured', 'is_featured', 'highlight', 'highlighted', 'recommended', 'popular', 'badge'];
@@ -127,9 +180,14 @@ class ContentIntegrityService
     public function evidence(Project $project, ?Client $client): string
     {
         $parts = [
-            $project->name, $project->client_name, $project->website_name, $project->type,
-            $project->description, $project->target_market,
-            $this->flatten($project->seo_requirements), $this->flatten($project->backlink_requirements),
+            $project->name,
+            $project->client_name,
+            $project->website_name,
+            $project->type,
+            $project->description,
+            $project->target_market,
+            $this->flatten($project->seo_requirements),
+            $this->flatten($project->backlink_requirements),
         ];
 
         if ($client) {
@@ -138,7 +196,7 @@ class ContentIntegrityService
             }
         }
 
-        return implode("\n", array_filter(array_map(fn ($p) => is_scalar($p) ? (string) $p : '', $parts)));
+        return implode("\n", array_filter(array_map(fn($p) => is_scalar($p) ? (string) $p : '', $parts)));
     }
 
     /** One section, or null when nothing truthful is left of it. */
@@ -176,7 +234,7 @@ class ContentIntegrityService
             return null;
         }
 
-        if (!$isHero && $isPricing && $hadItems && !array_filter($items, fn ($i) => is_array($i) && array_intersect_key($i, array_flip(self::PRICE_KEYS)))) {
+        if (!$isHero && $isPricing && $hadItems && !array_filter($items, fn($i) => is_array($i) && array_intersect_key($i, array_flip(self::PRICE_KEYS)))) {
             $this->log($where, 'pricing section without client-supplied prices', (string) ($section['headline'] ?? ''));
 
             return null;
@@ -231,13 +289,13 @@ class ContentIntegrityService
                 $item[$key] = $this->cleanText($value, "{$where} {$key}");
             } elseif (is_array($value) && array_is_list($value)) {
                 $item[$key] = array_values(array_filter(array_map(
-                    fn ($v) => is_string($v) ? $this->cleanText($v, "{$where} {$key}") : $v,
+                    fn($v) => is_string($v) ? $this->cleanText($v, "{$where} {$key}") : $v,
                     $value
-                ), fn ($v) => $v !== ''));
+                ), fn($v) => $v !== ''));
             }
         }
 
-        $hasContent = array_filter($item, fn ($v) => (is_string($v) && trim($v) !== '') || (is_array($v) && $v));
+        $hasContent = array_filter($item, fn($v) => (is_string($v) && trim($v) !== '') || (is_array($v) && $v));
 
         return $hasContent ? $item : null;
     }
@@ -310,14 +368,27 @@ class ContentIntegrityService
         }
 
         foreach (self::CLAIM_PHRASES as $phrase) {
-            if (str_contains($lower, $phrase) && !str_contains($this->evidence, $phrase)) {
+            if (
+                $this->hasPhrase($lower, $phrase) && !$this->hasPhrase($this->evidence, $phrase)
+            ) {
                 return 'claim not supplied by the client';
             }
         }
 
+        foreach (self::OPERATIONAL_CLAIM_PHRASES as $phrase) {
+            if (
+                $this->hasPhrase($lower, $phrase)
+                && !$this->hasPhrase($this->evidence, $phrase)
+            ) {
+                return 'service capability not supplied by the client';
+            }
+        }
+
         foreach (self::HIGHLIGHT_PHRASES as $phrase) {
-            if (preg_match('/\b' . preg_quote($phrase, '/') . '\b/u', $lower) && !str_contains($this->evidence, $phrase)) {
-                return 'badge not supplied by the client';
+            if (
+                $this->hasPhrase($lower, $phrase) && !$this->hasPhrase($this->evidence, $phrase)
+            ) {
+                return 'claim not supplied by the client';
             }
         }
 
@@ -353,7 +424,7 @@ class ContentIntegrityService
     {
         preg_match_all('/\d+(?:[.,]\d+)*/u', $text, $matches);
 
-        return array_values(array_unique(array_map(fn ($n) => preg_replace('/\D/', '', $n), $matches[0])));
+        return array_values(array_unique(array_map(fn($n) => preg_replace('/\D/', '', $n), $matches[0])));
     }
 
     /**
@@ -364,7 +435,7 @@ class ContentIntegrityService
     private function foreignNames(Project $project, array $competitorContents): array
     {
         $urls = array_filter(array_merge(
-            array_map(fn ($c) => is_array($c) ? ($c['url'] ?? null) : null, $competitorContents),
+            array_map(fn($c) => is_array($c) ? ($c['url'] ?? null) : null, $competitorContents),
             [$project->design_reference_url]
         ));
 
@@ -382,7 +453,7 @@ class ContentIntegrityService
             }
         }
 
-        return array_values(array_filter(array_unique($names), fn ($name) => mb_strlen($name) >= 4 && !str_contains($this->evidence, $name)));
+        return array_values(array_filter(array_unique($names), fn($name) => mb_strlen($name) >= 4 && !str_contains($this->evidence, $name)));
     }
 
     /** Whether any of the words starts a word in the text ("review" is not "preview"). */
@@ -411,7 +482,7 @@ class ContentIntegrityService
     private function flatten(mixed $value): string
     {
         if (is_array($value)) {
-            return implode(' ', array_map(fn ($v) => $this->flatten($v), $value));
+            return implode(' ', array_map(fn($v) => $this->flatten($v), $value));
         }
 
         return is_scalar($value) ? (string) $value : '';

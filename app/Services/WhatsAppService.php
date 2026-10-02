@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\ProviderException;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -46,22 +47,21 @@ class WhatsAppService
             if (!$success) {
                 Log::warning('WhatsApp (Fonnte): gagal mengirim pesan.', [
                     'phone' => $normalizedPhone,
-                    'reason' => $result['reason'] ?? 'unknown',
-                    'raw_response' => $result,
+                    'reason' => ProviderException::sanitise((string) ($result['reason'] ?? 'unknown')),
                 ]);
                 return false;
             }
 
             Log::info('WhatsApp (Fonnte): pesan berhasil dikirim / masuk antrian.', [
                 'phone' => $normalizedPhone,
-                'detail' => $result['detail'] ?? null,
-                'message_id' => $result['id'] ?? null,
+                'detail' => ProviderException::sanitise((string) ($result['detail'] ?? '')),
+                'message_id' => ProviderException::sanitise((string) ($result['id'] ?? '')),
             ]);
 
             return true;
 
         } catch (\Throwable $e) {
-            Log::error('WhatsApp (Fonnte) Exception: ' . $e->getMessage(), [
+            Log::error('WhatsApp (Fonnte) Exception: ' . ProviderException::sanitise($e->getMessage()), [
                 'phone' => $normalizedPhone,
             ]);
             return false;

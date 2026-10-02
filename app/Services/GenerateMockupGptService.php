@@ -119,6 +119,7 @@ COMPOSITION — this is the part that decides whether the page looks designed or
 ART DIRECTION — Do not design a generic WordPress page. Every page must have a deliberate visual rhythm, the way a premium editorial or travel site alternates immersive imagery, dense information, quiet whitespace, social proof and a promotional band.
 Avoid: repeated 3-column card rows; every section inside rounded cards; heavy shadows; large border radius everywhere; a generic SaaS hero; left-text/right-image heroes on every project; gradients everywhere; identical image ratios on every section; centred text on every section.
 Cards are optional. Where the content suits them, prefer: asymmetric composition, editorial text/image splits, full-bleed imagery, alternating media rows, stats bands, a led testimonial, galleries, FAQ lists, promotional CTA bands, generous whitespace, varied image ratios (e.g. 4:5 portrait beside 16:9 landscape) and a strong type hierarchy.
+A section marked "listing" is a catalogue of tours, rooms or products a visitor compares before booking: prefer listing_cards there (photo, location/duration, rating, price, a details button) — that is what converts for travel and retail sites.
 Two neighbouring sections should not share a composition. Before settling each one, ask: "Would a professional designer intentionally make this layout decision?" If not, choose another composition from that section's list.
 
 SECTIONS TO DESIGN — every section of every page, identified by page and index. You may only choose a composition from that section's own list (the list is what its content can actually fill); never invent one:
@@ -422,7 +423,7 @@ PROMPT;
         } catch (\Throwable $e) {
             Log::warning('Ekstraksi design profile dari referensi gagal; lanjut tanpa profile.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
 
             return null;
@@ -792,6 +793,8 @@ PROMPT;
             . implode('; ', $failures) . '.' . ($cause ? ' ' . $cause->getMessage() : '')
             . ' Opsi yang sudah jadi tetap tersimpan — retry hanya melengkapi yang kurang.',
             $cause?->detail,
+            $cause?->httpStatus,
+            $cause?->providerStatus,
         );
     }
 
@@ -1002,8 +1005,8 @@ PROMPT;
             return 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($fullPath));
         } catch (\Throwable $e) {
             Log::warning('GenerateMockupGptService: gagal mengambil screenshot referensi desain.', [
-                'url' => $url,
-                'error' => $e->getMessage(),
+                'url' => ProviderException::sanitise($url),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
 
             return null;
@@ -1147,7 +1150,7 @@ PROMPT;
         } catch (\Throwable $e) {
             Log::warning('Design reference image could not be attached to AI mockup request.', [
                 'project_id' => $project->id,
-                'error' => $e->getMessage(),
+                'error' => ProviderException::sanitise($e->getMessage()),
             ]);
 
             return null;
