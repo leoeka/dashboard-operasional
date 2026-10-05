@@ -6,6 +6,7 @@ use App\Models\BillingReminderLog;
 use App\Models\Invoice;
 use App\Services\Billing\BillingClock;
 use App\Services\Billing\ReminderPolicy;
+use Carbon\Carbon;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
 
@@ -14,16 +15,22 @@ use Illuminate\Queue\SerializesModels;
  *
  * Separate from InvoiceReminderMail rather than shared with it: that one is
  * written around a project — it names the project and its DP/Pelunasan type —
- * and a hosting renewal has neither. Reusing it would have meant threading
- * conditionals through a template that legacy invoices still depend on.
+ * and a hosting renewal has neither.
  *
  * The first threshold of a cycle (H-30 yearly, H-7 monthly) is the same message
  * that announces the invoice, so a client gets one email that day, not an
  * "invoice created" and a "reminder" arriving together.
+ *
+ * Wording is driven by the REAL days left until the due date (not by the
+ * threshold number stored on the log), and every sentence states the actual
+ * dates and amount. That way the text can never disagree with the invoice,
+ * whatever the reminder schedule is configured to.
  */
 class BillingRenewalReminderMail extends Mailable
 {
     use SerializesModels;
+
+    private ?int $daysLeft = null;
 
     public function __construct(
         public Invoice $invoice,
@@ -39,41 +46,80 @@ class BillingRenewalReminderMail extends Mailable
             ->view('emails.billing-renewal-reminder', $this->viewData());
     }
 
-    /**
-     * Wording follows the threshold, because the same sentence cannot do both
-     * jobs: a month out this is information a client files away, and the day
-     * before it is something they need to act on. Never alarming — a renewal
-     * notice is a service, not a demand.
-     */
     private function subjectLine(): string
     {
         $service = $this->serviceName();
         $number = $this->invoice->invoice_number;
-        $days = $this->log->days_before;
+        $days = $this->daysRemaining();
 
         if ($this->isFirstNotice()) {
             return "Pemberitahuan Perpanjangan {$service} – Invoice {$number}";
         }
 
-        return match ($days) {
-            1 => "Invoice {$number} Jatuh Tempo Besok – {$service}",
+        return match (true) {
+            $days < 0 => "Invoice {$number} Telah Melewati Jatuh Tempo – {$service}",
+            $days === 0 => "Invoice {$number} Jatuh Tempo Hari Ini – {$service}",
+            $days === 1 => "Invoice {$number} Jatuh Tempo Besok – {$service}",
             default => "Pengingat Invoice {$number} – Jatuh Tempo {$days} Hari Lagi",
         };
     }
 
-    /** The opening line, in the same register as the subject. */
-    private function intro(): string
+    private function heading(): string
     {
-        $days = $this->log->days_before;
-
         if ($this->isFirstNotice()) {
-            return 'Layanan Anda akan segera memasuki periode perpanjangan. Berikut invoice untuk periode berikutnya sebagai informasi awal.';
+            return 'Perpanjangan Layanan';
         }
 
-        return match ($days) {
-            1 => 'Invoice berikut jatuh tempo besok. Mohon diselesaikan agar layanan Anda berjalan tanpa jeda.',
-            3 => 'Invoice berikut akan jatuh tempo dalam 3 hari. Kami informasikan agar Anda punya waktu menyiapkannya.',
-            default => 'Kami ingin mengingatkan bahwa invoice berikut akan segera jatuh tempo.',
+        return $this->daysRemaining() < 0
+            ? 'Invoice Melewati Jatuh Tempo'
+            : 'Pengingat Pembayaran';
+    }
+
+    /**
+     * Opening paragraph. States the concrete facts (service, dates, amount) so
+     * the client does not have to hunt for them in the table below.
+     */
+    private function intro(): string
+    {
+        $days = $this->daysRemaining();
+        $service = $this->serviceName();
+        $due = $this->date($this->invoice->due_date);
+        $amount = $this->rupiah($this->invoice->amount);
+
+        if ($this->isFirstNotice()) {
+            // The renewal invoice is created with due_date = the subscription's
+            // renewal date (BillingRenewalService::createRenewalInvoice), so one
+            // date serves both; naming it twice would only read as repetition.
+            return "Layanan {$service} Anda akan diperpanjang pada {$due}. "
+                . "Kami telah menerbitkan invoice perpanjangan sebesar {$amount}, "
+                . 'yang jatuh tempo pada tanggal tersebut. Email ini kami kirim lebih awal '
+                . 'agar Anda dapat menyiapkan pembayaran.';
+        }
+
+        return match (true) {
+            $days < 0 => "Invoice perpanjangan {$service} sebesar {$amount} telah melewati jatuh tempo "
+                . 'pada ' . $due . ' (' . abs($days) . ' hari yang lalu) dan pembayarannya belum kami terima. '
+                . 'Mohon segera diselesaikan agar layanan Anda tetap berjalan tanpa gangguan.',
+            $days === 0 => "Invoice perpanjangan {$service} sebesar {$amount} jatuh tempo hari ini ({$due}). "
+                . 'Mohon pembayaran diselesaikan hari ini agar layanan Anda berjalan tanpa jeda.',
+            $days === 1 => "Invoice perpanjangan {$service} sebesar {$amount} jatuh tempo besok ({$due}). "
+                . 'Mohon pembayaran diselesaikan agar layanan Anda berjalan tanpa jeda.',
+            default => "Kami mengingatkan bahwa invoice perpanjangan {$service} sebesar {$amount} "
+                . "akan jatuh tempo pada {$due} ({$days} hari lagi). "
+                . 'Mohon pembayaran dapat diselesaikan sebelum tanggal tersebut.',
+        };
+    }
+
+    /** Short note shown next to the due date in the table. */
+    private function dueNote(): string
+    {
+        $days = $this->daysRemaining();
+
+        return match (true) {
+            $days < 0 => 'terlambat ' . abs($days) . ' hari',
+            $days === 0 => 'hari ini',
+            $days === 1 => 'besok',
+            default => "{$days} hari lagi",
         };
     }
 
@@ -99,24 +145,33 @@ class BillingRenewalReminderMail extends Mailable
     {
         $subscription = $this->invoice->subscription;
         $client = $this->invoice->billableClient();
+        $days = $this->daysRemaining();
 
         return [
             'invoice' => $this->invoice,
+            'heading' => $this->heading(),
             'clientName' => $client?->billingName() ?: ($client?->company_name ?? 'Pelanggan'),
-            'companyName' => $client?->company_name,
             'serviceName' => $this->serviceName(),
             'serviceType' => $subscription?->service_type,
             'billingCycle' => $subscription?->isYearly() ? 'Tahunan' : ($subscription ? 'Bulanan' : null),
             'amount' => $this->rupiah($this->invoice->amount),
-            'currency' => $this->invoice->currency,
-            'renewalDate' => $subscription?->next_renewal_date,
-            'dueDate' => $this->invoice->due_date,
-            'daysRemaining' => $this->daysRemaining(),
-            'periodStart' => $this->invoice->billing_period_start,
-            'periodEnd' => $this->invoice->billing_period_end,
+            'renewalDate' => $this->date($subscription?->next_renewal_date),
+            'dueDate' => $this->date($this->invoice->due_date),
+            'dueNote' => $this->dueNote(),
+            'isOverdue' => $days < 0,
+            'isDueSoon' => $days >= 0 && $days <= 1,
+            'period' => $this->period(),
             'intro' => $this->intro(),
             'items' => $this->invoice->items,
         ];
+    }
+
+    private function period(): ?string
+    {
+        $start = $this->date($this->invoice->billing_period_start);
+        $end = $this->date($this->invoice->billing_period_end);
+
+        return ($start && $end) ? "{$start} – {$end}" : null;
     }
 
     /**
@@ -125,8 +180,16 @@ class BillingRenewalReminderMail extends Mailable
      */
     private function daysRemaining(): int
     {
-        return (int) $this->clock->businessDate($this->clock->today())
+        return $this->daysLeft ??= (int) $this->clock->businessDate($this->clock->today())
             ->diffInDays($this->clock->businessDate($this->invoice->due_date), false);
+    }
+
+    /** Always Indonesian ("Okt", "Januari"), regardless of APP_LOCALE on the server. */
+    private function date(mixed $date): ?string
+    {
+        return $date
+            ? Carbon::parse($date)->locale('id')->translatedFormat('j F Y')
+            : null;
     }
 
     private function rupiah(mixed $amount): string

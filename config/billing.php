@@ -23,4 +23,12 @@ return [
 
     'timezone' => env('BILLING_TIMEZONE', 'Asia/Makassar'),
 
+    'payment' => [
+        'bank_name'        => env('BILLING_BANK_NAME'),
+        'bank_account'     => env('BILLING_BANK_ACCOUNT'),
+        'account_holder'   => env('BILLING_ACCOUNT_HOLDER'),
+        'contact_email'    => env('BILLING_CONTACT_EMAIL'),
+        'contact_whatsapp' => env('BILLING_CONTACT_WA'),
+    ],
+
 ];

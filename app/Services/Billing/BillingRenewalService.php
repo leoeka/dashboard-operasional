@@ -428,7 +428,8 @@ class BillingRenewalService
     private function lineDescription(BillingSubscription $subscription, array $period): string
     {
         return $subscription->name . ' — '
-            . $period['start']->translatedFormat('d M Y') . ' s/d ' . $period['end']->translatedFormat('d M Y');
+            . $period['start']->locale('id')->translatedFormat('d M Y') . ' s/d '
+            . $period['end']->locale('id')->translatedFormat('d M Y');
     }
 
     /**

@@ -75,11 +75,22 @@ class BillingCycle
     }
 
     /**
-     * One period past $from, measured from the subscription's own anchor date.
+     * The first renewal date strictly after $from, measured from the
+     * subscription's own anchor date.
      *
-     * The number of elapsed periods is counted from the anchor to $from, then
-     * one more is added and applied to the anchor — so the day of month always
-     * comes from the anchor and never from an already-clamped intermediate date.
+     * The day of month always comes from the anchor and never from an
+     * already-clamped intermediate date. The steps:
+     *
+     * 1. Find the first anniversary of the anchor that falls AFTER $from.
+     * 2. If $from itself is an anniversary (the normal case), that one is the
+     *    answer.
+     * 3. If $from is NOT on the anchor's grid — e.g. start_date is 5 October but
+     *    the first renewal was entered as 14 October — the anchor says nothing
+     *    useful about this date. Counting "the next anniversary" would then
+     *    return a date less than a full cycle away, or, as this used to do,
+     *    skip an entire extra cycle (14 Oct 2026 -> 4 Oct 2028 for a yearly
+     *    plan). So $from becomes its own anchor and the period is exactly one
+     *    cycle long.
      */
     private function advanceFromAnchor(BillingSubscription $subscription, CarbonImmutable $from): CarbonImmutable
     {
@@ -91,24 +102,29 @@ class BillingCycle
             $anchor = $from;
         }
 
-        if ($subscription->isYearly()) {
-            $elapsed = (int) $anchor->diffInYears($from);
+        $yearly = $subscription->isYearly();
 
-            // Guard against an off-by-one when $from sits a hair under a whole
-            // period because of the clamping described above.
-            while ($anchor->addYearsNoOverflow($elapsed)->lessThan($from)) {
-                $elapsed++;
-            }
+        $at = fn (int $periods): CarbonImmutable => $yearly
+            ? $anchor->addYearsNoOverflow($periods)
+            : $anchor->addMonthsNoOverflow($periods);
 
-            return $anchor->addYearsNoOverflow($elapsed + 1);
+        $elapsed = (int) ($yearly ? $anchor->diffInYears($from) : $anchor->diffInMonths($from));
+
+        // The whole-period count above can land one too high or one too low
+        // around clamped month ends, so settle it by comparison, not trust.
+        while ($elapsed > 0 && $at($elapsed)->greaterThan($from)) {
+            $elapsed--;
         }
 
-        $elapsed = (int) $anchor->diffInMonths($from);
-
-        while ($anchor->addMonthsNoOverflow($elapsed)->lessThan($from)) {
+        while (!$at($elapsed)->greaterThan($from)) {
             $elapsed++;
         }
 
-        return $anchor->addMonthsNoOverflow($elapsed + 1);
+        // $at($elapsed) is now the first anniversary strictly after $from.
+        if (!$at($elapsed - 1)->equalTo($from)) {
+            return $yearly ? $from->addYearsNoOverflow(1) : $from->addMonthsNoOverflow(1);
+        }
+
+        return $at($elapsed);
     }
 }
