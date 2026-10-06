@@ -58,7 +58,6 @@ final class MockupDesignSpec
             'hero_image_width' => '50%',
             'hero_copy_max_width' => 560,
             'hero_copy_font_size' => 18,
-            'hero_image_height' => 380,
             'hero_image_radius' => 16,
             // .hero.split-left softens the photo corners.
             'hero_image_radius_soft' => 28,
@@ -87,8 +86,6 @@ final class MockupDesignSpec
             'card_padding' => 16,
             'card_border_color' => '#eae5dd',
             'card_border_width' => 1,
-            'card_image_height' => 150,
-            'card_image_height_soft' => 170,
 
             // ---- footer ----
             'footer_bg' => '#1c1a17',
