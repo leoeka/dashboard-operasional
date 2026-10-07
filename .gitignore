@@ -22,3 +22,10 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+
+# Local agent skills and anti-slop review notes
+/.agents/skills/antislop*/
+/.claude/skills/antislop*/
+/.codex/skills/antislop*/
+/.cursor/skills/antislop*/
+/anti-slop/
