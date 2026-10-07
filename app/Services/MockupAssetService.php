@@ -45,7 +45,6 @@ class MockupAssetService
     /** Sidecar recording what each persisted photograph was drawn for. */
     private const SUBJECTS_FILE = 'slot-subjects.json';
 
-    private const PROMPT_VERSION = 'v3';
     /**
      * Why the last photo request failed, if it did. Kept so the caller can
      * report "OpenAI image quota exhausted" rather than the useless "no
@@ -122,11 +121,6 @@ class MockupAssetService
 
         if (!$slots) {
             return $this->empty();
-        }
-
-        $brief = $this->businessBrief($project, $mockup);
-        foreach ($slots as $key => $slot) {
-            $slots[$key]['brief'] = $brief;
         }
 
         $directory = $this->candidateDirectory($project, $candidateNumber);
@@ -540,12 +534,7 @@ class MockupAssetService
 
     private function subjectHash(array $slot): string
     {
-        return sha1(
-            self::PROMPT_VERSION
-            . '|' . trim((string) $slot['subject'])
-            . '|' . trim((string) ($slot['context'] ?? ''))
-            . '|' . trim((string) ($slot['brief'] ?? ''))
-        );
+        return sha1(trim((string) $slot['subject']) . '|' . trim((string) ($slot['context'] ?? '')));
     }
 
     /**
@@ -704,7 +693,7 @@ class MockupAssetService
             return [];
         }
 
-        // $businessType = $project->type ?: 'business';
+        $businessType = $project->type ?: 'business';
         $photography = $this->photographyDirection($visualDirection);
         $pending = $slots;
         $attempts = [];
@@ -724,7 +713,7 @@ class MockupAssetService
             $wave = array_slice($pending, 0, $capacity, true);
 
             try {
-                $responses = Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($wave, $apiKey, $photography) {
+                $responses = Http::pool(function (\Illuminate\Http\Client\Pool $pool) use ($wave, $apiKey, $businessType, $photography) {
                     $requests = [];
 
                     foreach ($wave as $key => $slot) {
@@ -735,7 +724,7 @@ class MockupAssetService
                             ->asJson()
                             ->post('https://api.openai.com/v1/images/generations', [
                                 'model' => config('services.openai.image_model', 'gpt-image-1'),
-                                'prompt' => $this->photoPrompt($slot, $photography),
+                                'prompt' => $this->photoPrompt($slot, $businessType, $photography),
                                 'size' => $this->photoSize($slot['image_ratio'] ?? '4:3'),
                                 'quality' => config('services.openai.image_quality', 'medium'),
                                 'output_format' => 'jpeg',
@@ -758,22 +747,12 @@ class MockupAssetService
                 $response = $responses[$key] ?? null;
 
                 if ($response instanceof \Illuminate\Http\Client\Response && $response->successful()) {
+                    unset($pending[$key]);
                     $base64 = $response->json('data.0.b64_json');
                     $bytes = $base64 ? base64_decode($base64, true) : null;
 
                     if (is_string($bytes) && $bytes !== '') {
-                        if ($this->reviewGeneratedImage($bytes, $pending[$key])) {
-                            unset($pending[$key]);
-                            $generated[$key] = ['bytes' => $bytes, 'extension' => 'jpg', 'source' => 'generated'];
-                        } else {
-                            $attempts[$key] = ($attempts[$key] ?? 0) + 1;
-                            Log::warning('MockupAssetService: foto ditolak pemeriksaan visual.', ['slot' => $key, 'attempt' => $attempts[$key]]);
-                            if ($attempts[$key] >= 2) {
-                                unset($pending[$key]);
-                            }
-                        }
-                    } else {
-                        unset($pending[$key]);
+                        $generated[$key] = ['bytes' => $bytes, 'extension' => 'jpg', 'source' => 'generated'];
                     }
                     continue;
                 }
@@ -802,51 +781,6 @@ class MockupAssetService
         }
 
         return $generated;
-    }
-
-    /** Reject obvious text, poster layouts, collages, and unusable generated photos. */
-    private function reviewGeneratedImage(string $bytes, array $slot): bool
-    {
-        if (!config('services.openai.review_generated_images', true)) {
-            return true;
-        }
-
-        $apiKey = config('services.openai.key');
-        if (!$apiKey) {
-            return false;
-        }
-
-        $response = Http::timeout(90)->withToken($apiKey)->asJson()->post('https://api.openai.com/v1/responses', [
-            'model' => config('services.openai.image_review_model', 'gpt-4.1-mini'),
-            'input' => [[
-                'role' => 'user',
-                'content' => [
-                    ['type' => 'input_text', 'text' => 'Review this generated website photo. Return JSON only: {"accepted":true|false,"reason":"short reason"}. Accept only a coherent, usable photograph of one scene matching this subject: ' . (string) ($slot['subject'] ?? 'business photo') . '. Reject visible text/lettering, watermarks, logos, poster or screenshot appearance, split panels/collages, severe distortions, and unusable blur. Do not reject ordinary signs naturally present in a real scene unless they dominate the image.'],
-                    ['type' => 'input_image', 'image_url' => 'data:image/jpeg;base64,' . base64_encode($bytes)],
-                ],
-            ]],
-            'text' => ['format' => ['type' => 'json_object']],
-        ]);
-
-        if (!$response->successful()) {
-            Log::warning('MockupAssetService: review visual foto gagal.', ['slot' => $slot['slot'] ?? 'unknown', 'status' => $response->status()]);
-            return false;
-        }
-
-        $text = $response->json('output_text');
-        if (!is_string($text)) {
-            foreach ($response->json('output', []) as $output) {
-                foreach (($output['content'] ?? []) as $content) {
-                    if (($content['type'] ?? null) === 'output_text' && is_string($content['text'] ?? null)) {
-                        $text = $content['text'];
-                        break 2;
-                    }
-                }
-            }
-        }
-
-        $review = is_string($text) ? json_decode($text, true) : null;
-        return is_array($review) && ($review['accepted'] ?? false) === true;
     }
 
     /** @var array<int, float> when each recent image request went out, across every candidate of this run */
@@ -883,7 +817,7 @@ class MockupAssetService
 
         return $this->imageRequestTimes = array_values(array_filter(
             $this->imageRequestTimes,
-            fn(float $at) => $now - $at < 60
+            fn (float $at) => $now - $at < 60
         ));
     }
 
@@ -926,7 +860,7 @@ class MockupAssetService
      * So the copy is described as a scene, and only a photographic direction
      * (light, colour, lens) is passed on.
      */
-    private function photoPrompt(array $slot, string $photography): string
+    private function photoPrompt(array $slot, string $businessType, string $photography): string
     {
         $ratio = $slot['image_ratio'] ?? '4:3';
         $orientation = match ($ratio) {
@@ -937,11 +871,11 @@ class MockupAssetService
 
         $framing = match ($slot['role'] ?? 'product') {
             'hero' => match ($slot['image_position'] ?? 'none') {
-                    'background' => 'Wide establishing shot used full-bleed behind website copy: keep the left half calm and low in detail (open sky, water, soft background), put the subject to the right third.',
-                    'left' => 'Hero photograph: subject toward the left third, the rest of the frame calm.',
-                    'right' => 'Hero photograph: subject toward the right third, the rest of the frame calm.',
-                    default => 'Wide hero photograph with one clear subject and a calm, uncluttered background.',
-                },
+                'background' => 'Wide establishing shot used full-bleed behind website copy: keep the left half calm and low in detail (open sky, water, soft background), put the subject to the right third.',
+                'left' => 'Hero photograph: subject toward the left third, the rest of the frame calm.',
+                'right' => 'Hero photograph: subject toward the right third, the rest of the frame calm.',
+                default => 'Wide hero photograph with one clear subject and a calm, uncluttered background.',
+            },
             'editorial' => 'Editorial photograph with one clear subject, photographed close enough to feel personal.',
             'team' => 'Natural portrait of one person at work, head and shoulders, plain softly blurred background.',
             'gallery' => 'Atmospheric photograph of the place or moment, as a professional travel or documentary photographer would frame it.',
@@ -957,8 +891,7 @@ class MockupAssetService
         };
 
         return $this->toSafeAscii(
-            'A real photograph for the website of this business: ' . ($slot['brief'] ?? '') . ' '
-            . 'The business description is background only, never text or a logo to show in the image. '
+            "A real photograph for the website of a {$businessType} business. "
             . 'Scene: ' . $this->photoScene($slot) . ' '
             . 'The scene description is something to photograph, never words to show in the image. '
             . "{$framing}{$focal} {$orientation} orientation. "
@@ -1046,30 +979,5 @@ class MockupAssetService
         $ascii = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
 
         return $ascii !== false ? $ascii : (preg_replace('/[^\x00-\x7F]/', '', $value) ?? '');
-    }
-
-    private function businessBrief(Project $project, array $mockup): string
-    {
-        $concept = is_string($mockup['website_concept'] ?? null) ? $mockup['website_concept'] : '';
-        if (trim($concept) === '') {
-            $concept = (string) $project->description;
-        }
-
-        $seo = is_array($project->seo_requirements) ? $project->seo_requirements : [];
-        $location = trim((string) ($seo['location'] ?? $project->client?->address ?? ''));
-
-        $clean = fn(string $t): string => trim(preg_replace(
-            '/\s+/u',
-            ' ',
-            preg_replace('/["“”\'‘’!?:|]+/u', ' ', $t) ?? ''
-        ) ?? '');
-
-        $brief = Str::limit($clean($concept), 260, '');
-
-        if ($location !== '') {
-            $brief = rtrim($brief, ' .') . '. Location: ' . Str::limit($clean($location), 80, '') . '.';
-        }
-
-        return trim($brief) !== '' ? trim($brief) : 'a small local business';
     }
 }

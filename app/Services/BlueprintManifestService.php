@@ -7,7 +7,7 @@ use App\Support\MockupDesignSpec;
 use App\Support\SitemapPages;
 
 /**
- * Builds the implementation manifest deterministically from the mockup
+ * Builds Claude's implementation manifest deterministically from the mockup
  * blueprint the client approved.
  *
  * This replaces a GPT-vision round-trip: approval used to send the mockup PNG

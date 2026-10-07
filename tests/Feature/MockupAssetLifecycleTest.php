@@ -50,7 +50,7 @@ function lifecycleMockup(string $layoutVariant = 'split-right'): array
 /** Each fake photo's bytes name their own subject, so a mis-mapped photo is visible. */
 function fakePhotoApi(): void
 {
-    Http::fake(['api.openai.com/v1/images/generations' => function ($request) {
+    Http::fake(['api.openai.com/*' => function ($request) {
         preg_match('/Scene: (.+?)(?: - |\. The scene)/', (string) ($request->data()['prompt'] ?? ''), $m);
 
         return Http::response(['data' => [['b64_json' => base64_encode('PHOTO:' . ($m[1] ?? 'unknown'))]]]);
@@ -87,51 +87,6 @@ it('writes every generated mockup photo to storage as a real file', function () 
     expect($disk->exists('mockup-assets/kn-0001/candidate-1/hero.jpg'))->toBeTrue()
         ->and($disk->exists('mockup-assets/kn-0001/candidate-1/section-2-item-0.jpg'))->toBeTrue()
         ->and($disk->exists('mockup-assets/kn-0001/candidate-1/section-2-item-1.jpg'))->toBeTrue();
-});
-
-it('regenerates a photo when the visual review rejects text or collage artifacts', function () {
-    config(['services.openai.review_generated_images' => true]);
-    config(['services.openai.images_per_minute' => 0]);
-    $imageNumber = 0;
-    $reviewNumber = 0;
-    Http::fake([
-        'api.openai.com/v1/images/generations' => function () use (&$imageNumber) {
-            $imageNumber++;
-            return Http::response(['data' => [['b64_json' => base64_encode('IMAGE-' . $imageNumber)]]]);
-        },
-        'api.openai.com/v1/responses' => function () use (&$reviewNumber) {
-            $reviewNumber++;
-            $accepted = $reviewNumber !== 1;
-            return Http::response(['output_text' => json_encode(['accepted' => $accepted, 'reason' => $accepted ? 'clean photo' : 'text overlay'])]);
-        },
-    ]);
-
-    $result = assetService()->generateForCandidate(lifecycleProject(), lifecycleMockup(), 1);
-
-    expect($imageNumber)->toBe(4)
-        ->and($reviewNumber)->toBe(4)
-        ->and(Storage::disk('public')->get('mockup-assets/kn-0001/candidate-1/hero.jpg'))->toBe('IMAGE-4')
-        ->and($result['degraded'])->toBeFalse();
-});
-
-it('does not approve an image after two visual review rejections', function () {
-    config(['services.openai.review_generated_images' => true]);
-    config(['services.openai.images_per_minute' => 0]);
-    $reviewNumber = 0;
-    Http::fake([
-        'api.openai.com/v1/images/generations' => Http::response(['data' => [['b64_json' => base64_encode('BAD-PHOTO')]]]),
-        'api.openai.com/v1/responses' => function () use (&$reviewNumber) {
-            $reviewNumber++;
-            return Http::response(['output_text' => '{"accepted":false,"reason":"poster text"}']);
-        },
-    ]);
-
-    $result = assetService()->generateForCandidate(lifecycleProject(), lifecycleMockup(), 1);
-
-    expect($reviewNumber)->toBe(6)
-        ->and($result['degraded'])->toBeTrue()
-        ->and($result['manifest']['pages']['home']['hero']['path'])->toBeNull()
-        ->and(Storage::disk('public')->exists('mockup-assets/kn-0001/candidate-1/hero.jpg'))->toBeFalse();
 });
 
 it('records storage-relative references in the candidate manifest, never absolute paths', function () {
@@ -208,7 +163,7 @@ it('loads approved assets without issuing a single image generation call', funct
     fakePhotoApi();
     $manifest = assetService()->generateForCandidate(lifecycleProject(), lifecycleMockup(), 1)['manifest'];
 
-    Http::fake(['api.openai.com/v1/images/generations' => Http::response(['data' => [['b64_json' => base64_encode('REGENERATED')]]])]);
+    Http::fake(['api.openai.com/*' => Http::response(['data' => [['b64_json' => base64_encode('REGENERATED')]]])]);
     $loaded = assetService()->loadApproved(['assets' => $manifest]);
 
     Http::assertNothingSent();
@@ -251,25 +206,21 @@ it('ships the approved bytes into the WordPress bundle unchanged', function () {
         'ai_reasoning' => json_encode(['mockup' => $mockup, 'analysis' => []]),
     ]);
 
+    config(['services.anthropic.key' => 'test-anthropic-key']);
     Http::fake([
-        'api.openai.com/*' => Http::response(
-            "event: response.output_text.delta\ndata: " . json_encode([
-                'type' => 'response.output_text.delta',
-                'delta' => json_encode(['files' => [
-                    'exito-client-theme/style.css' => '/* theme */',
-                    'exito-client-theme/index.php' => '<?php get_header(); the_content(); get_footer();',
-                ]]),
-            ]) . "\n\nevent: response.completed\ndata: {\"type\":\"response.completed\"}\n\n",
-            200,
-            ['Content-Type' => 'text/event-stream']
+        'api.anthropic.com/*' => Http::response(
+            'data: ' . json_encode([
+                'type' => 'content_block_delta',
+                'delta' => ['type' => 'text_delta', 'text' => json_encode(['files' => ['exito-client-theme/style.css' => '/* theme */']])],
+            ]) . "\n"
         ),
-        'api.openai.com/v1/images/generations' => Http::response(['data' => [['b64_json' => base64_encode('REGENERATED')]]]),
+        'api.openai.com/*' => Http::response(['data' => [['b64_json' => base64_encode('REGENERATED')]]]),
     ]);
 
     $bundle = app(BundleBuilderService::class)->build($project->fresh());
 
     // No new photo was drawn anywhere in the build.
-    Http::assertNotSent(fn ($request) => str_contains($request->url(), '/v1/images/generations'));
+    Http::assertNotSent(fn ($request) => str_contains($request->url(), 'openai.com'));
 
     $disk = Storage::disk('public');
     foreach ([

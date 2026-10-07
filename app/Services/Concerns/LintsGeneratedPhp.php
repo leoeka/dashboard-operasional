@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 
 /**
- * Used by AI WordPress builders to catch a *syntactically* broken
+ * Used by ClaudeWordPressBuilderService to catch a *syntactically* broken
  * `.php` file before it's shipped in a bundle. This project has repeatedly
  * hit AI-generated output that doesn't
  * match the exact shape/validity a consumer needed; for a WordPress theme

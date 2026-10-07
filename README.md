@@ -58,7 +58,13 @@ If you discover a security vulnerability within Laravel, please send an e-mail t
 
 The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
 
-## Laporan Proyek
+## Development Documentation
 
-- [Catatan handoff dan perubahan kode](reports/HANDOFF.md)
-- [Status dan handoff Billing & Finance](reports/BILLING_FINANCE_STATUS.md)
+Project-specific notes for this dashboard, separate from the Laravel framework
+documentation above:
+
+- [Billing & Finance Status](docs/BILLING_FINANCE_STATUS.md) — status, architecture and handoff for the recurring billing system (Phases 1–4, locked)
+- [Billing & Finance User Manual](docs/BILLING_FINANCE_USER_MANUAL.md) — panduan operator untuk langganan, invoice, pembayaran, reminder, SOP, dan troubleshooting
+  - [PDF Manual](docs/manuals/Billing_Finance_User_Manual.pdf)
+  - [DOCX Manual](docs/manuals/Billing_Finance_User_Manual.docx)
+- [WordPress Bundle System](docs/wordpress-bundle-system.md)

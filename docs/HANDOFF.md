@@ -1,103 +1,19 @@
 # Catatan Serah-Terima — Design Generator V2 & Live Demo
 
-### Kualitas asset dan parity WordPress — 7 Oktober 2026
-
-- Asset foto baru diperiksa lewat OpenAI Responses API sebelum disimpan. Reviewer menolak foto berteks, watermark/logo, poster, kolase, distorsi berat, atau blur yang tidak layak. Sistem mencoba membuat ulang satu kali; setelah dua penolakan slot tetap gagal dan kandidat tidak dianggap lengkap. Prompt version dinaikkan agar retry tidak memakai foto lama.
-- Build WordPress menggunakan partial Blade `mockup.body` dan CSS yang sama dengan preview, serta memakai file foto/logo yang sama. Theme shell/header/footer diganti dengan renderer deterministik, screenshot theme memakai screenshot mockup terpilih jika file tersedia, dan URL navigasi diselesaikan memakai permalink WordPress. Metadata Elementor lama dibersihkan supaya tidak mengaktifkan versi halaman yang berbeda. Isi halaman disimpan sebagai satu blok HTML yang dapat diedit lewat Block Editor.
-- File utama: `MockupAssetService`, `BundleBuilderService`, `BundleExporterService`, `resources/views/mockup/site.blade.php`, `resources/views/mockup/body.blade.php`, `config/services.php`, `.env.example`, `README` instalasi theme, `MockupAssetLifecycleTest`, `BlueprintParityTest`, `GutenbergBlockValidityTest`.
-- Keputusan: visual WordPress memakai markup mockup penuh di blok HTML untuk menjaga CSS dan komposisi tetap identik; pengeditan visual dilakukan pada markup blok itu, bukan tiap elemen sebagai blok native terpisah. Reviewer memakai `gpt-4.1-mini` secara default di luar environment testing. Total ada satu review vision per foto yang dihasilkan, ditambah kemungkinan biaya satu regenerasi.
-- Pemeriksaan terarah: `php artisan test --compact tests/Feature/MockupAssetLifecycleTest.php tests/Feature/BlueprintParityTest.php tests/Unit/GutenbergBlockValidityTest.php` menghasilkan **32 passed, 147 assertions**. Suite penuh `php artisan test --compact` menghasilkan **519 passed, 2.027 assertions**.
-- Sintaks: `php -l` lulus untuk tiga service yang diubah serta tiga file tes terkait. `git diff --check` bersih.
-- Batasan: panggilan OpenAI nyata dan instalasi theme pada situs WordPress belum diuji. Markup, CSS, dan asset sama pada build, tetapi hasil pixel tetap dapat berbeda karena font gagal dimuat, plugin WordPress, konten eksternal, viewport, dan browser.
-
-### Perbaikan dan verifikasi kode — 6 Oktober 2026
-
-- Polling proposal kini memperlakukan status `completed` yang dinormalisasi sebagai selesai, sehingga workspace memuat ulang hasil akhir.
-- Job pembuatan proposal dibuat unik per proyek dan progres `queued`/`processing` tidak ditimpa oleh request duplikat.
-- Bundle lama tidak lagi dapat diunduh sebagai hasil terbaru setelah rebuild mulai atau gagal. Status `building`, `failed`, dan `exported` ditampilkan konsisten di halaman bundle.
-- Preview dan workspace mendukung proposal lama yang hanya memiliki `mockup`, termasuk saat `mockup_candidates` kosong.
-- Area utama: `BundleController`, `MockupPreviewController`, `WebsiteBuilderController`, `GenerateProposalJob`, `project-workspace.blade.php`, `bundles/index.blade.php`.
-- Regresi ditambahkan untuk proposal legacy, progres job duplikat, sukses rebuild, kegagalan builder/ZIP export, serta unduhan bundle lama.
-- Pemeriksaan: tes terarah **38 lulus, 186 assertion** sebelum kasus workspace legacy ditambahkan; tes terarah sesudahnya **19 lulus, 107 assertion**; suite lengkap terakhir **516 lulus, 2.004 assertion**. `git diff --check` bersih.
-- Build nyata yang menghubungi API GPT/OpenAI dan instalasi ZIP di WordPress belum dijalankan; tes builder memakai HTTP fake.
-
-### Migrasi catatan proyek — 6 Oktober 2026
-
-- Handoff kode dipindahkan dari `docs/HANDOFF.md` ke laporan ini. Handoff Billing & Finance dipindahkan ke `reports/BILLING_FINANCE_STATUS.md`.
-- Aturan agent kini meminta semua catatan pekerjaan berikutnya ditambahkan di bagian paling atas laporan ini, dengan ringkasan perilaku, file, keputusan, pemeriksaan, dan keterbatasan.
-- Folder `docs/` dan isi selain dua handoff tersebut dihapus sesuai permintaan pengguna.
-
 > **Review visual baru, 1 Oktober 2026:** proyek **#34 / `REVIEW-PELLET-20261001`**
 > dibuat dari brief Supplier Wood Pellet #30. Tiga kandidat dan proposal #34 berhasil
-> dibuat; proposal masih pending. Catatan review dan screenshot lama yang dahulu tersimpan
-> di folder `docs/` tidak ikut dipertahankan saat folder tersebut dihapus.
+> dibuat; proposal masih pending. Lihat [review desain proyek #34](REVIEW-PELLET-34.md)
+> untuk screenshot, perbandingan kandidat, dan arahan implementasi untuk Claude.
 > Codex hanya menjalankan proyek uji dan menilai desain; kode aplikasi tidak diubah.
 > Rekomendasi: opsi 2 sebagai dasar revisi, belum layak approval. Run pertama terkena
 > batas internal 300 detik; run kedua selesai memakai checkpoint.
 
-### Update lanjutan — 6 Oktober 2026 (build langsung dari workspace)
-
-- Sesudah klien memilih opsi di proposal yang dikirim tim, klik tombol pada kartu mockup
-  langsung mengirim build ke `BundleController::build`. Tidak ada pencatatan approval
-  terpisah atau halaman Build WordPress tambahan. Hasil sukses menuju halaman unduh ZIP.
-- Build belum dijalankan untuk proyek tertentu; menjalankan build memanggil GPT/OpenAI.
-- `BundleBuilderService` kini memakai `OpenAiWordPressBuilderService` pada OpenAI Responses API
-  (default model `gpt-5.6`, bisa diatur lewat `OPENAI_WORDPRESS_BUILDER_MODEL`). Isi halaman
-  tetap Gutenberg yang dirakit deterministik dari mockup; GPT hanya membuat chrome tema.
-- Tes baru mencakup stream GPT, lampiran PNG mockup terpilih, klasifikasi kuota, lint PHP,
-  penolakan stream tidak lengkap, dan kegagalan bundle tanpa API key. Jalur build Anthropic
-  yang duplikat dihapus agar hanya satu implementasi produksi yang aktif.
-
-### Perubahan alur — 6 Oktober 2026 (build langsung dari mockup)
-
-- Ini menggantikan alur sebelumnya yang meminta tim mencatat approval di workspace.
-  Proposal tetap dikirim ke klien di luar sistem. Sesudah klien menyebut opsi yang
-  dipilih, tim menekan tombol build pada kartu opsi itu; satu POST menyimpan indeks
-  mockup, membuat manifest, lalu membangun ZIP. Tidak ada tombol approval terpisah
-  dan status proposal `approved` bukan lagi syarat build.
-- Tim hanya menekan opsi yang klien pilih setelah mendapat balasan eksternal. Sistem
-  tidak mengumpulkan bukti persetujuan.
-
-### Review lanjutan — 6 Oktober 2026 (alur build GPT)
-
-- Tombol build memilih dan menyimpan kandidat dalam request yang sama; status approval
-  internal tidak lagi mengatur build.
-- Builder sekarang menolak manifest tanpa `exito-client-theme/style.css` atau `index.php`,
-  agar hasil GPT yang tidak bisa dipasang tidak disimpan sebagai build sukses.
-- Fake HTTP test untuk image generation dipersempit ke `/v1/images/generations`; pola
-  domain terlalu luas sebelumnya menangkap request Responses API dan membuat tes build
-  mendapat respons gambar, bukan stream GPT.
-- Migration desain URL saat rollback mengembalikan kolom ke definisi asal `VARCHAR(255)`.
-  Fixture `BillingRollbackGuardTest` menyingkirkan migration desain baru saat mengukur
-  tujuh langkah rollback.
-- Tes terarah terbaru untuk build langsung, approval legacy, GPT, parity, dan lifecycle:
-  **46 passed, 200 assertions**.
-- Kartu tiap opsi mockup sekarang langsung POST `mockup_index` ke build; `/bundle` hanya
-  menampilkan hasil unduhan dan tautan kembali ke workspace, tidak menawarkan langkah build kedua.
-- Full suite pada perubahan direct-build sebelum cleanup endpoint pilihan lama:
-  **507 passed, 3 failed**. Tiga sisanya ada di `BillingEmailDeliveryTest`
-  (subject mail dibuat setelah frozen-clock berubah, dan ekspektasi tanggal Inggris
-  sementara output lokal berbahasa Indonesia); perlu ditangani terpisah.
-- Build kini memakai cache lock per proyek selama proses pemilihan mockup, pembuatan tema,
-  dan ekspor ZIP. Permintaan kedua ditolak dengan pesan agar menunggu; pilihan mockup tidak
-  berubah dan GPT tidak dipanggil ulang. Lock minimal 900 detik, atau timeout GPT + 300 detik.
-  Cache produksi harus memakai store yang mendukung lock dan dibagi antar worker; default
-  aplikasi adalah `database`. PHP hasil GPT masih hanya dilint, belum diaudit statis untuk
-  perilaku berbahaya; ZIP tetap perlu QA sebelum diserahkan. Build nyata dan install WordPress
-  belum diuji.
-- Verifikasi setelah lock: tes build terarah **6 lulus, 33 assertions**
-  (`BuildSelectedMockupTest` dan `OpenAiWordPressBuilderTest`). Full suite: **507 lulus,
-  3 gagal, 1961 assertions**; tiga kegagalan yang sama tetap berada di `BillingEmailDeliveryTest`,
-  bukan alur builder GPT atau lock. Build GPT nyata tidak dijalankan karena memanggil API berbayar.
-
-Terakhir diperbarui: **6 Oktober 2026**
-Branch yang direncanakan: **`feature/design-generator-v2-live-demo`** (belum di-push, belum ada PR).
-Saat verifikasi terakhir checkout aktif `master`; pengguna memilih melanjutkan di branch tersebut
-tanpa commit.
+Terakhir diperbarui: **26 September 2026**
+Branch: **`feature/design-generator-v2-live-demo`** (lokal, **belum di-push**, belum ada PR)
 Repo: `github.com/leoeka/dashboard-operasional` — branch utama `master` (jangan commit langsung ke master)
 
-Laporan ini untuk siapa pun yang melanjutkan pekerjaan tanpa riwayat chat. Implementasi dan
-tes di repositori menjadi acuan untuk detail arsitektur.
+Dokumen ini untuk siapa pun (manusia atau AI lain) yang melanjutkan pekerjaan ini tanpa
+riwayat chat. Baca juga [design-generator-v2.md](design-generator-v2.md) untuk arsitektur detail.
 
 ---
 

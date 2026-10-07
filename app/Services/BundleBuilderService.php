@@ -3,15 +3,13 @@
 namespace App\Services;
 
 use App\Models\Project;
-use App\Support\MockupSite;
-use App\Support\SitemapPages;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class BundleBuilderService
 {
     public function __construct(
-        private OpenAiWordPressBuilderService $openAiBuilder,
+        private ClaudeWordPressBuilderService $claudeBuilder,
         private ElementorPageBuilderService $elementorPageBuilder,
         private MockupAssetService $mockupAssets,
     ) {
@@ -20,10 +18,10 @@ class BundleBuilderService
     public function build(Project $project): array
     {
         $proposal = $project->latestProposal;
-        if (!$proposal) {
-            throw new \RuntimeException('Generate proposal dan mockup terlebih dahulu sebelum membangun WordPress.');
+        if (!$proposal || $proposal->status !== 'approved') {
+            throw new \RuntimeException('Mockup belum disetujui client. Setujui proposal terlebih dahulu sebelum meminta Claude membangun WordPress.');
         }
-        $proposalData = json_decode((string) $proposal->ai_reasoning, true) ?: [];
+        $proposalData = json_decode((string) ($proposal?->ai_reasoning ?? ''), true) ?: [];
         $analysis = $this->resolveAnalysis($project, $proposalData['analysis'] ?? []);
         $template = $this->resolveTemplate($project);
         $brand = $this->resolveBrand($project, $proposalData['mockup'] ?? []);
@@ -72,53 +70,10 @@ class BundleBuilderService
             'assets' => $this->collectAssets($project),
         ];
 
-        $bundle['mockup_rendering'] = $this->buildMockupRendering($project, $mockup, $sectionImages['map'], $bundle['assets']);
-
-        $bundle['wordpress'] = $this->openAiBuilder->build($project, $bundle);
-        $bundle['built_with'] = 'openai';
+        $bundle['wordpress'] = $this->claudeBuilder->build($project, $bundle);
+        $bundle['built_with'] = 'claude';
 
         return $bundle;
-    }
-
-    /** Render the same approved Blade page and CSS into the installable theme. */
-    private function buildMockupRendering(Project $project, array $mockup, array $imageMap, array $assets): array
-    {
-        $brand = $project->client?->company_name ?? $project->name;
-        $images = [];
-        foreach ($imageMap as $slug => $pageImages) {
-            if (is_string($pageImages['hero'] ?? null)) {
-                $images[$slug]['hero'] = '__EXITO_IMAGE:' . $pageImages['hero'] . '__';
-            }
-            foreach (($pageImages['items'] ?? []) as $index => $filename) {
-                $images[$slug]['items'][$index] = '__EXITO_IMAGE:' . $filename . '__';
-            }
-            foreach (($pageImages['sections'] ?? []) as $section => $items) {
-                foreach ($items as $index => $filename) {
-                    $images[$slug]['sections'][$section][$index] = '__EXITO_IMAGE:' . $filename . '__';
-                }
-            }
-        }
-
-        $logo = isset($assets['logo']['filename']) ? '__EXITO_IMAGE:' . $assets['logo']['filename'] . '__' : null;
-        $pages = [];
-        foreach (SitemapPages::ordered(is_array($mockup['pages'] ?? null) ? $mockup['pages'] : []) as $page) {
-            $site = MockupSite::build($mockup, [
-                'brand' => $brand,
-                'logo' => $logo,
-                'page' => $page['slug'],
-                'images' => $images,
-                'webfonts' => true,
-                'link' => static fn (string $slug): string => '__EXITO_PAGE_URL:' . $slug . '__',
-            ]);
-            $body = view('mockup.body', ['site' => $site])->render();
-            $pages[$page['slug']] = ['title' => $page['name'], 'html' => "<!-- wp:html -->\n{$body}\n<!-- /wp:html -->"];
-        }
-
-        $homeSite = MockupSite::build($mockup, ['brand' => $brand, 'logo' => $logo, 'page' => 'home', 'images' => $images, 'webfonts' => true]);
-        $css = view('mockup.styles', ['site' => $homeSite])->render();
-        $css = preg_replace('/^<style>|<\/style>$/', '', trim($css)) ?? $css;
-
-        return ['pages' => $pages, 'css' => $css, 'fonts_url' => $homeSite['fonts_url'], 'lang' => $homeSite['lang']];
     }
 
     protected function resolveAnalysis(Project $project, array $proposalAnalysis = []): array
@@ -133,8 +88,8 @@ class BundleBuilderService
     /**
      * Describes the project's own website category. This used to return a
      * fixed "Restaurant Modern" / category "restaurant" for every project,
-     * and the value is handed straight to GPT in the build prompt (see
-     * OpenAiWordPressBuilderService::buildPrompt()) — so a law firm or a
+     * and the value is handed straight to Claude in the build prompt (see
+     * ClaudeWordPressBuilderService::buildPrompt()) — so a law firm or a
      * coffee roaster was being told, in writing, that it was a restaurant
      * build. Where the project states no type, nothing is claimed rather
      * than a category being invented.
@@ -216,7 +171,7 @@ class BundleBuilderService
     {
         return [
             // Must match the folder prefix the AI builder prompt is told to
-            // use for theme files (see OpenAiWordPressBuilderService) —
+            // use for theme files (see ClaudeWordPressBuilderService) —
             // BundleExporterService filters wordpress.files by this name,
             // so a mismatch here means it always finds zero theme files.
             'name' => 'exito-client-theme',
@@ -252,8 +207,8 @@ class BundleBuilderService
      * Gathers the client's real logo and any photos uploaded for this
      * project (see ProjectFile::categoryLabels()), as actual binary image
      * data — not just a path string. These get:
-     * - shown to GPT as vision input, so the builder knows what the
-     *   real logo/photos look like (see OpenAiWordPressBuilderService),
+     * - shown to Claude as vision input, so the builder knows what the
+     *   real logo/photos look like (see ClaudeWordPressBuilderService),
      * - embedded verbatim into the generated theme's assets/ folder at a
      *   fixed filename the AI is told to reference (see
      *   BundleExporterService::embedThemeAssets()), so the shipped site

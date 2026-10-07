@@ -236,21 +236,19 @@ it('writes a subject that says what the email is about', function () {
 
     billingRunOn('2026-09-30'); // H-30, the first notice
     deliverReminder();
-    $firstSubject = subjectOf(Mail::sent(BillingRenewalReminderMail::class)->last());
-
     billingRunOn('2026-10-23'); // H-7
     deliverReminder(BillingReminderLog::where('days_before', 7)->sole());
-    $secondSubject = subjectOf(Mail::sent(BillingRenewalReminderMail::class)->last());
-
     billingRunOn('2026-10-27'); // H-3
     deliverReminder(BillingReminderLog::where('days_before', 3)->sole());
-    $thirdSubject = subjectOf(Mail::sent(BillingRenewalReminderMail::class)->last());
 
-    expect($firstSubject)->toContain('Pemberitahuan Perpanjangan')
+    $subjects = collect(Mail::sent(BillingRenewalReminderMail::class))
+        ->map(fn ($mail) => subjectOf($mail))->values();
+
+    expect($subjects[0])->toContain('Pemberitahuan Perpanjangan')
         ->toContain('Hosting + Domain')
         ->toContain('INV-2026-000001')
-        ->and($secondSubject)->toContain('Jatuh Tempo 7 Hari Lagi')
-        ->and($thirdSubject)->toContain('Jatuh Tempo 3 Hari Lagi');
+        ->and($subjects[1])->toContain('Jatuh Tempo 7 Hari Lagi')
+        ->and($subjects[2])->toContain('Jatuh Tempo 3 Hari Lagi');
 });
 
 it('says "besok" on the last monthly threshold', function () {
@@ -286,7 +284,7 @@ it('puts the invoice detail a client needs in the body', function () {
         ->toContain('INV-2026-000001')
         ->toContain('Hosting + Domain')
         ->toContain('Rp 2.500.000')        // formatted for a human, stored as a number
-        ->toContain('30 Oktober 2026')     // due date
+        ->toContain('30 Oct 2026')         // due date
         ->toContain('Tahunan')             // billing cycle
         ->toContain('Budi')                // billing name, falling back to contact
         // no invented payment link while there is no client portal
@@ -546,7 +544,7 @@ it('dates the email from the billing business day while the app stays on UTC', f
     expect(config('app.timezone'))->toBe('UTC')
         ->and($mail)->not->toBeNull()
         ->and($mail->render())->toContain('7 hari lagi')
-        ->and($mail->render())->toContain('30 Oktober 2026');
+        ->and($mail->render())->toContain('30 Oct 2026');
 });
 
 it('keeps the dispatcher free of mail and queue internals in the engine', function () {

@@ -27,20 +27,14 @@ use Illuminate\Support\Str;
  * (which had grown to cover project CRUD, this pipeline, AND SEO/backlink
  * tooling all in one class) so each concern has its own file. See also
  * SeoBacklinkController (SEO/backlink/PageSpeed/Search Console/GA4) and
- * BundleController (the GPT WordPress build step after a mockup is
+ * BundleController (the Claude WordPress build step after a mockup is
  * approved here).
  */
 class WebsiteBuilderController extends Controller
 {
-    private const PROPOSAL_PROGRESS_TTL_MINUTES = 20;
-
     public function generateProposal(Project $project)
     {
-        $progress = Cache::get($this->progressCacheKey($project->id));
-        if (!in_array($progress['status'] ?? null, ['queued', 'processing'], true)) {
-            $this->reportProgress($project, 'queued', 0, 'Waiting to be processed...');
-        }
-
+        $this->reportProgress($project, 'queued', 0, 'Waiting to be processed...');
         \App\Jobs\GenerateProposalJob::dispatch($project);
         return response()->json(['queued' => true]);
     }
@@ -53,7 +47,8 @@ class WebsiteBuilderController extends Controller
             'message' => '',
         ]);
 
-        // Keep active progress visible for the full 15-minute job timeout.
+        // The cache entry expires after ten minutes; a failure has to outlive
+        // it, or somebody coming back later sees "idle" and no reason to retry.
         $failure = $checkpoints->failure($project);
 
         if ($failure && $progress['status'] !== 'processing') {
@@ -98,7 +93,7 @@ class WebsiteBuilderController extends Controller
         // — 'mockup' is not a valid enum value.
         $project->update(['status' => 'in_progress']);
 
-        return back()->with('success', 'Approval klien tercatat. Mockup terpilih siap dibuat menjadi WordPress siap install.');
+        return back()->with('success', 'Mockup disetujui. Sekarang data desain siap dikirim ke Claude untuk build WordPress.');
     }
 
     public function selectMockup(Project $project, Request $request): RedirectResponse|JsonResponse
@@ -123,7 +118,7 @@ class WebsiteBuilderController extends Controller
         $proposalData['selected_mockup_index'] = $selectedIndex;
         $proposal->update(['ai_reasoning' => json_encode($proposalData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
 
-        $message = 'Mockup pilihan ' . ($selectedIndex + 1) . ' tersimpan. Setelah approval klien dari proposal diterima, catat approval di workspace untuk mulai build.';
+        $message = 'Mockup pilihan ' . ($selectedIndex + 1) . ' tersimpan. Silakan lanjutkan persetujuan client.';
 
         return $wantsJson
             ? response()->json(['success' => true, 'message' => $message, 'selected_index' => $selectedIndex])
@@ -154,7 +149,7 @@ class WebsiteBuilderController extends Controller
         CompetitorContentFetcher $contentFetcher,
         ?PipelineCheckpointService $checkpoints = null
     ): void {
-        // @set_time_limit(300);
+        @set_time_limit(300);
         $checkpoints ??= app(PipelineCheckpointService::class);
 
         try {
@@ -374,7 +369,7 @@ class WebsiteBuilderController extends Controller
         Cache::put(
             $this->progressCacheKey($project->id),
             array_merge(['status' => $status, 'progress' => $progress, 'message' => $message], $extra),
-            now()->addMinutes(self::PROPOSAL_PROGRESS_TTL_MINUTES)
+            now()->addMinutes(10)
         );
     }
 }

@@ -41,18 +41,28 @@ return [
         'image_model' => env('OPENAI_IMAGE_MODEL', 'gpt-image-1'),
         // `low` is cheap but draws garbled text and soft detail into mockup photos.
         'image_quality' => env('OPENAI_IMAGE_QUALITY', 'medium'),
-        'review_generated_images' => env('OPENAI_REVIEW_GENERATED_IMAGES', env('APP_ENV') !== 'testing'),
-        'image_review_model' => env('OPENAI_IMAGE_REVIEW_MODEL', 'gpt-4.1-mini'),
         // The account's image rate limit (OpenAI tier 1: 5/min). 0 = no limit.
         'images_per_minute' => env('OPENAI_IMAGES_PER_MINUTE', 5),
         // Seconds one proposal run may spend on photos; the rest are filled on retry.
         'image_time_budget' => env('OPENAI_IMAGE_TIME_BUDGET', 300),
         'mockup_candidate_count' => env('OPENAI_MOCKUP_CANDIDATE_COUNT', 3),
-        'wordpress_builder_model' => env('OPENAI_WORDPRESS_BUILDER_MODEL', 'gpt-5.6'),
-        'wordpress_build_timeout' => env('OPENAI_WORDPRESS_BUILD_TIMEOUT', 600),
-        'wordpress_max_output_tokens' => env('OPENAI_WORDPRESS_MAX_OUTPUT_TOKENS', 50000),
     ],
 
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+        'builder_model' => env('ANTHROPIC_BUILDER_MODEL', 'claude-sonnet-4-5'),
+        // Generating a full theme+plugin (up to 50k output tokens) plus
+        // reading several images can take a few minutes; raise via
+        // ANTHROPIC_BUILD_TIMEOUT if your host's own PHP execution limit
+        // allows more (or needs less).
+        'build_timeout' => env('ANTHROPIC_BUILD_TIMEOUT', 480),
+        // Only needed if ANTHROPIC_API_KEY is an "identity-linked" key
+        // (tied to a personal Console login rather than a workspace-scoped
+        // API key) — Anthropic then requires the anthropic-workspace-id
+        // header on every request. Find it at console.anthropic.com under
+        // Settings > Workspaces (looks like "wrkspc_...").
+        'workspace_id' => env('ANTHROPIC_WORKSPACE_ID'),
+    ],
 
     'proposal_ai_enabled' => env('PROPOSAL_AI_ENABLED', true),
 

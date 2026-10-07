@@ -3,7 +3,7 @@
 use App\Models\Project;
 use App\Services\BlueprintManifestService;
 use App\Services\BundleBuilderService;
-use App\Services\OpenAiWordPressBuilderService;
+use App\Services\ClaudeWordPressBuilderService;
 use App\Services\ElementorPageBuilderService;
 use App\Support\MockupDesignSpec;
 use App\Services\MockupAssetService;
@@ -152,7 +152,7 @@ it('reports no assets at all for a blueprint that was approved before assets wer
 });
 
 it('builds a manifest without any API key configured', function () {
-    config(['services.openai.key' => null]);
+    config(['services.openai.key' => null, 'services.anthropic.key' => null]);
 
     expect(buildManifest()['sections'])->not->toBeEmpty();
 });
@@ -167,7 +167,7 @@ it('survives a blueprint with no pages at all', function () {
 
 it('describes the project type instead of labelling every build a restaurant', function () {
     $builder = new class (
-        app(OpenAiWordPressBuilderService::class),
+        app(ClaudeWordPressBuilderService::class),
         new ElementorPageBuilderService(),
         app(MockupAssetService::class),
     ) extends BundleBuilderService {
@@ -186,7 +186,7 @@ it('describes the project type instead of labelling every build a restaurant', f
 
 it('claims no category at all when the project states no type', function () {
     $builder = new class (
-        app(OpenAiWordPressBuilderService::class),
+        app(ClaudeWordPressBuilderService::class),
         new ElementorPageBuilderService(),
         app(MockupAssetService::class),
     ) extends BundleBuilderService {

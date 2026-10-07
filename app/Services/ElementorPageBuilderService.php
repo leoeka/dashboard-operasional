@@ -81,7 +81,7 @@ class ElementorPageBuilderService
      * sections: which section becomes the hero / icon band / card grid,
      * which are dropped, and the alignment each part renders with.
      *
-     * Public because the approval step builds the AI implementation
+     * Public because the approval step builds Claude's implementation
      * manifest from exactly these decisions (see BlueprintManifestService)
      * instead of asking GPT to read them back out of the mockup PNG.
      * renderGutenbergBlocks() consumes the same method, so the manifest and

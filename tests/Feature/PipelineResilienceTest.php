@@ -328,15 +328,29 @@ it('does not duplicate assets or screenshots when the same stage runs twice', fu
     expect($afterSecond)->toBe($afterFirst);
 });
 
-it('leaves no bundle record behind when the GPT WordPress build fails', function () {
-    config(['services.openai.key' => null]);
+it('classifies a Claude billing failure the same way', function () {
+    config(['services.anthropic.key' => 'test-key']);
+    Http::fake(['api.anthropic.com/*' => Http::response(['error' => ['message' => 'Your credit balance is too low']], 400)]);
+
+    try {
+        app(\App\Services\ClaudeWordPressBuilderService::class)->build(resilienceProject(), ['mockup' => [], 'assets' => []]);
+        $this->fail('Expected a ProviderException.');
+    } catch (ProviderException $e) {
+        expect($e->provider)->toBe('anthropic')
+            ->and($e->errorCode)->toBe(ProviderException::QUOTA_EXHAUSTED)
+            ->and($e->getMessage())->toContain('Claude');
+    }
+});
+
+it('leaves no bundle record behind when the WordPress build fails', function () {
+    config(['services.anthropic.key' => null]);
     $project = resilienceProject();
 
     Proposal::create([
         'project_id' => $project->id,
         'client_name' => $project->client_name,
         'version' => 1,
-        'status' => 'pending',
+        'status' => 'approved',
         'ai_reasoning' => json_encode(['mockup' => ['pages' => []], 'analysis' => []]),
     ]);
 

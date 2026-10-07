@@ -16,8 +16,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('projects', function (Blueprint $table) {
-            // Restore the original column definition from the add-reference migration.
-            $table->string('design_reference_url')->nullable()->change();
+            // Keep capacity for URLs accepted by the existing 2048-character
+            // validation rule if this migration is rolled back.
+            $table->string('design_reference_url', 2048)->nullable()->change();
         });
     }
 };
