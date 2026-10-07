@@ -22,3 +22,10 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
+AGENTS.md
+CLAUDE.md
+/anti-slop
+/.cursor
+/.codex
+/.claude
+/.agents
