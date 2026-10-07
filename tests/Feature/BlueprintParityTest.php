@@ -119,8 +119,8 @@ it('keeps a legacy blueprint to the three sections its PNG showed', function () 
 
 it('photographs every photo-led V2 section and ships each photo under its own name', function () {
     Storage::fake('public');
-    config(['services.openai.key' => 'test-key', 'services.anthropic.key' => 'test-anthropic-key']);
-    Http::fake(['api.openai.com/*' => function ($request) {
+    config(['services.openai.key' => 'test-key']);
+    Http::fake(['api.openai.com/v1/images/generations' => function ($request) {
         preg_match('/Scene: (.+?)(?: - |\. The scene)/', (string) ($request->data()['prompt'] ?? ''), $m);
 
         return Http::response(['data' => [['b64_json' => base64_encode('PHOTO:' . ($m[1] ?? '?'))]]]);
@@ -149,10 +149,17 @@ it('photographs every photo-led V2 section and ships each photo under its own na
         'ai_reasoning' => json_encode(['mockup' => $mockup, 'analysis' => []]),
     ]);
     Http::fake([
-        'api.anthropic.com/*' => Http::response('data: ' . json_encode([
-            'type' => 'content_block_delta',
-            'delta' => ['type' => 'text_delta', 'text' => json_encode(['files' => ['exito-client-theme/style.css' => '/* theme */']])],
-        ]) . "\n"),
+        'api.openai.com/*' => Http::response(
+            "event: response.output_text.delta\ndata: " . json_encode([
+                'type' => 'response.output_text.delta',
+                'delta' => json_encode(['files' => [
+                    'exito-client-theme/style.css' => '/* theme */',
+                    'exito-client-theme/index.php' => '<?php get_header(); the_content(); get_footer();',
+                ]]),
+            ]) . "\n\nevent: response.completed\ndata: {\"type\":\"response.completed\"}\n\n",
+            200,
+            ['Content-Type' => 'text/event-stream']
+        ),
     ]);
 
     $bundle = app(BundleBuilderService::class)->build($project->fresh());
@@ -163,5 +170,13 @@ it('photographs every photo-led V2 section and ships each photo under its own na
         ->and($bundle['elementor_pages']['home']['html'])
             ->toContain('__EXITO_IMAGE:home-item-0.jpg__')
             ->toContain('__EXITO_IMAGE:home-section-3-item-0.jpg__')
-            ->toContain('__EXITO_IMAGE:home-section-6-item-3.jpg__');
+            ->toContain('__EXITO_IMAGE:home-section-6-item-3.jpg__')
+        ->and($bundle['mockup_rendering']['pages']['home']['html'])
+            ->toContain('<!-- wp:html -->')
+            ->toContain('class="site full-page"')
+            ->toContain('__EXITO_IMAGE:home-hero.jpg__')
+            ->toContain('__EXITO_IMAGE:home-section-6-item-3.jpg__')
+        ->and($bundle['mockup_rendering']['css'])
+            ->toContain('.hero--split')
+            ->not->toContain('<style');
 });

@@ -27,7 +27,7 @@ class MockupPreviewController extends Controller
     /** The website itself — no dashboard chrome. Loaded inside the demo iframe or on its own (fullscreen). */
     public function show(Request $request, Project $project, int $candidate): Response
     {
-        $mockup = $this->candidate($project, $candidate);
+        $mockup = $this->candidate($this->proposalData($project), $candidate);
         $pages = SitemapPages::ordered($mockup['pages'] ?? []);
         $slug = (string) $request->query('page', 'home');
 
@@ -57,8 +57,8 @@ class MockupPreviewController extends Controller
     public function demo(Project $project, int $candidate): View
     {
         $proposalData = $this->proposalData($project);
-        $candidates = $proposalData['mockup_candidates'] ?? [];
-        $mockup = $this->candidate($project, $candidate);
+        $candidates = $this->candidates($proposalData);
+        $mockup = $this->candidate($proposalData, $candidate);
 
         return view('projects.mockup-demo', [
             'project' => $project,
@@ -71,14 +71,26 @@ class MockupPreviewController extends Controller
         ]);
     }
 
-    private function candidate(Project $project, int $candidate): array
+    private function candidate(array $proposalData, int $candidate): array
     {
-        $candidates = $this->proposalData($project)['mockup_candidates'] ?? [];
-        $mockup = is_array($candidates) ? ($candidates[$candidate] ?? null) : null;
+        $candidates = $this->candidates($proposalData);
+        $mockup = $candidates[$candidate] ?? null;
 
         abort_unless(is_array($mockup) && is_array($mockup['pages'] ?? null), 404);
 
         return $mockup;
+    }
+
+    private function candidates(array $proposalData): array
+    {
+        $candidates = $proposalData['mockup_candidates'] ?? null;
+        if (is_array($candidates) && $candidates !== []) {
+            return array_values($candidates);
+        }
+
+        $legacyMockup = $proposalData['mockup'] ?? null;
+
+        return is_array($legacyMockup) ? [$legacyMockup] : [];
     }
 
     private function proposalData(Project $project): array

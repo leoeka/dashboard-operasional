@@ -120,6 +120,9 @@
                     $proposal = $project->latestProposal;
                     $proposalData = json_decode((string) $proposal->ai_reasoning, true) ?: [];
                     $mockupCandidates = $proposalData['mockup_candidates'] ?? [];
+                    if (! is_array($mockupCandidates) || $mockupCandidates === []) {
+                        $mockupCandidates = isset($proposalData['mockup']) ? [$proposalData['mockup']] : [];
+                    }
                     $selectedMockupIndex = (int) ($proposalData['selected_mockup_index'] ?? 0);
                 @endphp
                 <div class="pt-5 mt-5 border-t border-slate-100 space-y-4">
@@ -186,11 +189,18 @@
                             <i class='bx bx-desktop'></i>
                             Open Live Demo
                         </a>
+                        <form method="POST" action="{{ route('pages.projects.bundle.build', $project) }}" class="mt-3">
+                            @csrf
+                            <input type="hidden" name="mockup_index" value="0">
+                            <button type="submit" class="w-full inline-flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-slate-700 text-xs font-semibold px-4 py-2.5 rounded-lg transition">
+                                <i class='bx bx-package'></i> Buat WordPress siap install
+                            </button>
+                        </form>
                     @endif
                     @if (count($mockupCandidates) > 1)
                         <div class="mt-5 border-t border-slate-100 pt-5">
-                            <p class="text-sm font-bold text-slate-700">Pilih mockup untuk client</p>
-                            <p class="mt-1 text-xs text-slate-500">Hanya desain yang dipilih dan disetujui yang akan diteruskan ke Claude.</p>
+                            <p class="text-sm font-bold text-slate-700">Pilih mockup untuk langsung dibuat menjadi WordPress</p>
+                            <p class="mt-1 text-xs text-slate-500">Setiap opsi berisi tombol build. Gunakan opsi yang sudah dipilih klien dari proposal.</p>
                             <div class="mt-4 grid gap-3 md:grid-cols-3" id="mockup-candidate-grid">
                                 @foreach ($mockupCandidates as $index => $candidate)
                                     @php $candidatePath = $candidate['screenshot_path'] ?? null; @endphp
@@ -206,98 +216,21 @@
                                             class="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
                                             <i class='bx bx-desktop'></i> Open Demo
                                         </a>
-                                        <form method="POST" action="{{ route('pages.projects.proposal.mockup.select', $project) }}" class="mt-2 js-mockup-select-form">
+                                        <form method="POST" action="{{ route('pages.projects.bundle.build', $project) }}" class="mt-2">
                                             @csrf
                                             <input type="hidden" name="mockup_index" value="{{ $index }}">
-                                            <button type="submit" data-select-btn class="w-full rounded-lg {{ $selectedMockupIndex === $index ? 'bg-blue-600 text-white' : 'border border-slate-200 text-slate-600 hover:bg-slate-50' }} px-3 py-2 text-xs font-semibold transition">
-                                                {{ $selectedMockupIndex === $index ? 'Terpilih' : 'Pilih Mockup Ini' }}
+                                            <button type="submit" class="w-full rounded-lg bg-slate-900 text-white hover:bg-slate-700 px-3 py-2 text-xs font-semibold transition">
+                                                <i class='bx bx-package'></i> Buat WP dari Opsi {{ $index + 1 }}
                                             </button>
                                         </form>
                                     </div>
                                 @endforeach
                             </div>
                         </div>
-                        <script>
-                            // Pilih mockup lewat AJAX — sebelumnya <form> submit biasa,
-                            // jadi tiap klik "Pilih Mockup Ini" reload seluruh halaman
-                            // (termasuk iframe PDF viewer di atasnya, jadi kerasa lambat/
-                            // kedip). Fallback ke submit form biasa tetap jalan kalau JS
-                            // gagal/nonaktif (progressive enhancement).
-                            (function () {
-                                document.querySelectorAll('#mockup-candidate-grid .js-mockup-select-form').forEach(function (form) {
-                                    form.addEventListener('submit', async function (e) {
-                                        e.preventDefault();
-                                        const btn = form.querySelector('[data-select-btn]');
-                                        const card = form.closest('[data-mockup-card]');
-                                        const originalLabel = btn.textContent;
-                                        btn.disabled = true;
-                                        btn.textContent = 'Menyimpan...';
-
-                                        try {
-                                            const res = await fetch(form.action, {
-                                                method: 'POST',
-                                                headers: {
-                                                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '',
-                                                    'X-Requested-With': 'XMLHttpRequest',
-                                                    'Accept': 'application/json',
-                                                },
-                                                body: new FormData(form),
-                                            });
-                                            const data = await res.json();
-
-                                            if (!res.ok || !data.success) {
-                                                throw new Error(data.message || 'Request gagal');
-                                            }
-
-                                            const selectedCard = card;
-                                            document.querySelectorAll('#mockup-candidate-grid [data-mockup-card]').forEach(function (c) {
-                                                const isSelected = c === selectedCard;
-                                                c.classList.toggle('border-blue-500', isSelected);
-                                                c.classList.toggle('ring-2', isSelected);
-                                                c.classList.toggle('ring-blue-100', isSelected);
-                                                c.classList.toggle('border-slate-200', !isSelected);
-
-                                                const cardBtn = c.querySelector('[data-select-btn]');
-                                                cardBtn.textContent = isSelected ? 'Terpilih' : 'Pilih Mockup Ini';
-                                                cardBtn.classList.toggle('bg-blue-600', isSelected);
-                                                cardBtn.classList.toggle('text-white', isSelected);
-                                                cardBtn.classList.toggle('border', !isSelected);
-                                                cardBtn.classList.toggle('border-slate-200', !isSelected);
-                                                cardBtn.classList.toggle('text-slate-600', !isSelected);
-                                                cardBtn.classList.toggle('hover:bg-slate-50', !isSelected);
-                                                cardBtn.disabled = false;
-                                            });
-                                        } catch (err) {
-                                            btn.disabled = false;
-                                            btn.textContent = originalLabel;
-                                            alert(err.message || 'Gagal menyimpan pilihan mockup. Coba lagi.');
-                                        }
-                                    });
-                                });
-                            })();
-                        </script>
                     @endif
-                    @if ($project->latestProposal->status !== 'approved')
-                        <form method="POST" action="{{ route('pages.projects.proposal.approve', $project) }}" class="mt-3">
-                            @csrf
-                            <button type="submit" class="w-full inline-flex items-center justify-center gap-2 bg-emerald-600 text-white hover:bg-emerald-700 text-xs font-semibold px-4 py-2.5 rounded-lg transition">
-                                <i class='bx bx-check-circle'></i>
-                                Client Setuju Mockup Ini
-                            </button>
-                        </form>
-                    @else
-                        <div class="mt-3 rounded-lg bg-emerald-50 px-4 py-2.5 text-center text-xs font-semibold text-emerald-700">
-                            <i class='bx bx-check-circle mr-1'></i> Mockup disetujui client
-                        </div>
-                    @endif
-                    <a href="{{ route('pages.projects.bundle', $project) }}"
-                        class="mt-3 w-full inline-flex items-center justify-center gap-2
-                            bg-slate-900 text-white hover:bg-slate-700
-                            text-xs font-semibold px-4 py-2.5 rounded-lg
-                            active:scale-95 transition">
-                        <i class='bx bx-package'></i>
-                        Lanjut ke Build WordPress dengan Claude
-                    </a>
+                    <p class="mt-3 rounded-lg bg-slate-50 px-4 py-2.5 text-center text-xs text-slate-500">
+                        Build dijalankan dari opsi yang ditekan. Pastikan opsi tersebut sudah dipilih klien melalui proposal.
+                    </p>
                 @else
                     {{-- Generate pertama kali — JS-driven, memicu job async + progress bar di kartu Mockup di bawah --}}
                     <button type="button" id="generate-proposal-btn" onclick="startGenerateProposal({{ $project->id }})"
@@ -399,7 +332,7 @@
                                 status,
                             });
 
-                            if (data.status === 'done') {
+                            if (status === 'done') {
                                 setTimeout(() => window.location.reload(), 800);
                             } else if (data.status === 'failed') {
                                 if (btn) {

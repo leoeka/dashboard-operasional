@@ -177,6 +177,60 @@ it('still renders a blueprint approved before V2, exactly as its PNG showed it',
         ->not->toContain('Kata Mereka');
 });
 
+it('renders the preview and demo for a legacy proposal with only one mockup field', function () {
+    $project = Project::create([
+        'name' => 'Website Kopi Nusantara',
+        'client_name' => 'Kopi Nusantara',
+        'code' => 'KN-LEGACY',
+        'status' => 'request',
+    ]);
+    Proposal::create([
+        'project_id' => $project->id,
+        'client_name' => $project->client_name,
+        'version' => 1,
+        'status' => 'pending',
+        'ai_reasoning' => json_encode(['mockup' => legacyCandidate(), 'selected_mockup_index' => 0]),
+    ]);
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('pages.projects.mockup.preview', [$project, 0]))
+        ->assertOk()
+        ->assertSee('Kopi Nusantara');
+
+    $this->actingAs($user)
+        ->get(route('pages.projects.mockup.demo', [$project, 0]))
+        ->assertOk()
+        ->assertSee('Demo Opsi 1')
+        ->assertSee('Kopi Nusantara')
+        ->assertDontSee('aria-label="Opsi desain"', false);
+});
+
+it('shows a legacy mockup in the workspace when the candidate list is empty', function () {
+    $project = Project::create([
+        'name' => 'Website Kopi Nusantara',
+        'client_name' => 'Kopi Nusantara',
+        'code' => 'KN-LEGACY-WORKSPACE',
+        'status' => 'request',
+    ]);
+    Proposal::create([
+        'project_id' => $project->id,
+        'client_name' => $project->client_name,
+        'version' => 1,
+        'status' => 'pending',
+        'ai_reasoning' => json_encode([
+            'mockup' => legacyCandidate(),
+            'mockup_candidates' => [],
+            'selected_mockup_index' => 0,
+        ]),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('pages.project-workspace', ['project' => $project->id]))
+        ->assertOk()
+        ->assertSee('Buat WordPress siap install');
+});
+
 it('serves photographs by public URL, never an absolute storage path', function () {
     $candidate = v2Blueprint();
     Storage::disk('public')->put('mockup-assets/nt-0001/candidate-1/hero.jpg', 'JPEG');

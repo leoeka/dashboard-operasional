@@ -74,3 +74,38 @@ it('replaces image tokens outside the photo markers at import time', function ()
     expect($functions)->toMatch('/\$html = preg_replace_callback\(\s+\'\/<!--EXITO_IMG_START:/')
         ->toContain("'/__EXITO_IMAGE:(.*?)__/'");
 });
+
+it('exports the approved mockup markup and stylesheet instead of the generated AI shell', function () {
+    $dir = sys_get_temp_dir() . '/exito-mockup-parity-' . uniqid();
+    $theme = 'exito-client-theme';
+    (new BundleExporterService())->export([
+        'theme' => ['name' => $theme],
+        'mockup_rendering' => [
+            'pages' => ['home' => ['html' => '<!-- wp:html --><main class="approved"><a href="__EXITO_PAGE_URL:about__">Approved</a></main><!-- /wp:html -->']],
+            'css' => '.approved{color:#123456}',
+            'fonts_url' => 'https://fonts.googleapis.com/css2?family=Inter',
+        ],
+        'elementor_pages' => ['home' => ['title' => 'Home', 'html' => '<p>AI content</p>', 'elements' => []]],
+        'wordpress' => ['files' => [
+            "{$theme}/style.css" => "/*\nTheme Name: T\nVersion: 1.0.0\n*/\n.ai-shell{color:red}",
+            "{$theme}/header.php" => '<?php echo "AI header";',
+            "{$theme}/page.php" => '<?php echo "AI page";',
+        ]],
+    ], $dir);
+
+    $zip = new ZipArchive();
+    $zip->open($dir . '/theme-install.zip');
+    $style = $zip->getFromName("{$theme}/style.css");
+    $header = $zip->getFromName("{$theme}/header.php");
+    $page = $zip->getFromName("{$theme}/page.php");
+    $functions = $zip->getFromName("{$theme}/functions.php");
+    $zip->close();
+
+    expect($style)->toContain('.approved{color:#123456}')
+        ->not->toContain('.ai-shell')
+        ->and($header)->toContain('wp_head()')->toContain('fonts.googleapis.com')
+        ->and($page)->toContain('the_content()')->not->toContain('AI page')
+        ->and($functions)->toContain('Approved')
+        ->toContain('__EXITO_PAGE_URL:')
+        ->toContain("delete_post_meta(\$page_id, '_elementor_data')");
+});

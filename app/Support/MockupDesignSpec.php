@@ -9,7 +9,7 @@ namespace App\Support;
  * resources/views/pdf/mockup-render.blade.php (what the client actually sees
  * and approves), the Gutenberg block attributes in ElementorPageBuilderService
  * (what ships as the page body), and the prose measurements in
- * ClaudeWordPressBuilderService::chromeDesignSpec() (what Claude is told to
+ * OpenAiWordPressBuilderService::chromeDesignSpec() (what GPT is told to
  * build header.php/footer.php/style.css from). Three copies of the same number
  * is three chances to drift, and the chrome copy in particular was already a
  * paraphrase ("~94px", "~32px gap") rather than the value itself.
