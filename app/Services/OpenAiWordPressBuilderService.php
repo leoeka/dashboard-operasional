@@ -10,134 +10,119 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
-class ClaudeWordPressBuilderService
+class OpenAiWordPressBuilderService
 {
     use LintsGeneratedPhp;
 
     public function build(Project $project, array $bundle): array
     {
-        $apiKey = config('services.anthropic.key');
+        $apiKey = config('services.openai.key');
 
         if (!$apiKey) {
-            throw ProviderException::missingKey('anthropic');
+            throw ProviderException::missingKey('openai');
         }
 
         $prompt = $this->buildPrompt($project, $bundle);
 
-        $headers = [
-            'x-api-key' => $apiKey,
-            'anthropic-version' => '2023-06-01',
-            'content-type' => 'application/json',
-        ];
-
-        // Required by the Anthropic API when ANTHROPIC_API_KEY is an
-        // "identity-linked" key (tied to a personal Console login rather
-        // than scoped to one workspace) — omitted entirely for a normal
-        // workspace-scoped API key, which doesn't need or want this header.
-        $workspaceId = config('services.anthropic.workspace_id');
-        if ($workspaceId) {
-            $headers['anthropic-workspace-id'] = $workspaceId;
-        }
-
         try {
-            // Generating a full WordPress theme+plugin (up to 50k output
-            // tokens) while also reading the mockup PNG plus the client's
-            // logo/photos genuinely takes a while. A plain (non-streaming)
-            // request gets zero bytes back until the ENTIRE response is
-            // ready, and infrastructure in front of the Anthropic API
-            // (Cloudflare, etc.) silently kills long-idle connections like
-            // that well before generation finishes — raising our own
-            // timeout doesn't fix it ("cURL error 28: ... 0 bytes
-            // received" even at 480s). Streaming avoids this entirely:
-            // Anthropic itself recommends it for large/long-running
-            // requests, since data starts flowing back within seconds.
-            $text = $this->streamCompletion($headers, $prompt, $bundle);
+            // Streaming delivers this large theme manifest incrementally.
+            $text = $this->streamCompletion($apiKey, $prompt, $bundle);
             $text = preg_replace('/^```(?:json)?\s*/i', '', trim($text));
             $text = preg_replace('/\s*```$/', '', $text);
             $files = json_decode($text, true);
 
             if (json_last_error() !== JSON_ERROR_NONE || !is_array($files['files'] ?? null)) {
-                throw ProviderException::invalidResponse('anthropic', 'Respons Claude bukan manifest file WordPress yang valid.');
+                throw ProviderException::invalidResponse('openai', 'Respons GPT bukan manifest file WordPress yang valid.');
             }
 
-            return ['files' => $this->sanitizeFiles($files['files'])];
+            $safeFiles = $this->sanitizeFiles($files['files']);
+            foreach (['exito-client-theme/style.css', 'exito-client-theme/index.php'] as $requiredFile) {
+                if (empty($safeFiles[$requiredFile])) {
+                    throw ProviderException::invalidResponse('openai', 'Manifest GPT tidak memiliki file theme wajib: ' . $requiredFile);
+                }
+            }
+
+            return ['files' => $safeFiles];
         } catch (\Throwable $e) {
-            $failure = ProviderException::fromThrowable('anthropic', $e);
-            // Classification + scrubbed detail only: an Anthropic error body can
+            $failure = ProviderException::fromThrowable('openai', $e);
+            // Classification + scrubbed detail only: an OpenAI error body can
             // quote the request back, headers included.
-            Log::error('Claude WordPress build gagal.', array_merge(['project_id' => $project->id], $failure->context()));
+            Log::error('GPT WordPress build gagal.', array_merge(['project_id' => $project->id], $failure->context()));
 
             throw $failure;
         }
     }
 
     /**
-     * Calls the Anthropic Messages API with `stream: true` and accumulates
+     * Calls the OpenAI Responses API with `stream: true` and accumulates
      * the streamed text deltas into the final response text. See the
      * comment in build() for why this is required rather than a plain
      * request — a plain request for an output this large gets zero bytes
      * back until it's entirely done, and gets silently killed by
      * infrastructure in front of the API well before that.
      */
-    private function streamCompletion(array $headers, string $prompt, array $bundle): string
+    private function streamCompletion(string $apiKey, string $prompt, array $bundle): string
     {
-        $response = Http::withOptions(['stream' => true])
-            ->timeout(config('services.anthropic.build_timeout', 480))
-            ->withHeaders($headers)
-            ->post('https://api.anthropic.com/v1/messages', [
-                'model' => config('services.anthropic.builder_model', 'claude-sonnet-4-5'),
-                'max_tokens' => 50000,
+        $response = Http::timeout(config('services.openai.wordpress_build_timeout', 600))
+            ->withToken($apiKey)
+            ->accept('text/event-stream')
+            ->asJson()
+            ->post('https://api.openai.com/v1/responses', [
+                'model' => config('services.openai.wordpress_builder_model', 'gpt-5.6'),
+                'max_output_tokens' => (int) config('services.openai.wordpress_max_output_tokens', 50000),
                 'stream' => true,
-                'system' => 'You are a senior WordPress engineer. Return only valid JSON.',
-                'messages' => [['role' => 'user', 'content' => $this->messageContent($prompt, $bundle)]],
+                'text' => ['format' => ['type' => 'json_object']],
+                'input' => [
+                    ['role' => 'system', 'content' => 'You are a senior WordPress engineer. Return only valid JSON.'],
+                    ['role' => 'user', 'content' => $this->messageContent($prompt, $bundle)],
+                ],
             ]);
 
         if (!$response->successful()) {
-            throw ProviderException::fromResponse('anthropic', $response);
+            throw ProviderException::fromResponse('openai', $response);
         }
 
-        $body = $response->toPsrResponse()->getBody();
+        // Laravel's HTTP fake and some PSR stream wrappers do not expose
+        // incremental reads consistently. The request is still sent with
+        // stream=true; consume its SSE body once headers arrive, then parse
+        // complete event lines from the response body.
+        $body = $response->body();
         $text = '';
-        $buffer = '';
+        $completed = false;
 
-        while (!$body->eof()) {
-            $chunk = $body->read(8192);
-            if ($chunk === '' || $chunk === false) {
+        foreach (preg_split('/\r?\n/', $body) ?: [] as $line) {
+            if (!str_starts_with($line, 'data:')) {
                 continue;
             }
-            $buffer .= $chunk;
 
-            while (($newlinePos = strpos($buffer, "\n")) !== false) {
-                $line = rtrim(substr($buffer, 0, $newlinePos), "\r");
-                $buffer = substr($buffer, $newlinePos + 1);
+            $payload = trim(substr($line, 5));
+            if ($payload === '' || $payload === '[DONE]') {
+                continue;
+            }
 
-                if (!str_starts_with($line, 'data:')) {
-                    continue;
-                }
+            $event = json_decode($payload, true);
+            if (!is_array($event)) {
+                continue;
+            }
 
-                $payload = trim(substr($line, 5));
-                if ($payload === '' || $payload === '[DONE]') {
-                    continue;
-                }
+            $eventType = $event['type'] ?? '';
 
-                $event = json_decode($payload, true);
-                if (!is_array($event)) {
-                    continue;
-                }
-
-                $eventType = $event['type'] ?? '';
-
-                if ($eventType === 'content_block_delta' && isset($event['delta']['text'])) {
-                    $text .= $event['delta']['text'];
-                } elseif ($eventType === 'error') {
-                    $message = $event['error']['message'] ?? json_encode($event);
-                    throw new \RuntimeException('Anthropic stream error: ' . $message);
-                }
+            if ($eventType === 'response.output_text.delta' && isset($event['delta'])) {
+                $text .= $event['delta'];
+            } elseif ($eventType === 'response.completed') {
+                $completed = true;
+            } elseif ($eventType === 'response.failed' || $eventType === 'error') {
+                $message = data_get($event, 'response.error.message')
+                    ?? ($event['message'] ?? json_encode($event));
+                throw new \RuntimeException('OpenAI stream error: ' . $message);
+            } elseif ($eventType === 'response.incomplete') {
+                $reason = data_get($event, 'response.incomplete_details.reason', 'unknown');
+                throw ProviderException::invalidResponse('openai', 'Respons GPT terpotong (' . $reason . ').');
             }
         }
 
-        if ($text === '') {
-            throw new \RuntimeException('Claude tidak mengembalikan konten apa pun (stream kosong).');
+        if (!$completed || $text === '') {
+            throw ProviderException::invalidResponse('openai', 'Respons GPT tidak selesai atau kosong.');
         }
 
         return $text;
@@ -145,21 +130,17 @@ class ClaudeWordPressBuilderService
 
     private function messageContent(string $prompt, array $bundle): array
     {
-        $content = [['type' => 'text', 'text' => $prompt]];
+        $content = [['type' => 'input_text', 'text' => $prompt]];
         $path = data_get($bundle, 'mockup.screenshot_path');
 
         if ($path) {
             $fullPath = Storage::disk('public')->path($path);
             if (is_file($fullPath)) {
                 $mime = mime_content_type($fullPath) ?: 'image/png';
-                $content[] = ['type' => 'text', 'text' => 'Approved mockup design (visual reference for the whole build):'];
+                $content[] = ['type' => 'input_text', 'text' => 'Approved mockup design (visual reference for the whole build):'];
                 $content[] = [
-                    'type' => 'image',
-                    'source' => [
-                        'type' => 'base64',
-                        'media_type' => $mime,
-                        'data' => base64_encode((string) file_get_contents($fullPath)),
-                    ],
+                    'type' => 'input_image',
+                    'image_url' => 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($fullPath)),
                 ];
             }
         }
@@ -167,12 +148,12 @@ class ClaudeWordPressBuilderService
         $logo = $bundle['assets']['logo'] ?? null;
         if (is_array($logo) && !empty($logo['bytes'])) {
             $content[] = [
-                'type' => 'text',
+                'type' => 'input_text',
                 'text' => "The client's real logo — already embedded for you at assets/{$logo['filename']} in the theme package. Use it as-is for the site logo (e.g. in header.php); do not invent or describe a different logo.",
             ];
             $content[] = [
-                'type' => 'image',
-                'source' => ['type' => 'base64', 'media_type' => $logo['mime'], 'data' => base64_encode($logo['bytes'])],
+                'type' => 'input_image',
+                'image_url' => 'data:' . $logo['mime'] . ';base64,' . base64_encode($logo['bytes']),
             ];
         }
 
@@ -181,12 +162,12 @@ class ClaudeWordPressBuilderService
                 continue;
             }
             $content[] = [
-                'type' => 'text',
+                'type' => 'input_text',
                 'text' => "A real client photo — already embedded for you at assets/{$image['filename']} in the theme package. Use it where a relevant section exists (e.g. About/gallery) instead of describing generic imagery.",
             ];
             $content[] = [
-                'type' => 'image',
-                'source' => ['type' => 'base64', 'media_type' => $image['mime'], 'data' => base64_encode($image['bytes'])],
+                'type' => 'input_image',
+                'image_url' => 'data:' . $image['mime'] . ';base64,' . base64_encode($image['bytes']),
             ];
         }
 
@@ -227,7 +208,7 @@ class ClaudeWordPressBuilderService
     }
 
     /**
-     * The chrome half of the approved design, written out for Claude.
+     * The chrome half of the approved design, written out for GPT.
      *
      * Every measurement comes from MockupDesignSpec — the same values the PNG
      * the client approved was rendered with, and the same ones the Gutenberg
@@ -237,7 +218,7 @@ class ClaudeWordPressBuilderService
      *
      * The page body itself is built deterministically by
      * ElementorPageBuilderService, but header.php, footer.php and style.css
-     * are entirely Claude's own code, so this brief is the only thing keeping
+     * are generated by GPT, so this brief is the only thing keeping
      * them to the approved proportions rather than merely on-brand.
      */
     private function chromeDesignSpec(array $design): string
@@ -350,7 +331,7 @@ PROMPT;
             }
 
             if (str_ends_with($normalized, '.php') && !$this->isValidPhpSyntax($contents)) {
-                Log::warning('Claude WordPress build: PHP tidak valid dari AI, file dilewati.', ['path' => $normalized]);
+                Log::warning('GPT WordPress build: PHP tidak valid dari AI, file dilewati.', ['path' => $normalized]);
                 continue;
             }
 

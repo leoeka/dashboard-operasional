@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\Project;
-use App\Services\ClaudeWordPressBuilderService;
+use App\Services\OpenAiWordPressBuilderService;
 use App\Services\ElementorPageBuilderService;
 use App\Support\MockupDesignSpec;
 use Tests\TestCase;
@@ -11,7 +11,7 @@ uses(TestCase::class);
 /**
  * The mockup's visual measurements used to exist in three hand-synced copies:
  * the blade CSS the client's PNG is rendered from, the Gutenberg block
- * attributes that ship as the page body, and the prose brief Claude builds
+ * attributes that ship as the page body, and the prose brief GPT builds
  * header/footer/style.css from. These tests assert all three now read the same
  * numbers out of MockupDesignSpec, so changing one value moves all three.
  */
@@ -46,10 +46,10 @@ function specImageMap(): array
 
 function specChromeBrief(): string
 {
-    $method = new ReflectionMethod(ClaudeWordPressBuilderService::class, 'chromeDesignSpec');
+    $method = new ReflectionMethod(OpenAiWordPressBuilderService::class, 'chromeDesignSpec');
     $method->setAccessible(true);
 
-    return $method->invoke(new ClaudeWordPressBuilderService(), specDesign());
+    return $method->invoke(new OpenAiWordPressBuilderService(), specDesign());
 }
 
 it('refuses to hand out a measurement that does not exist', function () {
@@ -154,7 +154,7 @@ it('leaves the image token and its markers intact for the exporter to rewrite', 
         ->and($matches[2][0])->toContain('__EXITO_IMAGE:');
 });
 
-it('briefs Claude with the same measurements, not approximations of them', function () {
+it('briefs GPT with the same measurements, not approximations of them', function () {
     $t = MockupDesignSpec::tokens();
     $brief = specChromeBrief();
 
@@ -170,7 +170,7 @@ it('briefs Claude with the same measurements, not approximations of them', funct
         ->toContain($t['card_border_color']);
 });
 
-it('no longer briefs Claude with hand-typed approximations', function () {
+it('no longer briefs GPT with hand-typed approximations', function () {
     $brief = specChromeBrief();
 
     expect($brief)
@@ -179,6 +179,6 @@ it('no longer briefs Claude with hand-typed approximations', function () {
         ->not->toContain('~32px');
 });
 
-it('tells Claude to let content images fill their container', function () {
+it('tells GPT to let content images fill their container', function () {
     expect(specChromeBrief())->toContain('do NOT centre them at their natural size');
 });
