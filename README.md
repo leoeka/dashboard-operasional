@@ -1,70 +1,22 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Dashboard Operasional
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Aplikasi Laravel untuk mengelola klien dan project, membuat proposal dan mockup website, membangun tema WordPress, serta menangani SEO dan Billing & Finance.
 
-## About Laravel
+## Melanjutkan pekerjaan
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+Mulai dari `MANUAL_BOOK.md` di folder manual eksternal. Manual itu memuat panduan project dan menjadi satu-satunya tempat mencatat perubahan, pembuatan, pemeriksaan, keputusan, dan pekerjaan tertunda. Sebelum mengubah kode, baca aturan agent yang disediakan pemilik dan periksa `git status --short` agar perubahan lokal tetap aman.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+Manual teknis dan arsip dokumentasi lama berada di luar repo pada `C:\Program Codding\dashboard-operasional-manual\`. Folder itu sengaja tidak dilacak Git. Jika belum tersedia di mesin, minta salinannya kepada pemilik project.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Menjalankan secara lokal
 
-## Learning Laravel
+Lihat `composer.json` dan `.env.example` untuk dependensi dan konfigurasi. Setelah mengatur `.env` dan database development:
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+```powershell
+composer install
+npm install
+php artisan migrate
+composer dev
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-## Laravel Sponsors
-
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
-
-### Premium Partners
-
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
-
-## Development Documentation
-
-Project-specific notes for this dashboard, separate from the Laravel framework
-documentation above:
-
-- [Billing & Finance Status](docs/BILLING_FINANCE_STATUS.md) — status, architecture and handoff for the recurring billing system (Phases 1–4, locked)
-- [Billing & Finance User Manual](docs/BILLING_FINANCE_USER_MANUAL.md) — panduan operator untuk langganan, invoice, pembayaran, reminder, SOP, dan troubleshooting
-  - [PDF Manual](docs/manuals/Billing_Finance_User_Manual.pdf)
-  - [DOCX Manual](docs/manuals/Billing_Finance_User_Manual.docx)
-- [WordPress Bundle System](docs/wordpress-bundle-system.md)
+Jalankan pemeriksaan sesuai perubahan yang dibuat dan catat perintah beserta hasil sebenarnya di bagian riwayat kerja dalam manual.
