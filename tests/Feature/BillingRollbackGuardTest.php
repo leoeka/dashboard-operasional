@@ -32,6 +32,15 @@ function billingRollbackConnection(): string
 
     Artisan::call('migrate', ['--database' => 'billing_rollback', '--force' => true]);
 
+    // This test is specifically about the seven billing migrations. Remove
+    // the later design_reference_url migration from the isolated fixture so
+    // it cannot become one of the steps the rollback guard is measuring.
+    Artisan::call('migrate:rollback', [
+        '--database' => 'billing_rollback',
+        '--step' => 1,
+        '--force' => true,
+    ]);
+
     return 'billing_rollback';
 }
 
@@ -202,7 +211,9 @@ it('rolls back cleanly when no billing data exists, and migrates again', functio
 
     Artisan::call('migrate', ['--database' => $connection, '--force' => true]);
 
-    expect($db->table('migrations')->count())->toBe($migrationsBefore)
+    // The newer non-billing URL migration is reapplied alongside the billing
+    // group, so the ledger gains exactly that one unrelated entry.
+    expect($db->table('migrations')->count())->toBe($migrationsBefore + 1)
         ->and($schema->hasTable('billing_subscriptions'))->toBeTrue()
         ->and($schema->hasColumn('clients', 'billing_email'))->toBeTrue()
         ->and($schema->hasColumn('invoices', 'purpose'))->toBeTrue();

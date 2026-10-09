@@ -2,13 +2,14 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Storage;
 use ZipArchive;
 
 class BundleExporterService
 {
     public function export(array $bundle, string $outputDir): string
     {
-        if (!is_dir($outputDir) && !mkdir($outputDir, 0777, true) && !is_dir($outputDir)) {
+        if (! is_dir($outputDir) && ! mkdir($outputDir, 0777, true) && ! is_dir($outputDir)) {
             throw new \RuntimeException('Folder export bundle tidak dapat dibuat.');
         }
 
@@ -20,8 +21,8 @@ class BundleExporterService
         // every generated photo are already baked into it (see
         // injectPageImporterIntoTheme()) — install this one theme,
         // activate it, done. No separate plugin.
-        $themeInstallPath = $outputDir . DIRECTORY_SEPARATOR . 'theme-install.zip';
-        $themeZip = new ZipArchive();
+        $themeInstallPath = $outputDir.DIRECTORY_SEPARATOR.'theme-install.zip';
+        $themeZip = new ZipArchive;
         if ($themeZip->open($themeInstallPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new \RuntimeException('ZIP theme WordPress tidak dapat dibuat.');
         }
@@ -34,14 +35,14 @@ class BundleExporterService
         // README and text/JSON copies of the content & client assets for
         // reference — nice to have, but nothing inside it besides the
         // theme zip is ever uploaded anywhere.
-        $zipPath = $outputDir . DIRECTORY_SEPARATOR . 'bundle-export.zip';
+        $zipPath = $outputDir.DIRECTORY_SEPARATOR.'bundle-export.zip';
 
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new \RuntimeException('File ZIP bundle tidak dapat dibuat.');
         }
 
-        $zip->addFile($themeInstallPath, '01-theme/' . $themeRoot . '.zip');
+        $zip->addFile($themeInstallPath, '01-theme/'.$themeRoot.'.zip');
 
         $files = [
             'content' => $bundle['content'] ?? [],
@@ -50,14 +51,14 @@ class BundleExporterService
 
         foreach ($files as $folder => $payload) {
             $targetFolder = $folder === 'assets' ? '03-assets' : '02-content';
-            $zip->addFromString($targetFolder . '/README.txt', "Bundle component: {$folder}\n");
+            $zip->addFromString($targetFolder.'/README.txt', "Bundle component: {$folder}\n");
             if (is_array($payload)) {
                 foreach ($payload as $key => $value) {
                     if (is_array($value)) {
                         $json = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-                        $zip->addFromString($targetFolder . '/' . $key . '.json', $json);
+                        $zip->addFromString($targetFolder.'/'.$key.'.json', $json);
                     } else {
-                        $zip->addFromString($targetFolder . '/' . $key . '.txt', (string) $value);
+                        $zip->addFromString($targetFolder.'/'.$key.'.txt', (string) $value);
                     }
                 }
             }
@@ -90,7 +91,7 @@ class BundleExporterService
         foreach ($wordpressFiles as $relativePath => $contents) {
             if (is_string($relativePath) && is_string($contents)) {
                 $relativePath = str_replace('\\', '/', ltrim($relativePath, '/'));
-                if (str_starts_with($relativePath, $themeRoot . '/')) {
+                if (str_starts_with($relativePath, $themeRoot.'/')) {
                     $themeFiles[$relativePath] = $contents;
                 }
             }
@@ -108,13 +109,18 @@ class BundleExporterService
         // instead of trusting the AI remembered to include one.
         $this->ensureThemeHeader($themeFiles, $themeRoot, $bundle);
 
-        $themeFiles[$themeRoot . '/screenshot.png'] = $this->themeScreenshot($bundle);
+        $themeFiles[$themeRoot.'/screenshot.png'] = $this->themeScreenshot($bundle);
 
         // The client's real logo/photos (BundleBuilderService::collectAssets),
         // written into the theme at the exact same fixed paths the AI
         // builder prompts were told to reference — guarantees the real
         // files exist regardless of what the AI actually did with them.
         $this->embedThemeAssets($bundle, $themeFiles, $themeRoot);
+
+        // Render pages inside the same approved mockup shell and stylesheet.
+        // Keep the markup in post_content as a core HTML block so it remains
+        // available in the Block Editor while its frontend output stays exact.
+        $this->enforceMockupTheme($bundle, $themeFiles, $themeRoot);
 
         // Deterministic (non-AI) page + photo importer, appended straight
         // into functions.php — see injectPageImporterIntoTheme()'s
@@ -136,7 +142,7 @@ class BundleExporterService
      */
     private function ensureThemeHeader(array &$themeFiles, string $themeRoot, array $bundle): void
     {
-        $styleKey = $themeRoot . '/style.css';
+        $styleKey = $themeRoot.'/style.css';
         $existing = is_string($themeFiles[$styleKey] ?? null) ? $themeFiles[$styleKey] : '';
 
         if (preg_match('/^[ \t\/*#@]*Theme Name:(.*)$/mi', substr($existing, 0, 8192))) {
@@ -145,7 +151,7 @@ class BundleExporterService
 
         $name = (string) data_get($bundle, 'brand.company_name', '');
         $name = str_replace('*/', '', trim($name));
-        $name = $name !== '' ? $name . ' — Exito Client Theme' : ucwords(str_replace('-', ' ', $themeRoot));
+        $name = $name !== '' ? $name.' — Exito Client Theme' : ucwords(str_replace('-', ' ', $themeRoot));
 
         $header = <<<CSS
 /*
@@ -158,12 +164,18 @@ Requires PHP: 7.4
 
 CSS;
 
-        $themeFiles[$styleKey] = $header . $existing;
+        $themeFiles[$styleKey] = $header.$existing;
     }
 
     private function themeScreenshot(array $bundle): string
     {
-        if (!function_exists('imagecreatetruecolor')) {
+        $approvedScreenshot = ltrim((string) data_get($bundle, 'mockup.screenshot_path', ''), '/');
+        $disk = Storage::disk('public');
+        if ($approvedScreenshot !== '' && ! str_contains($approvedScreenshot, '..') && $disk->exists($approvedScreenshot)) {
+            return (string) $disk->get($approvedScreenshot);
+        }
+
+        if (! function_exists('imagecreatetruecolor')) {
             return '';
         }
 
@@ -172,7 +184,7 @@ CSS;
         $title = (string) data_get($content, 'hero.title', $brand['company_name'] ?? 'Client Website');
         $primary = (string) ($brand['primary_color'] ?? '#1F2937');
         $primary = ltrim($primary, '#');
-        if (strlen($primary) !== 6 || !ctype_xdigit($primary)) {
+        if (strlen($primary) !== 6 || ! ctype_xdigit($primary)) {
             $primary = '1F2937';
         }
 
@@ -202,6 +214,54 @@ CSS;
         return (string) $png;
     }
 
+    /** Replace the separately generated AI shell with the approved mockup shell. */
+    private function enforceMockupTheme(array $bundle, array &$themeFiles, string $themeRoot): void
+    {
+        $styleKey = $themeRoot.'/style.css';
+        $header = '';
+        if (isset($themeFiles[$styleKey]) && preg_match('/\A.*?(?=\n\s*\*\/)/s', $themeFiles[$styleKey], $match)) {
+            $header = rtrim($match[0])."\n */\n\n";
+        }
+        if ($header === '') {
+            $this->ensureThemeHeader($themeFiles, $themeRoot, $bundle);
+            $existing = $themeFiles[$styleKey] ?? '';
+            preg_match('/\A\/\*.*?\*\/\s*/s', $existing, $match);
+            $header = $match[0] ?? '';
+        }
+
+        $css = (string) data_get($bundle, 'mockup_rendering.css', '');
+        if ($css !== '') {
+            $themeFiles[$styleKey] = $header.$css;
+        }
+
+        $themeFiles[$themeRoot.'/functions.php'] = "<?php\nadd_action('after_setup_theme', function () { add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('editor-styles'); add_editor_style('style.css'); });\n";
+        $themeFiles[$themeRoot.'/header.php'] = <<<'PHP'
+<!doctype html>
+<html lang="__EXITO_LANGUAGE__">
+<head>
+<meta charset="<?php bloginfo('charset'); ?>">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<?php if (!empty($GLOBALS['exito_mockup_fonts_url'])): ?><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="<?php echo esc_url($GLOBALS['exito_mockup_fonts_url']); ?>"><?php endif; ?>
+<?php wp_head(); ?>
+</head>
+<body <?php body_class('is-fluid'); ?>>
+<?php wp_body_open(); ?>
+PHP;
+        $fontsUrl = (string) data_get($bundle, 'mockup_rendering.fonts_url', '');
+        $language = data_get($bundle, 'mockup_rendering.lang') === 'en' ? 'en' : 'id';
+        $themeFiles[$themeRoot.'/header.php'] = str_replace('__EXITO_LANGUAGE__', $language, $themeFiles[$themeRoot.'/header.php']);
+        $themeFiles[$themeRoot.'/functions.php'] .= "\n\$GLOBALS['exito_mockup_fonts_url'] = ".var_export($fontsUrl, true).";\n";
+        $themeFiles[$themeRoot.'/footer.php'] = "<?php wp_footer(); ?>\n</body>\n</html>\n";
+        $template = <<<'PHP'
+<?php get_header(); ?>
+<?php while (have_posts()) : the_post(); the_content(); endwhile; ?>
+<?php get_footer(); ?>
+PHP;
+        $themeFiles[$themeRoot.'/page.php'] = $template;
+        $themeFiles[$themeRoot.'/front-page.php'] = $template;
+        $themeFiles[$themeRoot.'/index.php'] = $template;
+    }
+
     /**
      * Step-by-step install guide in Bahasa Indonesia, written for someone
      * installing this for the first time — a single theme upload, nothing
@@ -213,7 +273,7 @@ CSS;
      */
     private function buildReadme(string $themeRoot): string
     {
-        $themeZip = $themeRoot . '.zip';
+        $themeZip = $themeRoot.'.zip';
 
         return <<<MD
 # Cara Install Website WordPress Ini
@@ -224,21 +284,21 @@ teks/aset untuk referensi — tidak perlu diupload kemana pun.
 
 ```
 bundle-export.zip           <- ZIP besar yang kamu download, extract dulu
-├─ 01-theme/
-│  └─ {$themeZip}       <- SATU-SATUNYA file yang diupload ke WordPress
-├─ 02-content/                <- referensi teks isi web (tidak perlu diupload)
-├─ 03-assets/                 <- referensi aset client (tidak perlu diupload)
-└─ README.md                  <- file ini
+Ã¢â€Å“Ã¢â€â‚¬ 01-theme/
+Ã¢â€â€š  Ã¢â€â€Ã¢â€â‚¬ {$themeZip}       <- SATU-SATUNYA file yang diupload ke WordPress
+Ã¢â€Å“Ã¢â€â‚¬ 02-content/                <- referensi teks isi web (tidak perlu diupload)
+Ã¢â€Å“Ã¢â€â‚¬ 03-assets/                 <- referensi aset client (tidak perlu diupload)
+Ã¢â€â€Ã¢â€â‚¬ README.md                  <- file ini
 ```
 
 ## Langkah 1 — Extract dulu
 Klik kanan `bundle-export.zip` (atau file `project-...-wordpress-theme.zip`
-yang kamu download dari dashboard) → **Extract Here / Extract All**.
+yang kamu download dari dashboard) Ã¢â€ â€™ **Extract Here / Extract All**.
 
 ## Langkah 2 — Pasang Theme (satu-satunya langkah install)
 1. Login ke **WordPress Admin** (`namadomain.com/wp-admin`).
 2. Buka menu **Appearance > Themes**.
-3. Klik **Add New Theme** (di bagian atas halaman) → **Upload Theme**.
+3. Klik **Add New Theme** (di bagian atas halaman) Ã¢â€ â€™ **Upload Theme**.
 4. Klik **Choose File**, cari folder hasil extract tadi, masuk ke folder
    `01-theme/`, pilih file **`{$themeZip}`**.
 5. Klik **Install Now**, tunggu sampai selesai, lalu klik **Activate**.
@@ -270,16 +330,13 @@ manual.
 Untuk mengubah teks, foto, atau urutan section:
 1. Buka menu **Pages**, klik halaman yang mau diedit (misalnya "Home").
 2. Klik **Edit** — akan terbuka **Block Editor** bawaan WordPress.
-3. Setiap judul, paragraf, foto, dan tombol adalah blok terpisah yang bisa
-   diklik lalu diedit langsung, digeser urutannya, dihapus, atau ditambah
-   blok baru dari tombol **+**.
+3. Klik blok HTML untuk mengubah isi halaman. Markup di dalamnya mengikuti
+   mockup yang dipilih. Perubahan urutan section atau tampilannya perlu
+   dilakukan pada markup tersebut.
 4. Setelah selesai, klik **Update** (atau **Publish**) di kanan atas.
 
-Tidak perlu plugin tambahan apa pun — semua sudah bisa diedit dengan editor
-bawaan WordPress ini. Kalau di situs ini plugin **Elementor** kebetulan
-sudah/nanti terpasang, halaman yang sama juga bisa dibuka lewat
-**Edit with Elementor** — datanya sudah disiapkan juga, jadi tidak akan
-kosong.
+Tidak perlu plugin tambahan. Susunan visual halaman mengikuti mockup yang
+dipilih. Ubah markup pada blok HTML di Block Editor untuk menyesuaikan halaman.
 
 ## Referensi tambahan
 - `02-content/` — salinan teks isi website dalam format JSON/teks, buat
@@ -304,13 +361,10 @@ MD;
      * Appends a deterministic, hand-written page/photo importer directly
      * into the theme's functions.php — NOT a separate plugin. Runs the
      * first time an admin opens wp-admin after the THEME is activated: it
-     * creates a real WP Page for every page in the approved mockup, with
-     * its content already written as native Gutenberg blocks — so every
-     * page opens ready to edit in WordPress's built-in Block Editor — no
-     * plugin install step at all. Each page's real Elementor data is also
-     * set (see ElementorPageBuilderService), inert unless the Elementor
-     * plugin happens to be installed, in which case "Edit with Elementor"
-     * opens the real page too instead of a blank draft.
+     * creates one WP Page per approved mockup page. The shared mockup markup
+     * is stored in a core HTML block so the installed theme renders the same
+     * body, styles, and photos as the preview. Reimport also resolves image
+     * and page-link tokens after every page exists.
      *
      * This used to live in a separate "exito-core" plugin the client had to
      * install and activate as a second step after the theme. That was both
@@ -323,30 +377,26 @@ MD;
     private function injectPageImporterIntoTheme(array $bundle, array &$themeFiles, string $themeRoot): void
     {
         $pages = $bundle['elementor_pages'] ?? [];
-        if (!$pages || !is_array($pages)) {
+        if (! $pages || ! is_array($pages)) {
             return;
         }
 
         $pagesForExport = [];
         foreach ($pages as $slug => $page) {
-            if (!is_string($slug) || !is_array($page)) {
+            if (! is_string($slug) || ! is_array($page)) {
                 continue;
             }
             $pagesForExport[$slug] = [
                 'title' => (string) ($page['title'] ?? ucfirst($slug)),
-                'html' => (string) ($page['html'] ?? ''),
-                // Real Elementor "classic" section/column/widget tree (see
-                // ElementorPageBuilderService::mapSectionsToElements). Only
-                // takes effect if the Elementor plugin is later installed —
-                // set as _elementor_data below so "Edit with Elementor"
-                // shows the real page instead of an empty draft; ignored
-                // entirely otherwise, when the native Block Editor content
-                // (html, above) is what's shown.
-                'elements' => is_array($page['elements'] ?? null) ? $page['elements'] : [],
+                'html' => (string) data_get($bundle, "mockup_rendering.pages.{$slug}.html", $page['html'] ?? ''),
+                // Keep legacy Elementor data only for bundles without shared mockup markup.
+                'elements' => data_get($bundle, "mockup_rendering.pages.{$slug}.html")
+                    ? []
+                    : (is_array($page['elements'] ?? null) ? $page['elements'] : []),
             ];
         }
 
-        if (!$pagesForExport) {
+        if (! $pagesForExport) {
             return;
         }
 
@@ -358,13 +408,20 @@ MD;
         $imagesForExport = [];
         if (is_array($images)) {
             foreach ($images as $filename => $bytes) {
-                if (!is_string($filename) || !is_string($bytes) || $bytes === '') {
+                if (! is_string($filename) || ! is_string($bytes) || $bytes === '') {
                     continue;
                 }
                 $safeFilename = preg_replace('/[^A-Za-z0-9._-]/', '-', $filename) ?: 'image.png';
-                $themeFiles[$themeRoot . '/generated-images/' . $safeFilename] = $bytes;
-                $imagesForExport[$safeFilename] = 'generated-images/' . $safeFilename;
+                $themeFiles[$themeRoot.'/generated-images/'.$safeFilename] = $bytes;
+                $imagesForExport[$safeFilename] = 'generated-images/'.$safeFilename;
             }
+        }
+
+        $logo = $bundle['assets']['logo'] ?? null;
+        if (is_array($logo) && ! empty($logo['filename']) && is_string($logo['bytes'] ?? null) && $logo['bytes'] !== '') {
+            $safeFilename = preg_replace('/[^A-Za-z0-9._-]/', '-', $logo['filename']) ?: 'client-logo.png';
+            $themeFiles[$themeRoot.'/assets/'.$safeFilename] = $logo['bytes'];
+            $imagesForExport[$safeFilename] = 'assets/'.$safeFilename;
         }
 
         $exportedPages = var_export($pagesForExport, true);
@@ -375,7 +432,8 @@ MD;
         // content", so re-uploading a rebuilt theme (e.g. a fixed layout)
         // actually refreshes the live pages instead of leaving whatever an
         // earlier build already created untouched forever.
-        $contentVersion = var_export(md5($exportedPages . $exportedImages), true);
+        $contentVersion = var_export(md5($exportedPages.$exportedImages), true);
+        $importOwner = var_export('exito:'.($bundle['project_id'] ?? $themeRoot), true);
 
         // A trailing PHP closing tag in whatever functions.php content
         // already exists (the AI builder's, or a prior call's) would turn
@@ -383,7 +441,7 @@ MD;
         // of PHP — strip it defensively before appending, same as
         // WordPress core itself recommends omitting the closing tag
         // entirely.
-        $existingFunctions = rtrim($themeFiles[$themeRoot . '/functions.php'] ?? "<?php\n");
+        $existingFunctions = rtrim($themeFiles[$themeRoot.'/functions.php'] ?? "<?php\n");
         $existingFunctions = preg_replace('/\?>\s*$/', '', $existingFunctions);
 
         $importerCode = <<<PHP
@@ -403,6 +461,10 @@ function exito_client_images() {
 
 function exito_client_content_version() {
     return {$contentVersion};
+}
+
+function exito_client_page_key(\$slug) {
+    return {$importOwner} . ':' . \$slug;
 }
 
 // Uploads every generated photo into the Media Library and returns a
@@ -498,19 +560,35 @@ function exito_client_import_pages() {
     \$image_urls = exito_client_import_images();
     \$home_id = null;
     \$created = 0;
+    \$page_ids = [];
 
     foreach (exito_client_pages() as \$slug => \$page) {
-        \$existing = get_page_by_path(\$slug);
+        \$owned_pages = get_posts([
+            'post_type' => 'page',
+            'post_status' => 'any',
+            'numberposts' => 1,
+            'fields' => 'ids',
+            'meta_key' => '_exito_client_page_key',
+            'meta_value' => exito_client_page_key(\$slug),
+        ]);
+        \$existing_id = \$owned_pages ? (int) \$owned_pages[0] : 0;
+        \$post_slug = \$existing_id ? get_post_field('post_name', \$existing_id) : \$slug;
+
+        if (!\$existing_id && get_page_by_path(\$slug)) {
+            \$post_slug = wp_unique_post_slug(\$slug, 0, 'publish', 'page', 0);
+        }
+
         \$post_data = [
             'post_title' => \$page['title'],
-            'post_name' => \$slug,
+            'post_name' => \$post_slug,
             'post_content' => exito_client_apply_images(\$page['html'], \$image_urls),
             'post_status' => 'publish',
             'post_type' => 'page',
+            'meta_input' => ['_exito_client_page_key' => exito_client_page_key(\$slug)],
         ];
 
-        if (\$existing) {
-            \$post_data['ID'] = \$existing->ID;
+        if (\$existing_id) {
+            \$post_data['ID'] = \$existing_id;
             \$page_id = wp_update_post(\$post_data);
         } else {
             \$page_id = wp_insert_post(\$post_data);
@@ -521,21 +599,42 @@ function exito_client_import_pages() {
         }
 
         \$created++;
+        \$page_ids[\$slug] = (int) \$page_id;
 
-        // Real Elementor page data — inert until/unless the Elementor
-        // plugin is installed. When it is, "Edit with Elementor" opens
-        // this real content instead of a blank draft; the theme's own
-        // Block Editor content above still renders normally on the live
-        // site when Elementor isn't active.
+        // Legacy builds can retain their Elementor content. Current mockup
+        // builds clear this metadata to prevent a second renderer changing
+        // the approved page layout.
         if (!empty(\$page['elements'])) {
             update_post_meta(\$page_id, '_elementor_data', wp_slash(wp_json_encode(\$page['elements'])));
             update_post_meta(\$page_id, '_elementor_edit_mode', 'builder');
             update_post_meta(\$page_id, '_elementor_template_type', 'wp-page');
             update_post_meta(\$page_id, '_elementor_version', '3.26.0');
+        } else {
+            delete_post_meta(\$page_id, '_elementor_data');
+            delete_post_meta(\$page_id, '_elementor_edit_mode');
+            delete_post_meta(\$page_id, '_elementor_template_type');
+            delete_post_meta(\$page_id, '_elementor_version');
         }
 
         if (\$slug === 'home') {
             \$home_id = \$page_id;
+        }
+    }
+
+    foreach (exito_client_pages() as \$slug => \$page) {
+        \$post_id = \$page_ids[\$slug] ?? 0;
+        \$post = \$post_id ? get_post(\$post_id) : null;
+        if (!\$post) {
+            continue;
+        }
+        \$html = str_replace('__EXITO_PAGE_URL:home__', esc_url(home_url('/')), \$post->post_content);
+        \$html = preg_replace_callback('/__EXITO_PAGE_URL:([a-z0-9-]+)__/', function (\$matches) use (\$page_ids) {
+            \$target_id = \$page_ids[\$matches[1]] ?? 0;
+            \$target = \$target_id ? get_post(\$target_id) : null;
+            return \$target ? esc_url(get_permalink(\$target)) : esc_url(home_url('/'));
+        }, \$html);
+        if (\$html !== \$post->post_content) {
+            wp_update_post(['ID' => \$post->ID, 'post_content' => \$html]);
         }
     }
 
@@ -593,36 +692,28 @@ add_action('admin_notices', function () {
     }
 
     \$url = wp_nonce_url(add_query_arg('exito_client_reimport', '1'), 'exito_client_reimport');
-    echo '<div class="notice notice-info"><p><strong>Exito</strong> — kalau halaman Home/About/Services/Contact belum muncul di menu Pages, klik: <a href="' . esc_url(\$url) . '">Buat/perbarui halaman sekarang</a>. Halaman-halaman itu langsung bisa diedit lewat Block Editor bawaan WordPress, dan lewat Elementor juga kalau plugin Elementor aktif.</p></div>';
+    echo '<div class="notice notice-info"><p><strong>Exito</strong> — kalau halaman Home/About/Services/Contact belum muncul di menu Pages, klik: <a href="' . esc_url(\$url) . '">Buat/perbarui halaman sekarang</a>. Halaman mengikuti mockup dan isinya bisa diedit lewat blok HTML di Block Editor.</p></div>';
 });
 
 // Baseline styling for the native Gutenberg block content these pages are
 // built from (headings, paragraphs, columns, buttons), using the approved
 // brand colors — makes the block editor's default output look intentional
 // without needing any additional plugin.
-add_action('wp_enqueue_scripts', function () {
-    wp_enqueue_style('exito-client-blocks', get_stylesheet_directory_uri() . '/assets/block-content.css', [], '1.0.0');
-});
 
 // Load the same stylesheet inside the Block Editor's own preview (not just
 // the live site) — without this, WordPress shows plain/unstyled text while
 // editing a page even though the real front-end page is styled fine, which
 // reads as "the theme disappeared" the moment you click Edit.
-add_action('after_setup_theme', function () {
-    add_theme_support('editor-styles');
-    add_editor_style('assets/block-content.css');
-});
 
 PHP;
 
-        $themeFiles[$themeRoot . '/functions.php'] = $existingFunctions . $importerCode;
-        $themeFiles[$themeRoot . '/assets/block-content.css'] = $this->blockContentCss($bundle['brand'] ?? []);
+        $themeFiles[$themeRoot.'/functions.php'] = $existingFunctions.$importerCode;
     }
 
     /**
      * Writes the client's real logo/photos (BundleBuilderService::
      * collectAssets()) into the theme at `assets/<filename>` — the exact
-     * paths ClaudeWordPressBuilderService tells the AI to reference. Doing
+     * paths OpenAiWordPressBuilderService tells the AI to reference. Doing
      * this ourselves, deterministically, means
      * the real files exist in the shipped theme no matter what the AI
      * actually did with them.
@@ -639,13 +730,13 @@ PHP;
      */
     private function bustThemeStyleVersion(array &$themeFiles, string $themeRoot): void
     {
-        $styleKey = $themeRoot . '/style.css';
-        if (!isset($themeFiles[$styleKey]) || !is_string($themeFiles[$styleKey])) {
+        $styleKey = $themeRoot.'/style.css';
+        if (! isset($themeFiles[$styleKey]) || ! is_string($themeFiles[$styleKey])) {
             return;
         }
 
-        $version = '1.0.' . now()->format('YmdHis');
-        $updated = preg_replace('/^(\s*Version:\s*).+$/mi', '${1}' . $version, $themeFiles[$styleKey], 1, $count);
+        $version = '1.0.'.now()->format('YmdHis');
+        $updated = preg_replace('/^(\s*Version:\s*).+$/mi', '${1}'.$version, $themeFiles[$styleKey], 1, $count);
 
         if ($count > 0 && is_string($updated)) {
             $themeFiles[$styleKey] = $updated;
@@ -655,18 +746,18 @@ PHP;
     private function embedThemeAssets(array $bundle, array &$themeFiles, string $themeRoot): void
     {
         $assets = $bundle['assets'] ?? [];
-        if (!is_array($assets)) {
+        if (! is_array($assets)) {
             return;
         }
 
         $logo = $assets['logo'] ?? null;
-        if (is_array($logo) && !empty($logo['filename']) && is_string($logo['bytes'] ?? null)) {
-            $themeFiles[$themeRoot . '/assets/' . $logo['filename']] = $logo['bytes'];
+        if (is_array($logo) && ! empty($logo['filename']) && is_string($logo['bytes'] ?? null)) {
+            $themeFiles[$themeRoot.'/assets/'.$logo['filename']] = $logo['bytes'];
         }
 
         foreach ($assets['images'] ?? [] as $image) {
-            if (is_array($image) && !empty($image['filename']) && is_string($image['bytes'] ?? null)) {
-                $themeFiles[$themeRoot . '/assets/' . $image['filename']] = $image['bytes'];
+            if (is_array($image) && ! empty($image['filename']) && is_string($image['bytes'] ?? null)) {
+                $themeFiles[$themeRoot.'/assets/'.$image['filename']] = $image['bytes'];
             }
         }
     }
@@ -729,10 +820,9 @@ CSS;
     {
         $color = ltrim((string) $color, '#');
         if (strlen($color) === 6 && ctype_xdigit($color)) {
-            return '#' . $color;
+            return '#'.$color;
         }
 
         return $fallback;
     }
-
 }

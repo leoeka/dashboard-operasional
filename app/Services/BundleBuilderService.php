@@ -3,25 +3,26 @@
 namespace App\Services;
 
 use App\Models\Project;
+use App\Support\MockupSite;
+use App\Support\SitemapPages;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class BundleBuilderService
 {
     public function __construct(
-        private ClaudeWordPressBuilderService $claudeBuilder,
+        private OpenAiWordPressBuilderService $openAiBuilder,
         private ElementorPageBuilderService $elementorPageBuilder,
         private MockupAssetService $mockupAssets,
-    ) {
-    }
+    ) {}
 
     public function build(Project $project): array
     {
         $proposal = $project->latestProposal;
-        if (!$proposal || $proposal->status !== 'approved') {
-            throw new \RuntimeException('Mockup belum disetujui client. Setujui proposal terlebih dahulu sebelum meminta Claude membangun WordPress.');
+        if (! $proposal) {
+            throw new \RuntimeException('Generate proposal dan mockup terlebih dahulu sebelum membangun WordPress.');
         }
-        $proposalData = json_decode((string) ($proposal?->ai_reasoning ?? ''), true) ?: [];
+        $proposalData = json_decode((string) $proposal->ai_reasoning, true) ?: [];
         $analysis = $this->resolveAnalysis($project, $proposalData['analysis'] ?? []);
         $template = $this->resolveTemplate($project);
         $brand = $this->resolveBrand($project, $proposalData['mockup'] ?? []);
@@ -43,6 +44,7 @@ class BundleBuilderService
         $sectionImages = $this->mockupAssets->loadApproved($mockup);
 
         $bundle = [
+            'project_id' => $project->id,
             'analysis' => $analysis,
             'mockup' => $mockup,
             'implementation_manifest' => $proposalData['implementation_manifest'] ?? [],
@@ -70,10 +72,53 @@ class BundleBuilderService
             'assets' => $this->collectAssets($project),
         ];
 
-        $bundle['wordpress'] = $this->claudeBuilder->build($project, $bundle);
-        $bundle['built_with'] = 'claude';
+        $bundle['mockup_rendering'] = $this->buildMockupRendering($project, $mockup, $sectionImages['map'], $bundle['assets']);
+
+        $bundle['wordpress'] = $this->openAiBuilder->build($project, $bundle);
+        $bundle['built_with'] = 'openai';
 
         return $bundle;
+    }
+
+    /** Render the same approved Blade page and CSS into the installable theme. */
+    private function buildMockupRendering(Project $project, array $mockup, array $imageMap, array $assets): array
+    {
+        $brand = $project->client?->company_name ?? $project->name;
+        $images = [];
+        foreach ($imageMap as $slug => $pageImages) {
+            if (is_string($pageImages['hero'] ?? null)) {
+                $images[$slug]['hero'] = '__EXITO_IMAGE:'.$pageImages['hero'].'__';
+            }
+            foreach (($pageImages['items'] ?? []) as $index => $filename) {
+                $images[$slug]['items'][$index] = '__EXITO_IMAGE:'.$filename.'__';
+            }
+            foreach (($pageImages['sections'] ?? []) as $section => $items) {
+                foreach ($items as $index => $filename) {
+                    $images[$slug]['sections'][$section][$index] = '__EXITO_IMAGE:'.$filename.'__';
+                }
+            }
+        }
+
+        $logo = isset($assets['logo']['filename']) ? '__EXITO_IMAGE:'.$assets['logo']['filename'].'__' : null;
+        $pages = [];
+        foreach (SitemapPages::ordered(is_array($mockup['pages'] ?? null) ? $mockup['pages'] : []) as $page) {
+            $site = MockupSite::build($mockup, [
+                'brand' => $brand,
+                'logo' => $logo,
+                'page' => $page['slug'],
+                'images' => $images,
+                'webfonts' => true,
+                'link' => static fn (string $slug): string => '__EXITO_PAGE_URL:'.$slug.'__',
+            ]);
+            $body = view('mockup.body', ['site' => $site])->render();
+            $pages[$page['slug']] = ['title' => $page['name'], 'html' => "<!-- wp:html -->\n{$body}\n<!-- /wp:html -->"];
+        }
+
+        $homeSite = MockupSite::build($mockup, ['brand' => $brand, 'logo' => $logo, 'page' => 'home', 'images' => $images, 'webfonts' => true]);
+        $css = view('mockup.styles', ['site' => $homeSite])->render();
+        $css = preg_replace('/^<style>|<\/style>$/', '', trim($css)) ?? $css;
+
+        return ['pages' => $pages, 'css' => $css, 'fonts_url' => $homeSite['fonts_url'], 'lang' => $homeSite['lang']];
     }
 
     protected function resolveAnalysis(Project $project, array $proposalAnalysis = []): array
@@ -88,8 +133,8 @@ class BundleBuilderService
     /**
      * Describes the project's own website category. This used to return a
      * fixed "Restaurant Modern" / category "restaurant" for every project,
-     * and the value is handed straight to Claude in the build prompt (see
-     * ClaudeWordPressBuilderService::buildPrompt()) — so a law firm or a
+     * and the value is handed straight to GPT in the build prompt (see
+     * OpenAiWordPressBuilderService::buildPrompt()) — so a law firm or a
      * coffee roaster was being told, in writing, that it was a restaurant
      * build. Where the project states no type, nothing is claimed rather
      * than a category being invented.
@@ -147,7 +192,7 @@ class BundleBuilderService
                 'cta_secondary' => $hero['cta_secondary'] ?? 'Learn More',
             ],
             'about' => [
-                'title' => $about['headline'] ?? 'Tentang ' . $project->name,
+                'title' => $about['headline'] ?? 'Tentang '.$project->name,
                 'content' => $about['description'] ?? data_get($analysis, 'business_analysis.value_proposition', $analysis['business_summary']),
             ],
             'services' => [
@@ -156,7 +201,7 @@ class BundleBuilderService
                 'items' => $services['items'] ?? [],
             ],
             'footer' => [
-                'text' => data_get($mockup, 'footer.text', 'Hubungi ' . $project->name . ' untuk informasi lebih lanjut.'),
+                'text' => data_get($mockup, 'footer.text', 'Hubungi '.$project->name.' untuk informasi lebih lanjut.'),
             ],
             'faq' => $faq['items'] ?? [],
             'cta' => ['title' => $cta['headline'] ?? $mockup['global_cta'] ?? 'Mulai Sekarang', 'description' => $cta['description'] ?? ''],
@@ -171,7 +216,7 @@ class BundleBuilderService
     {
         return [
             // Must match the folder prefix the AI builder prompt is told to
-            // use for theme files (see ClaudeWordPressBuilderService) —
+            // use for theme files (see OpenAiWordPressBuilderService) —
             // BundleExporterService filters wordpress.files by this name,
             // so a mismatch here means it always finds zero theme files.
             'name' => 'exito-client-theme',
@@ -207,8 +252,8 @@ class BundleBuilderService
      * Gathers the client's real logo and any photos uploaded for this
      * project (see ProjectFile::categoryLabels()), as actual binary image
      * data — not just a path string. These get:
-     * - shown to Claude as vision input, so the builder knows what the
-     *   real logo/photos look like (see ClaudeWordPressBuilderService),
+     * - shown to GPT as vision input, so the builder knows what the
+     *   real logo/photos look like (see OpenAiWordPressBuilderService),
      * - embedded verbatim into the generated theme's assets/ folder at a
      *   fixed filename the AI is told to reference (see
      *   BundleExporterService::embedThemeAssets()), so the shipped site
@@ -235,12 +280,13 @@ class BundleBuilderService
 
         $photoIndex = 0;
         foreach ($project->files as $file) {
-            if (!in_array($file->category, ['logo', 'foto'], true)) {
+            if (! in_array($file->category, ['logo', 'foto'], true)) {
                 continue; // skip documents/company profile PDFs — not usable as visual site assets.
             }
 
-            if ($file->category === 'logo' && !$logo) {
+            if ($file->category === 'logo' && ! $logo) {
                 $logo = $this->readImageAsset($disk, $file->file_path, 'client-logo');
+
                 continue;
             }
 
@@ -248,7 +294,7 @@ class BundleBuilderService
                 continue;
             }
 
-            $asset = $this->readImageAsset($disk, $file->file_path, 'client-photo-' . (++$photoIndex));
+            $asset = $this->readImageAsset($disk, $file->file_path, 'client-photo-'.(++$photoIndex));
             if ($asset) {
                 $images[] = $asset;
             }
@@ -263,27 +309,27 @@ class BundleBuilderService
 
     private function readImageAsset($disk, ?string $path, string $slot): ?array
     {
-        if (!$path || !$disk->exists($path)) {
+        if (! $path || ! $disk->exists($path)) {
             return null;
         }
 
         $mime = $disk->mimeType($path) ?: '';
-        if (!str_starts_with($mime, 'image/')) {
+        if (! str_starts_with($mime, 'image/')) {
             return null;
         }
 
         $bytes = $disk->get($path);
-        if (!is_string($bytes) || $bytes === '') {
+        if (! is_string($bytes) || $bytes === '') {
             return null;
         }
 
         $extension = strtolower(pathinfo($path, PATHINFO_EXTENSION) ?: 'png');
-        if (!in_array($extension, ['png', 'jpg', 'jpeg', 'webp', 'gif'], true)) {
+        if (! in_array($extension, ['png', 'jpg', 'jpeg', 'webp', 'gif'], true)) {
             $extension = 'png';
         }
 
         return [
-            'filename' => $slot . '.' . $extension,
+            'filename' => $slot.'.'.$extension,
             'mime' => $mime,
             'bytes' => $bytes,
         ];

@@ -9,15 +9,19 @@ use App\Services\CompetitorDiscoveryService;
 use App\Services\CompetitorContentFetcher;
 use App\Http\Controllers\WebsiteBuilderController;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
 use Throwable;
 
-class GenerateProposalJob implements ShouldQueue
+class GenerateProposalJob implements ShouldQueue, ShouldBeUnique
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    private const LOCK_SECONDS = 1200;
 
     // 15 menit — foto mockup kini dikirim mengikuti batas 5 gambar/menit
     // akun OpenAI (MockupAssetService), jadi butuh waktu lebih. Catatan: di Windows ini sebenarnya
@@ -28,9 +32,24 @@ class GenerateProposalJob implements ShouldQueue
     // dinaikkan supaya sinkron dengan angka ini.
     public int $timeout = 900;
     public int $tries = 1;      // Biar tidak auto-retry kalau API timeout
+    public int $uniqueFor = self::LOCK_SECONDS;
 
     public function __construct(public Project $project)
     {
+    }
+
+    public function uniqueId(): string
+    {
+        return (string) $this->project->getKey();
+    }
+
+    public function middleware(): array
+    {
+        return [
+            (new WithoutOverlapping('proposal-generation:'.$this->uniqueId()))
+                ->dontRelease()
+                ->expireAfter(self::LOCK_SECONDS),
+        ];
     }
 
     public function handle(
