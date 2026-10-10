@@ -78,7 +78,7 @@ it('404s for a candidate that does not exist', function () {
 
     $this->actingAs($user)->get(route('pages.projects.mockup.preview', [$project, 5]))->assertNotFound();
     $this->actingAs($user)->get(route('pages.projects.mockup.demo', [$project, 5]))->assertNotFound();
-    $this->actingAs($user)->get('/projects/' . $project->id . '/mockup/abc/preview')->assertNotFound();
+    $this->actingAs($user)->get('/projects/'.$project->id.'/mockup/abc/preview')->assertNotFound();
 });
 
 it('404s for a project without a proposal', function () {
@@ -175,6 +175,82 @@ it('still renders a blueprint approved before V2, exactly as its PNG showed it',
         ->toContain('Menu Unggulan')
         // the legacy PNG never showed this section, so neither does the demo
         ->not->toContain('Kata Mereka');
+});
+
+it('renders the preview and demo for a legacy proposal with only one mockup field', function () {
+    $project = Project::create([
+        'name' => 'Website Kopi Nusantara',
+        'client_name' => 'Kopi Nusantara',
+        'code' => 'KN-LEGACY',
+        'status' => 'request',
+    ]);
+    Proposal::create([
+        'project_id' => $project->id,
+        'client_name' => $project->client_name,
+        'version' => 1,
+        'status' => 'pending',
+        'ai_reasoning' => json_encode(['mockup' => legacyCandidate(), 'selected_mockup_index' => 0]),
+    ]);
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('pages.projects.mockup.preview', [$project, 0]))
+        ->assertOk()
+        ->assertSee('Kopi Nusantara');
+
+    $this->actingAs($user)
+        ->get(route('pages.projects.mockup.demo', [$project, 0]))
+        ->assertOk()
+        ->assertSee('Demo Opsi 1')
+        ->assertSee('Kopi Nusantara')
+        ->assertDontSee('aria-label="Opsi desain"', false);
+});
+
+it('shows a legacy mockup in the workspace when the candidate list is empty', function () {
+    $project = Project::create([
+        'name' => 'Website Kopi Nusantara',
+        'client_name' => 'Kopi Nusantara',
+        'code' => 'KN-LEGACY-WORKSPACE',
+        'status' => 'request',
+    ]);
+    Proposal::create([
+        'project_id' => $project->id,
+        'client_name' => $project->client_name,
+        'version' => 1,
+        'status' => 'pending',
+        'ai_reasoning' => json_encode([
+            'mockup' => legacyCandidate(),
+            'mockup_candidates' => [],
+            'selected_mockup_index' => 0,
+        ]),
+    ]);
+
+    $this->actingAs(User::factory()->create())
+        ->get(route('pages.project-workspace', ['project' => $project->id]))
+        ->assertOk()
+        ->assertSee('Buat WordPress siap install');
+});
+
+it('does not present a default or internal mockup selection as the client choice', function () {
+    $project = previewProject([v2Blueprint(), v2Blueprint()]);
+    $proposal = $project->latestProposal;
+    $proposalData = json_decode((string) $proposal->ai_reasoning, true);
+    $proposalData['selected_mockup_index'] = null;
+    $proposal->update(['ai_reasoning' => json_encode($proposalData)]);
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('pages.project-workspace', ['project' => $project->id]))
+        ->assertOk()
+        ->assertSee('data-mockup-card data-index="0" class="rounded-xl border border-slate-200', false)
+        ->assertDontSee('border-blue-500', false)
+        ->assertDontSee('ring-2 ring-blue-100', false);
+
+    $this->actingAs($user)
+        ->get(route('pages.projects.mockup.demo', [$project, 0]))
+        ->assertOk()
+        ->assertDontSee('Dipilih')
+        ->assertDontSee('Disetujui');
 });
 
 it('serves photographs by public URL, never an absolute storage path', function () {

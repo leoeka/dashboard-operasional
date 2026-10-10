@@ -41,8 +41,6 @@ select{background:#1e293b;color:#e2e8f0;border:0;border-radius:8px;padding:8px 1
 <div class="bar">
     <a class="back" href="{{ route('pages.project-workspace', ['project' => $project->id]) }}">&larr; Workspace</a>
     <span class="title">{{ $project->name }} <small>Opsi {{ $candidate + 1 }}@if ($label) · {{ $label }}@endif</small></span>
-    @if ($selected)<span class="badge">{{ $approved ? 'Disetujui' : 'Dipilih' }}</span>@endif
-
     @if ($candidateCount > 1)
         <nav class="group" aria-label="Opsi desain">
             @for ($i = 0; $i < $candidateCount; $i++)

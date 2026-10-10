@@ -2,15 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\ProviderException;
+use App\Jobs\GenerateProposalJob;
 use App\Models\Project;
 use App\Models\Proposal;
-use App\Services\GenerateMockupGptService;
 use App\Services\AnalisisGeminiService;
-use App\Exceptions\ProviderException;
 use App\Services\BlueprintManifestService;
-use App\Services\PipelineCheckpointService;
 use App\Services\CompetitorContentFetcher;
 use App\Services\CompetitorDiscoveryService;
+use App\Services\GenerateMockupGptService;
+use App\Services\PipelineCheckpointService;
 use App\Services\ScreenshotService;
 use App\Support\MockupSite;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -27,15 +28,22 @@ use Illuminate\Support\Str;
  * (which had grown to cover project CRUD, this pipeline, AND SEO/backlink
  * tooling all in one class) so each concern has its own file. See also
  * SeoBacklinkController (SEO/backlink/PageSpeed/Search Console/GA4) and
- * BundleController (the Claude WordPress build step after a mockup is
+ * BundleController (the GPT WordPress build step after a mockup is
  * approved here).
  */
 class WebsiteBuilderController extends Controller
 {
+    private const PROPOSAL_PROGRESS_TTL_MINUTES = 20;
+
     public function generateProposal(Project $project)
     {
-        $this->reportProgress($project, 'queued', 0, 'Waiting to be processed...');
-        \App\Jobs\GenerateProposalJob::dispatch($project);
+        $progress = Cache::get($this->progressCacheKey($project->id));
+        if (! in_array($progress['status'] ?? null, ['queued', 'processing'], true)) {
+            $this->reportProgress($project, 'queued', 0, 'Waiting to be processed...');
+        }
+
+        GenerateProposalJob::dispatch($project);
+
         return response()->json(['queued' => true]);
     }
 
@@ -47,8 +55,7 @@ class WebsiteBuilderController extends Controller
             'message' => '',
         ]);
 
-        // The cache entry expires after ten minutes; a failure has to outlive
-        // it, or somebody coming back later sees "idle" and no reason to retry.
+        // Keep active progress visible for the full 15-minute job timeout.
         $failure = $checkpoints->failure($project);
 
         if ($failure && $progress['status'] !== 'processing') {
@@ -69,7 +76,7 @@ class WebsiteBuilderController extends Controller
     {
         $proposal = $project->latestProposal;
 
-        if (!$proposal) {
+        if (! $proposal) {
             return back()->with('error', 'Proposal belum dibuat.');
         }
 
@@ -93,7 +100,7 @@ class WebsiteBuilderController extends Controller
         // — 'mockup' is not a valid enum value.
         $project->update(['status' => 'in_progress']);
 
-        return back()->with('success', 'Mockup disetujui. Sekarang data desain siap dikirim ke Claude untuk build WordPress.');
+        return back()->with('success', 'Approval klien tercatat. Mockup terpilih siap dibuat menjadi WordPress siap install.');
     }
 
     public function selectMockup(Project $project, Request $request): RedirectResponse|JsonResponse
@@ -108,8 +115,9 @@ class WebsiteBuilderController extends Controller
         // bawah, ini cuma jalur cepatnya.
         $wantsJson = $request->ajax() || $request->wantsJson();
 
-        if (!$proposal || !isset($proposalData['mockup_candidates'][$selectedIndex])) {
+        if (! $proposal || ! isset($proposalData['mockup_candidates'][$selectedIndex])) {
             $message = 'Pilihan mockup tidak ditemukan. Generate proposal ulang.';
+
             return $wantsJson
                 ? response()->json(['success' => false, 'message' => $message], 422)
                 : back()->with('error', $message);
@@ -118,7 +126,7 @@ class WebsiteBuilderController extends Controller
         $proposalData['selected_mockup_index'] = $selectedIndex;
         $proposal->update(['ai_reasoning' => json_encode($proposalData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
 
-        $message = 'Mockup pilihan ' . ($selectedIndex + 1) . ' tersimpan. Silakan lanjutkan persetujuan client.';
+        $message = 'Mockup pilihan '.($selectedIndex + 1).' tersimpan. Setelah approval klien dari proposal diterima, catat approval di workspace untuk mulai build.';
 
         return $wantsJson
             ? response()->json(['success' => true, 'message' => $message, 'selected_index' => $selectedIndex])
@@ -149,7 +157,7 @@ class WebsiteBuilderController extends Controller
         CompetitorContentFetcher $contentFetcher,
         ?PipelineCheckpointService $checkpoints = null
     ): void {
-        @set_time_limit(300);
+        // @set_time_limit(300);
         $checkpoints ??= app(PipelineCheckpointService::class);
 
         try {
@@ -180,7 +188,7 @@ class WebsiteBuilderController extends Controller
         $project->load(['client', 'files']);
         $client = $project->client;
 
-        if (!$client) {
+        if (! $client) {
             $this->reportProgress($project, 'failed', 0, 'This project is not yet linked to client data.');
             throw new \Exception('Project is not linked to client data.');
         }
@@ -252,7 +260,7 @@ class WebsiteBuilderController extends Controller
                 'page' => 'home',
                 'images' => MockupSite::imagesFromManifest(is_array($mockup['assets'] ?? null) ? $mockup['assets'] : []),
             ])])->render();
-            $mockup['screenshot_path'] = app(ScreenshotService::class)->captureHtml($mockupHtml, 'mockups/' . $project->code . '.png');
+            $mockup['screenshot_path'] = app(ScreenshotService::class)->captureHtml($mockupHtml, 'mockups/'.$project->code.'.png');
         }
 
         // Skipped entirely when the proposal already exists — no PDF is
@@ -274,14 +282,14 @@ class WebsiteBuilderController extends Controller
         $checkpoints->remember($project, 'proposal_document', function () use ($project, $projectData, $analysis, $mockup, $mockupCandidates) {
             try {
                 $pdf = Pdf::loadView('pdf.proposal', compact('project', 'projectData', 'analysis', 'mockup', 'mockupCandidates'));
-                $fileName = 'proposals/Proposal-Mockup-' . Str::slug($project->client_name) . '-' . $project->code . '.pdf';
+                $fileName = 'proposals/Proposal-Mockup-'.Str::slug($project->client_name).'-'.$project->code.'.pdf';
                 Storage::disk('public')->put($fileName, $pdf->output());
 
                 Proposal::updateOrCreate(['project_id' => $project->id], [
                     'client_name' => $project->client_name,
                     'pdf_path' => $fileName,
                     'version' => 1,
-                    'ai_reasoning' => json_encode(['analysis' => $analysis, 'mockup' => $mockup, 'mockup_candidates' => $mockupCandidates, 'selected_mockup_index' => 0], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
+                    'ai_reasoning' => json_encode(['analysis' => $analysis, 'mockup' => $mockup, 'mockup_candidates' => $mockupCandidates, 'selected_mockup_index' => null], JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
                     'summary' => $mockup['website_concept'] ?? null,
                 ]);
 
@@ -289,8 +297,8 @@ class WebsiteBuilderController extends Controller
 
                 return ['pdf_path' => $fileName];
             } catch (\Throwable $e) {
-                Log::error('PDF Error: ' . ProviderException::sanitise($e->getMessage()));
-                $this->reportProgress($project, 'failed', 0, 'Failed to create PDF proposal: ' . ProviderException::sanitise($e->getMessage()));
+                Log::error('PDF Error: '.ProviderException::sanitise($e->getMessage()));
+                $this->reportProgress($project, 'failed', 0, 'Failed to create PDF proposal: '.ProviderException::sanitise($e->getMessage()));
 
                 throw ProviderException::fromThrowable('pipeline', $e);
             }
@@ -305,7 +313,7 @@ class WebsiteBuilderController extends Controller
             ->latest()
             ->first();
 
-        if (!$proposal) {
+        if (! $proposal) {
             return redirect()
                 ->route('pages.projects.show', $project)
                 ->with('error', 'Proposal has not been created yet.');
@@ -323,11 +331,11 @@ class WebsiteBuilderController extends Controller
             ->latest()
             ->first();
 
-        if (!$proposal || !$proposal->pdf_path) {
+        if (! $proposal || ! $proposal->pdf_path) {
             return back()->with('error', 'PDF proposal has not been created yet.');
         }
 
-        if (!Storage::disk('public')->exists($proposal->pdf_path)) {
+        if (! Storage::disk('public')->exists($proposal->pdf_path)) {
             return back()->with('error', 'PDF file not found.');
         }
 
@@ -369,7 +377,7 @@ class WebsiteBuilderController extends Controller
         Cache::put(
             $this->progressCacheKey($project->id),
             array_merge(['status' => $status, 'progress' => $progress, 'message' => $message], $extra),
-            now()->addMinutes(10)
+            now()->addMinutes(self::PROPOSAL_PROGRESS_TTL_MINUTES)
         );
     }
 }

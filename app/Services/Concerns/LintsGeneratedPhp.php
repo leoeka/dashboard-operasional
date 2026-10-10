@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 
 /**
- * Used by ClaudeWordPressBuilderService to catch a *syntactically* broken
+ * Used by AI WordPress builders to catch a *syntactically* broken
  * `.php` file before it's shipped in a bundle. This project has repeatedly
  * hit AI-generated output that doesn't
  * match the exact shape/validity a consumer needed; for a WordPress theme
@@ -15,9 +15,7 @@ use Illuminate\Support\Facades\Process;
  * visitor, and WordPress's own template loader has no error boundary
  * around it.
  *
- * Runs `php -l` via a subprocess; if that's unavailable in this
- * environment (exec/proc_open disabled), it fails open — treats the file
- * as valid rather than blocking the build over a check it couldn't run.
+ * Runs `php -l` via a subprocess. A build stops if the syntax check cannot run.
  */
 trait LintsGeneratedPhp
 {
@@ -25,18 +23,23 @@ trait LintsGeneratedPhp
     {
         $tmpPath = tempnam(sys_get_temp_dir(), 'exito-php-lint-');
         if ($tmpPath === false) {
-            return true;
+            throw new \RuntimeException('PHP lint gagal menyiapkan file sementara; build dihentikan.');
         }
 
         try {
-            file_put_contents($tmpPath, $code);
+            if (file_put_contents($tmpPath, $code) === false) {
+                throw new \RuntimeException('PHP lint gagal menulis file sementara; build dihentikan.');
+            }
+
             $result = Process::run(['php', '-l', $tmpPath]);
+
             return $result->successful();
         } catch (\Throwable $e) {
-            Log::info('PHP-lint AI-generated file dilewati (php -l tidak tersedia di environment ini).', [
+            Log::error('PHP lint gagal dijalankan; WordPress build dihentikan.', [
                 'error' => ProviderException::sanitise($e->getMessage()),
             ]);
-            return true;
+
+            throw new \RuntimeException('PHP lint tidak dapat dijalankan; build dihentikan.', previous: $e);
         } finally {
             @unlink($tmpPath);
         }
