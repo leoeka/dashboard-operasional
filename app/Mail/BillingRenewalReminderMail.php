@@ -9,6 +9,7 @@ use App\Services\Billing\ReminderPolicy;
 use Carbon\Carbon;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
+use App\Services\InvoicePdfService;
 
 /**
  * The renewal notice a client actually receives.
@@ -40,10 +41,21 @@ class BillingRenewalReminderMail extends Mailable
     ) {
     }
 
+    // public function build()
+    // {
+    //     return $this->subject($this->subjectLine())
+    //         ->view('emails.billing-renewal-reminder', $this->viewData());
+    // }
+
     public function build()
     {
         return $this->subject($this->subjectLine())
-            ->view('emails.billing-renewal-reminder', $this->viewData());
+            ->view('emails.billing-renewal-reminder', $this->viewData())
+            ->attachData(
+                app(InvoicePdfService::class)->render($this->invoice),
+                $this->invoice->invoice_number . '.pdf',
+                ['mime' => 'application/pdf']
+            );
     }
 
     private function subjectLine(): string
@@ -163,6 +175,7 @@ class BillingRenewalReminderMail extends Mailable
             'period' => $this->period(),
             'intro' => $this->intro(),
             'items' => $this->invoice->items,
+            'doc' => app(InvoicePdfService::class)->data($this->invoice),
         ];
     }
 
@@ -196,4 +209,6 @@ class BillingRenewalReminderMail extends Mailable
     {
         return 'Rp ' . number_format((float) $amount, 0, ',', '.');
     }
+
+
 }
