@@ -26,14 +26,6 @@ class AnalisisGeminiService
      */
     public function analyzeProject(Project $project, Client $client, array $competitorContents = []): array
     {
-        if (!config('services.proposal_ai_enabled', true)) {
-            Log::warning('AI proposal dinonaktifkan, memakai analisis fallback lokal.', [
-                'project_id' => $project->id,
-            ]);
-
-            return $this->fallbackProjectAnalysis($project);
-        }
-
         // =====================================================
         // TAHAP 1: GEMINI -> Analisis Bisnis & Target Pasar
         // =====================================================
@@ -45,46 +37,6 @@ class AnalisisGeminiService
         // purpose: a failure here is a bug to surface, never a reason to fall
         // back to a different analysis.
         return app(ContentIntegrityService::class)->sanitize($businessAnalysis, $project, $client, $competitorContents);
-    }
-
-    /**
-     * Local analysis for explicitly disabled AI only. Live provider failures
-     * must propagate so the pipeline can retry instead of caching fallback.
-     */
-    private function fallbackProjectAnalysis(Project $project): array
-    {
-        $cta = 'Hubungi Kami';
-
-        return [
-            'business_analysis' => [
-                'brand_identity' => $project->name,
-                'value_proposition' => $project->description ?: 'Professional business website',
-            ],
-            'market_analysis' => [],
-            'target_market' => [
-                'demographics' => $project->target_market ?: null,
-            ],
-            'competitor_analysis' => [],
-            'content_benchmark' => ['must_match' => [], 'must_exceed' => []],
-            'website_objective' => [
-                'primary_goal' => 'Generate qualified enquiries',
-            ],
-            'language' => 'id',
-            'sitemap' => [
-                'website_concept' => $project->description ?: 'Website profesional untuk ' . $project->name,
-                'global_cta' => $cta,
-                'pages' => [
-                    ['name' => 'Home', 'sections' => [
-                        ['type' => 'hero', 'name' => 'Hero', 'headline' => $project->name, 'description' => $project->description ?: '', 'cta' => $cta, 'items' => []],
-                    ]],
-                ],
-                'seo' => [
-                    'primary_keyword' => strtolower((string) ($project->type ?: $project->name)),
-                    'meta_title' => $project->name,
-                    'meta_description' => $project->description ?: '',
-                ],
-            ],
-        ];
     }
 
     /**

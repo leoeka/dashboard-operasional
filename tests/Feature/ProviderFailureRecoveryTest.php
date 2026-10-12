@@ -15,7 +15,6 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 it('completes successful Gemini analysis and reuses its checkpoint', function () {
-    config(['services.proposal_ai_enabled' => true]);
     $gemini = Mockery::mock();
     Gemini::swap($gemini);
     $model = Mockery::mock();
@@ -41,7 +40,6 @@ it('completes successful Gemini analysis and reuses its checkpoint', function ()
 });
 
 it('keeps failed Gemini analysis retryable instead of caching local fallback', function () {
-    config(['services.proposal_ai_enabled' => true]);
     Log::spy();
     $secret = 'AIzaSyTEST12345678901234567890';
     $gemini = Mockery::mock();
@@ -76,17 +74,26 @@ it('keeps failed Gemini analysis retryable instead of caching local fallback', f
     });
 });
 
-it('retains local analysis when AI is explicitly disabled', function () {
-    config(['services.proposal_ai_enabled' => false]);
+it('always uses Gemini for proposal analysis', function () {
     $gemini = Mockery::mock();
     Gemini::swap($gemini);
-    $gemini->shouldReceive('generativeModel')->never();
+    $model = Mockery::mock();
+    $gemini->shouldReceive('generativeModel')->once()->andReturn($model);
+    $model->shouldReceive('withGenerationConfig')->once()->andReturnSelf();
+    $model->shouldReceive('generateContent')->once()->andReturn(new class {
+        public function text(): string
+        {
+            return json_encode(['sitemap' => ['pages' => [['name' => 'Home', 'sections' => [
+                ['type' => 'hero', 'headline' => 'Gemini analysis'],
+            ]]]]]);
+        }
+    });
 
     $analysis = app(AnalisisGeminiService::class)->analyzeProject(
         new Project(['name' => 'Local Preview']), new Client()
     );
 
-    expect($analysis['sitemap']['pages'][0]['sections'][0]['headline'])->toBe('Local Preview');
+    expect($analysis['sitemap']['pages'][0]['sections'][0]['headline'])->toBe('Gemini analysis');
 });
 
 it('redacts Places credentials from failed responses and transport errors', function (bool $transport, string $detail, string $secret) {

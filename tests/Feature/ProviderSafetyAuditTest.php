@@ -153,7 +153,6 @@ it('sanitises Gemini helper and GPT reference exceptions', function (string $pro
 })->with(['gemini', 'openai']);
 
 it('does not log malformed Gemini payloads', function () {
-    config(['services.proposal_ai_enabled' => true]);
     $logs = [];
     foreach (['warning', 'error'] as $level) {
         Log::shouldReceive($level)->zeroOrMoreTimes()->andReturnUsing(function (...$args) use (&$logs) { $logs[] = $args; });

@@ -52,10 +52,6 @@ return [
         'wordpress_build_timeout' => env('OPENAI_WORDPRESS_BUILD_TIMEOUT', 600),
         'wordpress_max_output_tokens' => env('OPENAI_WORDPRESS_MAX_OUTPUT_TOKENS', 50000),
     ],
-
-
-    'proposal_ai_enabled' => env('PROPOSAL_AI_ENABLED', true),
-
     'fonnte' => [
         'token' => env('FONNTE_TOKEN'),
         'delay' => env('FONNTE_DELAY', '60-180'),
