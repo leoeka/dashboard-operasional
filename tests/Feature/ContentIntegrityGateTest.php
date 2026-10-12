@@ -221,7 +221,6 @@ it('never turns competitor or reference facts into client facts', function () {
 });
 
 it('runs on every live Gemini response before the sitemap is final', function () {
-    config(['services.proposal_ai_enabled' => true]);
     $json = json_encode(slopAnalysis([
         ['type' => 'testimonial', 'name' => 'Testimonials', 'headline' => 'What guests say', 'items' => [['quote' => 'Fantastic!', 'author' => 'Rina']]],
     ]));
