@@ -40,6 +40,7 @@ class BillingReminderLog extends Model
         'recipient',
         'error_message',
         'attempts',
+        'whatsapp_sent_at',      
     ];
 
     protected $attributes = [
@@ -52,6 +53,7 @@ class BillingReminderLog extends Model
         'sent_at' => 'datetime',
         'days_before' => 'integer',
         'attempts' => 'integer',
+        'whatsapp_sent_at' => 'datetime',
     ];
 
     public function invoice()

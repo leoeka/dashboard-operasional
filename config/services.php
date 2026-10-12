@@ -58,6 +58,7 @@ return [
 
     'fonnte' => [
         'token' => env('FONNTE_TOKEN'),
+        'delay' => env('FONNTE_DELAY', '60-180'),
     ],
 
     // Shared Google OAuth client (key name kept as-is to avoid touching
@@ -91,5 +92,4 @@ return [
     'google_places' => [
         'api_key' => env('GOOGLE_PLACES_API_KEY'),
     ],
-
 ];

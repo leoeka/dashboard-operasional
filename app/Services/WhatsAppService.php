@@ -31,10 +31,10 @@ class WhatsAppService
                 // apa adanya di header Authorization.
                 'Authorization' => $token,
             ])->asForm()->post('https://api.fonnte.com/send', [
-                'target' => $normalizedPhone,
-                'message' => $message,
-                'countryCode' => '62',
-            ]);
+                        'target' => $normalizedPhone,
+                        'message' => $message,
+                        'countryCode' => '62',
+                    ]);
 
             $result = $response->json();
 
@@ -52,10 +52,15 @@ class WhatsAppService
                 return false;
             }
 
+            $messageId = $result['id'] ?? '';
+            if (is_array($messageId)) {
+                $messageId = implode(',', $messageId);
+            }
+
             Log::info('WhatsApp (Fonnte): pesan berhasil dikirim / masuk antrian.', [
                 'phone' => $normalizedPhone,
                 'detail' => ProviderException::sanitise((string) ($result['detail'] ?? '')),
-                'message_id' => ProviderException::sanitise((string) ($result['id'] ?? '')),
+                'message_id' => ProviderException::sanitise((string) $messageId),
             ]);
 
             return true;
@@ -75,6 +80,56 @@ class WhatsAppService
      * konsisten, dan untuk berjaga-jaga kalau format input dari form ada
      * karakter aneh (spasi, tanda hubung, dll).
      */
+
+    public function sendMany(array $items, string $delay = '60-180'): bool
+    {
+        $token = config('services.fonnte.token');
+
+        if (!$token) {
+            Log::warning('WhatsApp (Fonnte): FONNTE_TOKEN belum diisi di .env, pesan tidak dikirim.');
+            return false;
+        }
+
+        if (empty($items)) {
+            return true;
+        }
+
+        $data = array_map(fn($item) => [
+            'target' => $this->normalizePhoneNumber($item['phone']),
+            'message' => $item['message'],
+            'delay' => $delay,
+        ], $items);
+
+        try {
+            $response = Http::withHeaders(['Authorization' => $token])
+                ->timeout(30)
+                ->asForm()
+                ->post('https://api.fonnte.com/send', [
+                    'data' => json_encode($data),
+                    'countryCode' => '62',
+                ]);
+
+            $result = $response->json();
+
+            if (!($result['status'] ?? false)) {
+                Log::warning('WhatsApp (Fonnte): gagal kirim batch.', [
+                    'count' => count($items),
+                    'reason' => ProviderException::sanitise((string) ($result['reason'] ?? 'unknown')),
+                ]);
+                return false;
+            }
+
+            Log::info('WhatsApp (Fonnte): batch masuk antrian Fonnte.', [
+                'count' => count($items),
+            ]);
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('WhatsApp (Fonnte) batch exception: ' . ProviderException::sanitise($e->getMessage()));
+            return false;
+        }
+    }
+
     private function normalizePhoneNumber(string $phone): string
     {
         // Buang semua karakter selain angka dan tanda +
