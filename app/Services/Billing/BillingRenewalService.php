@@ -227,10 +227,13 @@ class BillingRenewalService
         if (!$recipient) {
             // Counted as an attempt so a client with no address anywhere stops
             // being retried every single day.
-            $log->update([
-                'attempts' => $log->attempts + 1,
-                'error_message' => 'Client tidak memiliki alamat email billing maupun email utama.',
-            ]);
+            BillingReminderLog::whereKey($log->id)
+                ->where('status', BillingReminderLog::FAILED)
+                ->where('attempts', '<', BillingReminderLog::MAX_ATTEMPTS)
+                ->update([
+                    'attempts' => DB::raw('attempts + 1'),
+                    'error_message' => 'Client tidak memiliki alamat email billing maupun email utama.',
+                ]);
 
             return false;
         }
@@ -239,12 +242,21 @@ class BillingRenewalService
         // and leaving it there if the dispatch throws would make that untrue,
         // and the row would sit PENDING for ever: the retry pass only looks at
         // FAILED rows, so nothing would ever pick it up again.
-        $log->update([
-            'status' => BillingReminderLog::PENDING,
-            'attempts' => $log->attempts + 1,
-            'recipient' => $recipient,
-            'error_message' => null,
-        ]);
+        $claimed = BillingReminderLog::whereKey($log->id)
+            ->where('status', BillingReminderLog::FAILED)
+            ->where('attempts', '<', BillingReminderLog::MAX_ATTEMPTS)
+            ->update([
+                'status' => BillingReminderLog::PENDING,
+                'attempts' => DB::raw('attempts + 1'),
+                'recipient' => $recipient,
+                'error_message' => null,
+            ]);
+
+        if ($claimed === 0) {
+            return false;
+        }
+
+        $log->refresh();
 
         try {
             $this->dispatcher->send($invoice, $log, $recipient);

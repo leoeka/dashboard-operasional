@@ -150,9 +150,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/finance/subscriptions/{subscription}/edit', [BillingSubscriptionController::class, 'edit'])->name('pages.finance.subscriptions.edit');
     Route::put('/finance/subscriptions/{subscription}', [BillingSubscriptionController::class, 'update'])->name('pages.finance.subscriptions.update');
     Route::patch('/finance/subscriptions/{subscription}/status', [BillingSubscriptionController::class, 'updateStatus'])->name('pages.finance.subscriptions.status');
-    Route::post('/finance', [InvoiceController::class, 'store'])->name('pages.finance.store');
     Route::patch('/finance/{invoice}/paid', [InvoiceController::class, 'markPaid'])->name('pages.finance.paid');
     Route::post('/finance/{invoice}/remind', [InvoiceController::class, 'sendReminderNow'])->name('pages.finance.remind');
+    Route::post('/finance/reminders/{reminderLog}/retry', [FinanceController::class, 'retryReminder'])->name('pages.finance.reminders.retry');
     Route::delete('/finance/{invoice}', [InvoiceController::class, 'destroy'])->name('pages.finance.destroy');
 
     // 9. Reports

@@ -482,6 +482,36 @@ it('stops retrying a reminder that keeps failing', function () {
         ->and($log->canRetry())->toBeFalse();
 });
 
+it('does not queue a reminder again after the first retry claims it', function () {
+    $recorder = dispatcher();
+    $client = renewalClient();
+    $sub = subscription($client);
+    $invoice = Invoice::create([
+        'client_id' => $client->id,
+        'billing_subscription_id' => $sub->id,
+        'invoice_number' => 'INV-RETRY-ONCE',
+        'type' => 'full',
+        'purpose' => Invoice::PURPOSE_RENEWAL,
+        'amount' => 2500000,
+        'due_date' => '2026-10-30',
+        'status' => 'unpaid',
+    ]);
+    $log = BillingReminderLog::create([
+        'invoice_id' => $invoice->id,
+        'billing_subscription_id' => $sub->id,
+        'days_before' => 30,
+        'scheduled_for' => '2026-09-30',
+        'status' => BillingReminderLog::FAILED,
+        'attempts' => 1,
+    ]);
+
+    expect(engine()->retryFailedDeliveries([$log->id]))->toBe(1)
+        ->and(engine()->retryFailedDeliveries([$log->id]))->toBe(0)
+        ->and($log->fresh()->status)->toBe(BillingReminderLog::PENDING)
+        ->and($log->fresh()->attempts)->toBe(2)
+        ->and($recorder->sent)->toHaveCount(1);
+});
+
 it('marks a reminder failed when the client has no address at all', function () {
     dispatcher();
     $client = renewalClient(['email' => null]);

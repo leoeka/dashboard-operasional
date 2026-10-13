@@ -45,7 +45,7 @@
             description="Reminder perpanjangan tercatat di sini setiap kali penjadwal harian mengklaim sebuah threshold." />
     @else
         <div class="overflow-x-auto">
-            <table class="w-full text-sm min-w-[1040px]">
+            <table class="w-full text-sm min-w-[1120px]">
                 <thead>
                     <tr class="text-left text-slate-400 border-b border-slate-100">
                         <th class="px-6 py-3 font-medium">Client</th>
@@ -57,6 +57,7 @@
                         <th class="px-6 py-3 font-medium">Status</th>
                         <th class="px-6 py-3 font-medium">Percobaan</th>
                         <th class="px-6 py-3 font-medium">Terkirim</th>
+                        <th class="px-6 py-3 font-medium">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -104,6 +105,16 @@
                                  column is stored in UTC and is not touched here. --}}
                             <td class="px-6 py-4 text-slate-500 whitespace-nowrap">
                                 {{ $log->sentAtForDisplay() ?? '—' }}</td>
+                            <td class="px-6 py-4">
+                                @if ($log->canRetry())
+                                    <form method="POST" action="{{ route('pages.finance.reminders.retry', $log) }}">
+                                        @csrf
+                                        <button type="submit" class="text-sm text-brand-500 hover:underline whitespace-nowrap">Kirim ulang</button>
+                                    </form>
+                                @elseif ($log->status === \App\Models\BillingReminderLog::FAILED)
+                                    <span class="text-xs text-slate-400">Batas percobaan tercapai</span>
+                                @endif
+                            </td>
                         </tr>
                     @endforeach
                 </tbody>

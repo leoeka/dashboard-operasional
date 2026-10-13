@@ -2,23 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BillingReminderLog;
 use App\Models\BillingSubscription;
 use App\Models\Client;
 use App\Models\Invoice;
-use App\Models\BillingReminderLog;
-use App\Models\Payment;
-use App\Models\Project;
 use App\Services\Billing\BillingClock;
 use App\Services\Billing\BillingCycle;
+use App\Services\Billing\BillingRenewalService;
 use Illuminate\Http\Request;
 
 /**
  * The Billing & Finance workspace: everything /finance shows.
  *
- * Read-only on purpose. Creating an invoice, marking one paid and sending a
- * reminder all still go through InvoiceController, and subscriptions through
- * BillingSubscriptionController — this only assembles what the page displays,
- * so the actions keep the behaviour they were tested with.
+ * Assembles the Finance workspace. Billing actions remain in their owning
+ * controllers and services, with reminder retry delegated to the billing engine.
  *
  * Every date question is asked of BillingClock/BillingCycle rather than
  * recomputed here. "Overdue" and "7 days from now" have to mean the same thing
@@ -27,7 +24,7 @@ use Illuminate\Http\Request;
  */
 class FinanceController extends Controller
 {
-    public const TABS = ['overview', 'subscriptions', 'invoices', 'payments', 'reminders'];
+    public const TABS = ['overview', 'subscriptions', 'invoices', 'reminders'];
 
     public function __construct(
         private BillingClock $clock,
@@ -47,53 +44,38 @@ class FinanceController extends Controller
         $data += match ($tab) {
             'subscriptions' => $this->subscriptionsTab($request),
             'invoices' => $this->invoicesTab($request),
-            'payments' => $this->paymentsTab($request),
             'reminders' => $this->remindersTab($request),
             default => $this->overviewTab(),
         };
 
-        // The legacy manual-invoice form lives on every tab's page, so its
-        // project list is always needed.
-        $data['projects'] = Project::orderBy('name')->get(['id', 'name', 'client_name']);
-
         return view('pages.finance', $data);
+    }
+
+    public function retryReminder(BillingReminderLog $reminderLog, BillingRenewalService $renewals)
+    {
+        if (!$reminderLog->canRetry()) {
+            return back()->with('error', 'Reminder ini tidak bisa dikirim ulang.');
+        }
+
+        if ($renewals->retryFailedDeliveries([$reminderLog->id]) === 0) {
+            return back()->with('error', 'Reminder tidak dapat diantrikan. Periksa invoice dan status langganan klien.');
+        }
+
+        return back()->with('success', 'Reminder berhasil dimasukkan ke antrean kirim.');
     }
 
     /**
      * The numbers across the top.
      *
-     * Aggregates only — counts and sums computed by the database. Loading the
-     * invoices to add them up in PHP would mean fetching every row the business
-     * has ever issued to render six figures.
+     * Values shown at the top of the Finance workspace.
      */
     private function summary(): array
     {
         $today = $this->clock->today()->toDateString();
-        $in7 = $this->clock->today()->addDays(7)->toDateString();
         $in30 = $this->clock->today()->addDays(30)->toDateString();
-        $monthStart = $this->clock->today()->startOfMonth()->toDateString();
-        $monthEnd = $this->clock->today()->endOfMonth()->toDateString();
-
-        $unpaid = Invoice::where('status', 'unpaid');
-
-        // Overdue stays derived — unpaid AND past its due date — exactly as the
-        // model's isOverdue() defines it. Nothing stores an "overdue" status, so
-        // nothing can drift out of step with the date.
-        $overdue = Invoice::where('status', 'unpaid')->whereDate('due_date', '<', $today);
-
-        $dueSoon = Invoice::where('status', 'unpaid')
-            ->whereDate('due_date', '>=', $today)
-            ->whereDate('due_date', '<=', $in7);
 
         return [
-            'outstanding_total' => (float) (clone $unpaid)->sum('amount'),
-            'outstanding_count' => (clone $unpaid)->count(),
-            'overdue_total' => (float) (clone $overdue)->sum('amount'),
-            'overdue_count' => (clone $overdue)->count(),
-            'due_soon_total' => (float) (clone $dueSoon)->sum('amount'),
-            'due_soon_count' => (clone $dueSoon)->count(),
-            'paid_this_month' => (float) Payment::whereBetween('paid_on', [$monthStart, $monthEnd])->sum('amount'),
-            'paid_this_month_count' => Payment::whereBetween('paid_on', [$monthStart, $monthEnd])->count(),
+            'total_clients' => Client::count(),
             'active_subscriptions' => BillingSubscription::where('status', 'active')->count(),
             'upcoming_renewals' => BillingSubscription::where('status', 'active')
                 ->whereDate('next_renewal_date', '>=', $today)
@@ -188,46 +170,6 @@ class FinanceController extends Controller
         ];
     }
 
-    /**
-     * Money received, newest first.
-     *
-     * Eager-loads both routes to a client: a renewal payment reaches one
-     * directly, a project payment through its project.
-     */
-    private function paymentsTab(Request $request): array
-    {
-        $payments = Payment::query()
-            ->when($request->filled('method'), fn ($q) => $q->where('method', $request->query('method')))
-            ->when($request->filled('from'), fn ($q) => $q->whereDate('paid_on', '>=', $request->query('from')))
-            ->when($request->filled('to'), fn ($q) => $q->whereDate('paid_on', '<=', $request->query('to')))
-            ->when($request->filled('client'), function ($q) use ($request) {
-                $clientId = $request->query('client');
-
-                $q->whereHas('invoice', fn ($i) => $i->where('client_id', $clientId)
-                    ->orWhereHas('project', fn ($p) => $p->where('client_id', $clientId)));
-            })
-            ->when($request->filled('q'), fn ($q) => $q->whereHas(
-                'invoice',
-                fn ($i) => $i->where('invoice_number', 'like', '%' . $request->query('q') . '%')
-            ))
-            ->with([
-                'invoice:id,invoice_number,purpose,project_id,client_id,billing_subscription_id',
-                'invoice.client:id,company_name',
-                'invoice.project:id,name,client_id',
-                'invoice.project.client:id,company_name',
-                'invoice.subscription:id,name',
-                'recorder:id,name',
-            ])
-            ->orderByDesc('paid_on')
-            ->orderByDesc('id')
-            ->paginate(20)
-            ->withQueryString();
-
-        return [
-            'payments' => $payments,
-            'clients' => Client::orderBy('company_name')->get(['id', 'company_name']),
-        ];
-    }
 
     /**
      * Every reminder the engine has claimed, with what became of it.

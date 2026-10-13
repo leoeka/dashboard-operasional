@@ -86,45 +86,20 @@ it('keeps the sidebar route working', function () {
     $this->actingAs(financeUser())->get('/finance')->assertOk();
 });
 
-it('adds up what is still owed', function () {
+it('does not expose invoice payment status counts in Finance summary', function () {
     $client = financeClient();
-    financeInvoice(['client_id' => $client->id, 'amount' => 1500000, 'status' => 'unpaid', 'due_date' => today()->addDays(10)]);
-    financeInvoice(['client_id' => $client->id, 'amount' => 500000, 'status' => 'unpaid', 'due_date' => today()->addDays(20)]);
-    financeInvoice(['client_id' => $client->id, 'amount' => 900000, 'status' => 'paid', 'paid_at' => today()]);
+    financeInvoice(['client_id' => $client->id, 'status' => 'unpaid', 'due_date' => today()->subDays(3)]);
+    financeInvoice(['client_id' => $client->id, 'status' => 'unpaid', 'due_date' => today()->addDays(3)]);
 
     $summary = $this->actingAs(financeUser())->get(route('pages.finance'))->viewData('summary');
 
-    // Paid invoices are not outstanding.
-    expect($summary['outstanding_total'])->toBe(2000000.0)
-        ->and($summary['outstanding_count'])->toBe(2);
+    expect($summary['total_clients'])->toBe(1)
+        ->and(array_key_exists('unpaid_clients', $summary))->toBeFalse()
+        ->and(array_key_exists('overdue_clients', $summary))->toBeFalse()
+        ->and(array_key_exists('due_soon_clients', $summary))->toBeFalse();
 });
 
-it('derives overdue from the due date rather than a stored status', function () {
-    $client = financeClient();
-    financeInvoice(['client_id' => $client->id, 'amount' => 700000, 'status' => 'unpaid', 'due_date' => today()->subDays(3)]);
-    financeInvoice(['client_id' => $client->id, 'amount' => 300000, 'status' => 'unpaid', 'due_date' => today()->addDays(3)]);
-    // Past its date but settled — not overdue.
-    financeInvoice(['client_id' => $client->id, 'amount' => 999000, 'status' => 'paid', 'due_date' => today()->subDays(9), 'paid_at' => today()]);
-
-    $summary = $this->actingAs(financeUser())->get(route('pages.finance'))->viewData('summary');
-
-    expect($summary['overdue_count'])->toBe(1)
-        ->and($summary['overdue_total'])->toBe(700000.0);
-});
-
-it('counts what falls due within the next week', function () {
-    $client = financeClient();
-    financeInvoice(['client_id' => $client->id, 'amount' => 100000, 'status' => 'unpaid', 'due_date' => today()->addDays(2)]);
-    financeInvoice(['client_id' => $client->id, 'amount' => 200000, 'status' => 'unpaid', 'due_date' => today()->addDays(7)]);
-    financeInvoice(['client_id' => $client->id, 'amount' => 400000, 'status' => 'unpaid', 'due_date' => today()->addDays(8)]);
-
-    $summary = $this->actingAs(financeUser())->get(route('pages.finance'))->viewData('summary');
-
-    expect($summary['due_soon_count'])->toBe(2)
-        ->and($summary['due_soon_total'])->toBe(300000.0);
-});
-
-it('totals the money actually received this month', function () {
+it('does not count received payments because collection happens outside this system', function () {
     $client = financeClient();
     $invoice = financeInvoice(['client_id' => $client->id, 'amount' => 2500000]);
 
@@ -133,8 +108,8 @@ it('totals the money actually received this month', function () {
 
     $summary = $this->actingAs(financeUser())->get(route('pages.finance'))->viewData('summary');
 
-    expect($summary['paid_this_month'])->toBe(2500000.0)
-        ->and($summary['paid_this_month_count'])->toBe(1);
+    expect($summary['total_clients'])->toBe(1)
+        ->and(array_key_exists('paid_this_month_clients', $summary))->toBeFalse();
 });
 
 it('counts only active subscriptions', function () {
@@ -430,27 +405,13 @@ it('keeps filters attached to the pagination links', function () {
 
 // ---------------------------------------------------------- compatibility ---
 
-it('still creates a manual project invoice from the finance page', function () {
-    $client = financeClient();
-    $project = financeProject($client);
+it('removes manual invoice creation from finance', function () {
+    expect(\Illuminate\Support\Facades\Route::has('pages.finance.store'))->toBeFalse();
 
     $this->actingAs(financeUser())
-        ->post(route('pages.finance.store'), [
-            'project_id' => $project->id,
-            'type' => 'dp',
-            'amount' => 5000000,
-            'due_date' => today()->addDays(7)->toDateString(),
-        ])
-        ->assertRedirect()
-        ->assertSessionHas('success');
-
-    $invoice = Invoice::sole();
-
-    // Unchanged legacy behaviour: a project invoice, defaulting to the project
-    // purpose, with the old invoice-number format.
-    expect($invoice->project_id)->toBe($project->id)
-        ->and($invoice->type)->toBe('dp')
-        ->and($invoice->purpose)->toBe(Invoice::PURPOSE_PROJECT);
+        ->get(route('pages.finance'))
+        ->assertOk()
+        ->assertDontSee('Invoice Manual');
 });
 
 it('still marks an invoice paid through the existing payment service', function () {

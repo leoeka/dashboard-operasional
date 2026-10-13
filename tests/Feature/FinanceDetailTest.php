@@ -331,132 +331,14 @@ it('marks an invoice paid from the detail page through the existing route', func
         ->and(Payment::where('invoice_id', $invoice->id)->count())->toBe(1);
 });
 
-// ----------------------------------------------------------- payments tab ---
+it('does not expose a separate payments tab', function () {
+    expect(\Illuminate\Support\Facades\Route::has('pages.finance'))->toBeTrue();
 
-it('lists received payments newest first', function () {
-    $client = fdClient();
-    $older = fdInvoice(['client_id' => $client->id, 'invoice_number' => 'INV-OLD']);
-    $newer = fdInvoice(['client_id' => $client->id, 'invoice_number' => 'INV-NEW']);
-
-    fdPayment($older, ['paid_on' => '2026-01-10']);
-    fdPayment($newer, ['paid_on' => '2026-03-20']);
-
-    $response = $this->actingAs(fdUser())
-        ->get(route('pages.finance', ['tab' => 'payments']))
-        ->assertOk()
-        ->assertSee('INV-NEW')
-        ->assertSee('INV-OLD');
-
-    expect(strpos($response->getContent(), 'INV-NEW'))
-        ->toBeLessThan(strpos($response->getContent(), 'INV-OLD'));
-});
-
-it('filters payments by method', function () {
-    $client = fdClient();
-    fdPayment(fdInvoice(['client_id' => $client->id, 'invoice_number' => 'INV-BANK']), ['method' => 'bank_transfer']);
-    fdPayment(fdInvoice(['client_id' => $client->id, 'invoice_number' => 'INV-CASH']), ['method' => 'cash']);
-
-    $this->actingAs(fdUser())
-        ->get(route('pages.finance', ['tab' => 'payments', 'method' => 'cash']))
-        ->assertOk()
-        ->assertSee('INV-CASH')
-        ->assertDontSee('INV-BANK');
-});
-
-it('filters payments by date range', function () {
-    $client = fdClient();
-    fdPayment(fdInvoice(['client_id' => $client->id, 'invoice_number' => 'INV-JAN']), ['paid_on' => '2026-01-15']);
-    fdPayment(fdInvoice(['client_id' => $client->id, 'invoice_number' => 'INV-MAR']), ['paid_on' => '2026-03-15']);
-
-    $this->actingAs(fdUser())
-        ->get(route('pages.finance', ['tab' => 'payments', 'from' => '2026-03-01', 'to' => '2026-03-31']))
-        ->assertOk()
-        ->assertSee('INV-MAR')
-        ->assertDontSee('INV-JAN');
-});
-
-it('filters payments by client through both routes to one', function () {
-    $wanted = fdClient(['company_name' => 'PT Dicari']);
-    $other = fdClient(['company_name' => 'PT Lainnya', 'email' => 'lain@test.test']);
-
-    // A renewal names its client directly…
-    fdPayment(fdInvoice([
-        'client_id' => $wanted->id,
-        'invoice_number' => 'INV-DIRECT',
-        'purpose' => Invoice::PURPOSE_RENEWAL,
-    ]));
-
-    // …a project invoice reaches one through its project. Both must match.
-    fdPayment(fdInvoice([
-        'project_id' => fdProject($wanted, 'Site Dicari')->id,
-        'invoice_number' => 'INV-VIAPROJECT',
-    ]));
-
-    fdPayment(fdInvoice(['client_id' => $other->id, 'invoice_number' => 'INV-ASING']));
-
-    $this->actingAs(fdUser())
-        ->get(route('pages.finance', ['tab' => 'payments', 'client' => $wanted->id]))
-        ->assertOk()
-        ->assertSee('INV-DIRECT')
-        ->assertSee('INV-VIAPROJECT')
-        ->assertDontSee('INV-ASING');
-});
-
-it('searches payments by invoice number', function () {
-    $client = fdClient();
-    fdPayment(fdInvoice(['client_id' => $client->id, 'invoice_number' => 'INV-2026-0042']));
-    fdPayment(fdInvoice(['client_id' => $client->id, 'invoice_number' => 'INV-2025-0099']));
-
-    $this->actingAs(fdUser())
-        ->get(route('pages.finance', ['tab' => 'payments', 'q' => '2026-0042']))
-        ->assertOk()
-        ->assertSee('INV-2026-0042')
-        ->assertDontSee('INV-2025-0099');
-});
-
-it('keeps the payment filters attached to the pagination links', function () {
-    $client = fdClient();
-
-    foreach (range(1, 25) as $i) {
-        fdPayment(fdInvoice(['client_id' => $client->id, 'invoice_number' => 'INV-P-' . $i]), ['method' => 'cash']);
-    }
-
-    $this->actingAs(fdUser())
-        ->get(route('pages.finance', ['tab' => 'payments', 'method' => 'cash']))
-        ->assertOk()
-        ->assertSee('method=cash', false)
-        ->assertSee('page=2', false);
-});
-
-it('explains an empty payments tab instead of showing a bare table', function () {
     $this->actingAs(fdUser())
         ->get(route('pages.finance', ['tab' => 'payments']))
         ->assertOk()
-        ->assertSee('Belum ada pembayaran tercatat');
-});
-
-it('does not query once per payment row', function () {
-    $client = fdClient();
-    $recorder = User::factory()->create();
-
-    foreach (range(1, 20) as $i) {
-        $invoice = fdInvoice([
-            'project_id' => fdProject($client, 'Site ' . $i)->id,
-            'invoice_number' => 'INV-N-' . $i,
-        ]);
-        fdPayment($invoice, ['recorded_by' => $recorder->id]);
-    }
-
-    $queries = 0;
-    DB::listen(function () use (&$queries) {
-        $queries++;
-    });
-
-    $this->actingAs(fdUser())->get(route('pages.finance', ['tab' => 'payments']))->assertOk();
-
-    // Eager loading means the count stays flat whether there are two rows or
-    // twenty; without it each row would fetch its invoice, project and recorder.
-    expect($queries)->toBeLessThan(30);
+        ->assertDontSee('Pembayaran')
+        ->assertDontSee('Invoice Manual');
 });
 
 // --------------------------------------------------- reminder history tab ---
@@ -589,22 +471,18 @@ it('truncates a long failure message rather than printing a wall of text', funct
         ->assertDontSee('EKORPESAN');
 });
 
-it('offers no way to change a reminder log from the page', function () {
+it('offers retry for a failed reminder log', function () {
     $invoice = fdRenewalInvoice(fdSubscription(fdClient()));
-    fdLog($invoice, 30);
+    fdLog($invoice, 30, ['status' => BillingReminderLog::FAILED, 'sent_at' => null, 'attempts' => 1]);
 
     $this->actingAs(fdUser())
         ->get(route('pages.finance', ['tab' => 'reminders']))
         ->assertOk();
 
-    // The history is written by the scheduler and the worker. Asserted against
-    // the partial rather than the rendered page, because the page also carries
-    // the legacy manual-invoice form on every tab.
     $markup = preg_replace('/\{\{--.*?--\}\}/s', '', file_get_contents(resource_path('views/finance/partials/reminders.blade.php')));
 
-    expect($markup)->not->toContain('method="POST"')
-        ->not->toContain('@method(')
-        ->not->toContain('@csrf');
+    expect($markup)->toContain('pages.finance.reminders.retry')
+        ->toContain('Kirim ulang');
 });
 
 it('keeps the reminder filters attached to the pagination links', function () {
@@ -797,12 +675,14 @@ it('stores nothing while deriving the timeline', function () {
 
 // --------------------------------------------------------- compatibility ---
 
-it('offers all five tabs', function () {
+it('offers the four active finance tabs', function () {
     $response = $this->actingAs(fdUser())->get(route('pages.finance'))->assertOk();
 
-    foreach (['Overview', 'Langganan', 'Invoice', 'Pembayaran', 'Riwayat Reminder'] as $label) {
+    foreach (['Overview', 'Langganan', 'Invoice', 'Riwayat Reminder'] as $label) {
         $response->assertSee($label);
     }
+
+    $response->assertDontSee('Pembayaran');
 });
 
 it('falls back to the overview for a tab that does not exist', function () {
@@ -835,11 +715,11 @@ it('links an upcoming renewal to its subscription and offers no invoice button',
 });
 
 it('keeps the summary cards on every tab', function () {
-    foreach (['overview', 'subscriptions', 'invoices', 'payments', 'reminders'] as $tab) {
+    foreach (['overview', 'subscriptions', 'invoices', 'reminders'] as $tab) {
         $this->actingAs(fdUser())
             ->get(route('pages.finance', ['tab' => $tab]))
             ->assertOk()
-            ->assertSee('Belum Dibayar');
+            ->assertSee('Total Klien');
     }
 });
 
@@ -848,7 +728,6 @@ it('only uses Alpine directives the runtime actually loads', function () {
     // layout pulls Alpine core from a CDN with no plugins.
     foreach ([
         'finance/invoice-detail.blade.php',
-        'finance/partials/payments.blade.php',
         'finance/partials/reminders.blade.php',
         'finance/partials/overview.blade.php',
     ] as $view) {
@@ -868,20 +747,16 @@ it('never prints a class name assembled at runtime for the timeline', function (
     expect($markup)->not->toMatch('/bg-\{\{/');
 });
 
-it('leaves the legacy finance actions working', function () {
-    $client = fdClient();
-    $project = fdProject($client);
+it('removes manual invoice creation while keeping payment recording on paid invoices', function () {
+    expect(\Illuminate\Support\Facades\Route::has('pages.finance.store'))->toBeFalse();
 
+    $invoice = fdInvoice(['client_id' => fdClient()->id]);
     $this->actingAs(fdUser())
-        ->post(route('pages.finance.store'), [
-            'project_id' => $project->id,
-            'type' => 'dp',
-            'amount' => 1500000,
-            'due_date' => today()->addDays(14)->toDateString(),
-        ])
+        ->patch(route('pages.finance.paid', $invoice))
         ->assertRedirect();
 
-    expect(Invoice::where('project_id', $project->id)->count())->toBe(1);
+    expect($invoice->fresh()->status)->toBe('paid')
+        ->and(Payment::where('invoice_id', $invoice->id)->count())->toBe(1);
 });
 
 // ------------------------------------------------- timeline day semantics ---
