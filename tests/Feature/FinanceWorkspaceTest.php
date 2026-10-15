@@ -195,12 +195,9 @@ it('creates a custom subscription with no package at all', function () {
             'client_id' => $client->id,
             'name' => 'Maintenance Khusus',
             'service_type' => 'maintenance',
-            'billing_cycle' => 'yearly',
             'amount' => 1000000,
             'start_date' => '2026-01-15',
-            'next_renewal_date' => '2027-01-15',
             'status' => 'active',
-            'auto_invoice' => 1,
             'auto_reminder' => 1,
         ])
         ->assertRedirect()
@@ -212,7 +209,28 @@ it('creates a custom subscription with no package at all', function () {
         ->and($subscription->service_package_id)->toBeNull()
         ->and($subscription->project_id)->toBeNull()
         ->and($subscription->amount)->toBe('1000000.00')
-        ->and($subscription->auto_invoice)->toBeTrue();
+        ->and($subscription->auto_reminder)->toBeTrue();
+});
+
+it('has no switch that stops an active subscription from billing', function () {
+    $client = financeClient();
+
+    // The invoice follows the calendar. The one thing an operator can turn off
+    // is the reminder, so a request that tries to switch invoicing off has to
+    // come back empty-handed.
+    $this->actingAs(financeUser())
+        ->post(route('pages.finance.subscriptions.store'), [
+            'client_id' => $client->id,
+            'name' => 'Hosting Business',
+            'service_type' => 'hosting',
+            'amount' => 400000,
+            'start_date' => '2026-10-15',
+            'status' => 'active',
+            'auto_invoice' => 0,
+        ])
+        ->assertRedirect();
+
+    expect((bool) BillingSubscription::sole()->auto_invoice)->toBeTrue();
 });
 
 it('creates a subscription from an optional service package', function () {
@@ -227,10 +245,8 @@ it('creates a subscription from an optional service package', function () {
             'service_package_id' => $package->id,
             'name' => 'SEO Basic',
             'service_type' => 'seo',
-            'billing_cycle' => 'monthly',
             'amount' => 3500000,
             'start_date' => '2026-09-30',
-            'next_renewal_date' => '2026-10-30',
             'status' => 'active',
         ])
         ->assertRedirect();
@@ -241,7 +257,7 @@ it('creates a subscription from an optional service package', function () {
 it('rejects a subscription without the fields it cannot work without', function () {
     $this->actingAs(financeUser())
         ->post(route('pages.finance.subscriptions.store'), ['name' => 'Tanpa Client'])
-        ->assertSessionHasErrors(['client_id', 'service_type', 'billing_cycle', 'amount', 'start_date', 'next_renewal_date']);
+        ->assertSessionHasErrors(['client_id', 'service_type', 'amount', 'start_date']);
 
     expect(BillingSubscription::count())->toBe(0);
 });
@@ -255,12 +271,9 @@ it('updates a subscription', function () {
             'client_id' => $client->id,
             'name' => 'Hosting Business',
             'service_type' => 'hosting',
-            'billing_cycle' => 'yearly',
             'amount' => 3000000,
             'start_date' => '2025-10-30',
-            'next_renewal_date' => '2026-10-30',
             'status' => 'active',
-            'auto_invoice' => 1,
             'auto_reminder' => 1,
         ])
         ->assertRedirect();
@@ -285,10 +298,8 @@ it('leaves already-issued invoices alone when the price changes', function () {
         'client_id' => $client->id,
         'name' => 'Hosting + Domain',
         'service_type' => 'hosting',
-        'billing_cycle' => 'yearly',
         'amount' => 5000000, // price doubles for the next period
         'start_date' => '2025-10-30',
-        'next_renewal_date' => '2026-10-30',
         'status' => 'active',
     ]);
 
@@ -414,26 +425,30 @@ it('removes manual invoice creation from finance', function () {
         ->assertDontSee('Invoice Manual');
 });
 
-it('still marks an invoice paid through the existing payment service', function () {
+it('offers no way to settle an invoice from the page', function () {
     $client = financeClient();
     $project = financeProject($client);
     $invoice = financeInvoice(['project_id' => $project->id, 'amount' => 5000000]);
 
-    $this->actingAs(financeUser())
-        ->patch(route('pages.finance.paid', $invoice))
-        ->assertRedirect()
-        ->assertSessionHas('success');
+    // Payment is handled outside the system, so the route that used to record a
+    // Payment, close the invoice and roll the cycle forward is gone entirely —
+    // not merely hidden.
+    expect(\Illuminate\Support\Facades\Route::has('pages.finance.paid'))->toBeFalse();
 
-    // The service recorded a payment, not just a status flip.
-    expect($invoice->fresh()->status)->toBe('paid')
-        ->and(Payment::where('invoice_id', $invoice->id)->count())->toBe(1);
+    $this->actingAs(financeUser())
+        ->get(route('pages.finance', ['tab' => 'invoices']))
+        ->assertOk()
+        ->assertDontSee('Tandai Lunas');
+
+    expect($invoice->fresh()->status)->toBe('unpaid')
+        ->and(Payment::count())->toBe(0);
 });
 
-it('advances the renewal date when a renewal invoice is marked paid from the page', function () {
+it('never moves the renewal date from the invoice side of the workspace', function () {
     $client = financeClient();
     $subscription = financeSubscription($client);
 
-    $invoice = financeInvoice([
+    financeInvoice([
         'client_id' => $client->id,
         'billing_subscription_id' => $subscription->id,
         'purpose' => Invoice::PURPOSE_RENEWAL,
@@ -443,38 +458,32 @@ it('advances the renewal date when a renewal invoice is marked paid from the pag
         'billing_period_end' => '2027-10-29',
     ]);
 
-    $this->actingAs(financeUser())->patch(route('pages.finance.paid', $invoice))->assertRedirect();
+    // Raising, viewing and deleting an invoice are all the invoice tab does.
+    // Paying is out of scope here, so the only thing that moves a subscription
+    // forward is the daily run.
+    $this->actingAs(financeUser())
+        ->get(route('pages.finance', ['tab' => 'invoices']))
+        ->assertOk();
 
-    // The page did not reimplement any of this — BillingPaymentService did it.
-    expect($subscription->fresh()->next_renewal_date->toDateString())->toBe('2027-10-30');
+    expect($subscription->fresh()->next_renewal_date->toDateString())->toBe('2026-10-30');
 });
 
-it('still sends a manual reminder for a project invoice', function () {
+it('sends no reminder from the page, only from the schedule', function () {
     Mail::fake();
     $client = financeClient(['whatsapp' => null]);
     $project = financeProject($client);
-    $invoice = financeInvoice(['project_id' => $project->id]);
+    financeInvoice(['project_id' => $project->id]);
+
+    // The manual "remind now" route took the old project-invoice path, which
+    // has been removed: the renewal thresholds are the only thing that mails a
+    // client, and they log themselves as they go.
+    expect(\Illuminate\Support\Facades\Route::has('pages.finance.remind'))->toBeFalse();
 
     $this->actingAs(financeUser())
-        ->post(route('pages.finance.remind', $invoice))
-        ->assertRedirect()
-        ->assertSessionHas('success');
+        ->get(route('pages.finance', ['tab' => 'invoices']))
+        ->assertOk()
+        ->assertDontSee('Kirim Reminder');
 
-    Mail::assertSent(App\Mail\InvoiceReminderMail::class, 1);
-    expect($invoice->fresh()->last_reminder_sent_at)->not->toBeNull();
-});
-
-it('refuses a manual reminder for a renewal invoice', function () {
-    Mail::fake();
-    $client = financeClient();
-    $invoice = financeInvoice(['client_id' => $client->id, 'purpose' => Invoice::PURPOSE_RENEWAL]);
-
-    $this->actingAs(financeUser())
-        ->post(route('pages.finance.remind', $invoice))
-        ->assertSessionHas('error');
-
-    // Renewals follow the logged H-30/H-7/H-3 schedule; a manual send would
-    // bypass that record entirely.
     Mail::assertNothingSent();
 });
 
@@ -519,13 +528,127 @@ function subscriptionPayload(Client $client, array $overrides = []): array
         'client_id' => $client->id,
         'name' => 'Hosting + Domain',
         'service_type' => 'hosting',
-        'billing_cycle' => 'yearly',
         'amount' => 2500000,
         'start_date' => '2026-01-15',
-        'next_renewal_date' => '2027-01-15',
         'status' => 'active',
     ], $overrides);
 }
+
+it('derives the billing cycle from the service type', function () {
+    // Hosting and domain are bought a year at a time; everything else is a
+    // monthly retainer. The form stopped asking so the two can never disagree.
+    $client = financeClient();
+
+    $this->actingAs(financeUser())
+        ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, ['service_type' => 'hosting']))
+        ->assertSessionHasNoErrors();
+
+    expect(BillingSubscription::sole()->billing_cycle)->toBe('yearly');
+
+    $this->actingAs(financeUser())
+        ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, [
+            'service_type' => 'seo',
+            'name' => 'SEO Bulanan',
+        ]))
+        ->assertSessionHasNoErrors();
+
+    expect(BillingSubscription::orderBy('id')->get()->last()->billing_cycle)->toBe('monthly');
+});
+
+it('ignores a billing cycle sent from outside the form', function () {
+    $client = financeClient();
+
+    // A monthly service cannot be talked into a yearly schedule by a stale form
+    // or a crafted request: whatever arrives under billing_cycle is overwritten.
+    $this->actingAs(financeUser())
+        ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, [
+            'service_type' => 'maintenance',
+            'billing_cycle' => 'yearly',
+        ]))
+        ->assertSessionHasNoErrors();
+
+    expect(BillingSubscription::sole()->billing_cycle)->toBe('monthly');
+});
+
+it('offers the term on the form but never the cycle or the calendar', function () {
+    $this->actingAs(financeUser())
+        ->get(route('pages.finance.subscriptions.create'))
+        ->assertOk()
+        ->assertSee('name="ends_on"', false)
+        // The cycle is derived from the service type and the renewal date from
+        // the start date. Fields for either are how they disagree with reality.
+        ->assertDontSee('name="billing_cycle"', false)
+        ->assertDontSee('name="next_renewal_date"', false)
+        // Invoicing is not a per-subscription switch: the only off button is
+        // the status, so the form must not offer a second one.
+        ->assertDontSee('name="auto_invoice"', false);
+});
+
+it('stores the term the client bought and clears it again', function () {
+    $client = financeClient();
+
+    $this->actingAs(financeUser())
+        ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, ['ends_on' => '2033-01-15']))
+        ->assertSessionHasNoErrors();
+
+    expect(BillingSubscription::sole()->ends_on?->toDateString())->toBe('2033-01-15');
+
+    // Blank means no term: the daily run keeps rolling until an operator stops
+    // the subscription itself.
+    $this->actingAs(financeUser())
+        ->put(route('pages.finance.subscriptions.update', BillingSubscription::sole()), subscriptionPayload($client, ['ends_on' => '']))
+        ->assertSessionHasNoErrors();
+
+    expect(BillingSubscription::sole()->ends_on)->toBeNull();
+});
+
+it('refuses a term that ends before it begins', function () {
+    $client = financeClient();
+
+    $this->actingAs(financeUser())
+        ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, [
+            'start_date' => '2026-01-15',
+            'ends_on' => '2026-01-15',
+        ]))
+        ->assertSessionHasErrors('ends_on');
+
+    expect(BillingSubscription::count())->toBe(0);
+});
+
+it('opens the first period on the start date and keeps the calendar to itself', function () {
+    $client = financeClient();
+
+    $this->actingAs(financeUser())
+        ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, [
+            'start_date' => '2026-10-14',
+            'ends_on' => '2033-10-14',
+        ]))
+        ->assertSessionHasNoErrors();
+
+    $subscription = BillingSubscription::sole();
+
+    // Two dates were typed and one was derived: the period that is running now
+    // opened the day the client signed up.
+    expect($subscription->next_renewal_date->toDateString())->toBe('2026-10-14')
+        ->and($subscription->start_date->toDateString())->toBe('2026-10-14')
+        ->and($subscription->ends_on->toDateString())->toBe('2033-10-14');
+});
+
+it('leaves the renewal date alone when an existing subscription is edited', function () {
+    $client = financeClient();
+    // The engine has already rolled this one into a later period.
+    $subscription = financeSubscription($client, ['next_renewal_date' => '2029-10-30']);
+
+    $this->actingAs(financeUser())
+        ->put(route('pages.finance.subscriptions.update', $subscription), subscriptionPayload($client, [
+            'name' => 'Hosting + Domain (diperbarui)',
+        ]))
+        ->assertSessionHasNoErrors();
+
+    // A form that no longer asks for the date must not quietly reset it to the
+    // start date — that would bill a period already paid for.
+    expect($subscription->fresh()->next_renewal_date->toDateString())->toBe('2029-10-30');
+});
 
 it('accepts a project that belongs to the chosen client', function () {
     $client = financeClient();
@@ -579,47 +702,6 @@ it('still allows a subscription with no project at all', function () {
         ->assertSessionHasNoErrors();
 
     expect(BillingSubscription::sole()->project_id)->toBeNull();
-});
-
-it('refuses a renewal date earlier than the start date', function () {
-    $client = financeClient();
-
-    $this->actingAs(financeUser())
-        ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, [
-            'start_date' => '2026-10-30',
-            'next_renewal_date' => '2025-01-01',
-        ]))
-        ->assertSessionHasErrors('next_renewal_date');
-
-    expect(BillingSubscription::count())->toBe(0);
-});
-
-it('allows a renewal date equal to the start date', function () {
-    $client = financeClient();
-
-    // A subscription can begin and bill on the same day.
-    $this->actingAs(financeUser())
-        ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, [
-            'start_date' => '2026-10-30',
-            'next_renewal_date' => '2026-10-30',
-        ]))
-        ->assertSessionHasNoErrors();
-
-    expect(BillingSubscription::sole()->next_renewal_date->toDateString())->toBe('2026-10-30');
-});
-
-it('refuses an earlier renewal date on update too', function () {
-    $client = financeClient();
-    $subscription = financeSubscription($client);
-
-    $this->actingAs(financeUser())
-        ->put(route('pages.finance.subscriptions.update', $subscription), subscriptionPayload($client, [
-            'start_date' => '2026-10-30',
-            'next_renewal_date' => '2026-10-29',
-        ]))
-        ->assertSessionHasErrors('next_renewal_date');
-
-    expect($subscription->fresh()->next_renewal_date->toDateString())->toBe('2026-10-30');
 });
 
 // ------------------------------------------------- invoice delete guard ----

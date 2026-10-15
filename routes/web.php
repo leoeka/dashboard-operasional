@@ -135,23 +135,22 @@ Route::middleware(['auth'])->group(function () {
     })->name('pages.website');
 
     // 8. Finance
-    // The page itself is read-only and assembled by FinanceController; every
-    // action below still runs through the controllers that already own it, so
-    // the legacy invoice behaviour is untouched.
+    // A reminder workspace, not a cash book: payments are settled outside this
+    // system. The page reads; the only writes are the renewal engine's own
+    // reminder retry and the invoice actions that still belong here.
     Route::get('/finance', [FinanceController::class, 'index'])->name('pages.finance');
 
     // Read-only invoice detail; every action on it posts to the routes above.
     Route::get('/finance/invoices/{invoice}', [\App\Http\Controllers\FinanceInvoiceController::class, 'show'])->name('pages.finance.invoices.show');
 
     // Recurring subscriptions. Status changes only — a subscription is never
-    // deleted, because paid invoices point at it.
+    // deleted, because billed invoices point at it. The renewal date is moved
+    // forward here, by hand, once a period has been paid off-system.
     Route::get('/finance/subscriptions/create', [BillingSubscriptionController::class, 'create'])->name('pages.finance.subscriptions.create');
     Route::post('/finance/subscriptions', [BillingSubscriptionController::class, 'store'])->name('pages.finance.subscriptions.store');
     Route::get('/finance/subscriptions/{subscription}/edit', [BillingSubscriptionController::class, 'edit'])->name('pages.finance.subscriptions.edit');
     Route::put('/finance/subscriptions/{subscription}', [BillingSubscriptionController::class, 'update'])->name('pages.finance.subscriptions.update');
     Route::patch('/finance/subscriptions/{subscription}/status', [BillingSubscriptionController::class, 'updateStatus'])->name('pages.finance.subscriptions.status');
-    Route::patch('/finance/{invoice}/paid', [InvoiceController::class, 'markPaid'])->name('pages.finance.paid');
-    Route::post('/finance/{invoice}/remind', [InvoiceController::class, 'sendReminderNow'])->name('pages.finance.remind');
     Route::post('/finance/reminders/{reminderLog}/retry', [FinanceController::class, 'retryReminder'])->name('pages.finance.reminders.retry');
     Route::delete('/finance/{invoice}', [InvoiceController::class, 'destroy'])->name('pages.finance.destroy');
 

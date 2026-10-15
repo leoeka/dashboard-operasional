@@ -91,32 +91,9 @@
                                         <i class='bx bx-show text-lg'></i>
                                     </a>
 
-                                    @if ($invoice->status !== 'paid')
-                                        {{-- Manual reminder stays a project-invoice action. A renewal
-                                             follows its H-30/H-7/H-3 schedule and records each
-                                             threshold; sending one by hand would sidestep that. --}}
-                                        @unless ($invoice->isRenewal())
-                                            <form method="POST" action="{{ route('pages.finance.remind', $invoice) }}">
-                                                @csrf
-                                                <button type="submit" class="hover:text-brand-500"
-                                                    title="Kirim Reminder">
-                                                    <i class='bx bx-send text-lg'></i>
-                                                </button>
-                                            </form>
-                                        @endunless
-
-                                        <form method="POST" action="{{ route('pages.finance.paid', $invoice) }}">
-                                            @csrf @method('PATCH')
-                                            <button type="submit" class="hover:text-emerald-500"
-                                                title="Tandai Lunas">
-                                                <i class='bx bx-check-circle text-lg'></i>
-                                            </button>
-                                        </form>
-                                    @endif
-
-                                    {{-- Deleting a settled invoice or a renewal would remove a
-                                         finance record and the payments cascading from it, so the
-                                         action is only offered where it always was. --}}
+                                    {{-- Deleting a renewal would remove a billing record and the
+                                         reminder logs cascading from it, so the action is only
+                                         offered for an unpaid project invoice. --}}
                                     @if ($invoice->status !== 'paid' && !$invoice->isRenewal())
                                         <form method="POST" action="{{ route('pages.finance.destroy', $invoice) }}"
                                             onsubmit="return confirm('Hapus invoice ini?')">

@@ -12,13 +12,13 @@ use Illuminate\Validation\Rule;
 /**
  * Creating and editing the recurring services a client pays for.
  *
- * Kept out of InvoiceController: that one owns invoice actions and already
- * carries the legacy project-invoice behaviour, and subscriptions are a
- * different thing with a different lifecycle.
+ * Kept out of InvoiceController: that one owns invoice actions, and
+ * subscriptions are a different thing with a different lifecycle.
  *
- * Nothing here touches the renewal engine. A subscription is a record of what
- * was agreed; when to bill for it and when to remind about it stays entirely
- * with BillingRenewalService, which reads these rows on its daily run.
+ * Nothing here touches the renewal engine automatically. The form records what
+ * was agreed — what it costs, when it started, and when the term ends. The
+ * calendar belongs to BillingRenewalService, which works out on its daily run
+ * which period is current and rolls it forward until `ends_on`.
  */
 class BillingSubscriptionController extends Controller
 {
@@ -31,7 +31,14 @@ class BillingSubscriptionController extends Controller
 
     public function store(Request $request)
     {
-        $subscription = BillingSubscription::create($this->validated($request));
+        $data = $this->validated($request);
+
+        $subscription = BillingSubscription::create($data + [
+            // The first period opens on the day the client signs up. From there
+            // the daily run owns the date entirely, so no form field asks for
+            // it — an operator sets the term, not the calendar.
+            'next_renewal_date' => $data['start_date'],
+        ]);
 
         return redirect()
             ->route('pages.finance', ['tab' => 'subscriptions'])
@@ -104,24 +111,26 @@ class BillingSubscriptionController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'service_type' => ['required', Rule::in(BillingSubscription::SERVICE_TYPES)],
             'description' => ['nullable', 'string'],
-            'billing_cycle' => ['required', Rule::in([BillingSubscription::CYCLE_MONTHLY, BillingSubscription::CYCLE_YEARLY])],
+            // Not asked for: the service type decides it. An operator who picks
+            // "hosting" is not also choosing a cadence, and the two disagreeing
+            // is a state nothing downstream can make sense of.
             'amount' => ['required', 'numeric', 'min:0'],
             'currency' => ['nullable', 'string', 'size:3'],
             'start_date' => ['required', 'date'],
-            // Equal is allowed: a subscription can begin and bill on the same
-            // day. Earlier is not — the renewal date is what the cycle counts
-            // forward from, and a date before the start has no period behind it.
-            'next_renewal_date' => ['required', 'date', 'after_or_equal:start_date'],
+            // Not asked for: the first period opens on start_date, and after
+            // that the renewal engine owns the date. Two knobs for the same
+            // fact is how a subscription ends up billing the wrong day.
+            // Empty means no term — it renews until an operator stops it.
+            'ends_on' => ['nullable', 'date', 'after:start_date'],
             'status' => ['required', Rule::in(BillingSubscription::STATUSES)],
-            'auto_invoice' => ['boolean'],
             'auto_reminder' => ['boolean'],
         ], [
             'project_id.exists' => 'Project yang dipilih bukan milik client ini.',
-            'next_renewal_date.after_or_equal' => 'Tanggal perpanjangan tidak boleh lebih awal dari tanggal mulai.',
+            'ends_on.after' => 'Tanggal berakhir langganan harus setelah tanggal mulai.',
         ]) + [
             // Unchecked boxes are simply absent from the request.
-            'auto_invoice' => $request->boolean('auto_invoice'),
             'auto_reminder' => $request->boolean('auto_reminder'),
+            'billing_cycle' => BillingSubscription::cycleForServiceType($request->input('service_type')),
         ];
     }
 

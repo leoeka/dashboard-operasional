@@ -32,9 +32,9 @@ function billingRollbackConnection(): string
 
     Artisan::call('migrate', ['--database' => 'billing_rollback', '--force' => true]);
 
-    // This test is specifically about the seven billing migrations. Remove
-    // the later design_reference_url migration from the isolated fixture so
-    // it cannot become one of the steps the rollback guard is measuring.
+    // This test is specifically about the billing migrations. Remove the
+    // newest one from the isolated fixture so the step count below measures
+    // only the group the guard protects.
     Artisan::call('migrate:rollback', [
         '--database' => 'billing_rollback',
         '--step' => 1,
@@ -44,8 +44,8 @@ function billingRollbackConnection(): string
     return 'billing_rollback';
 }
 
-/** The seven migrations this phase added, i.e. what a "roll back billing" means. */
-const BILLING_MIGRATION_STEPS = 7;
+/** The eight migrations this phase added, i.e. what a "roll back billing" means. */
+const BILLING_MIGRATION_STEPS = 8;
 
 function seedBillingData(string $connection): void
 {

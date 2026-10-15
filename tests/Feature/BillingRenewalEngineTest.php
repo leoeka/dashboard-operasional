@@ -5,19 +5,14 @@ use App\Models\BillingSubscription;
 use App\Models\Client;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
-use App\Models\Payment;
 use App\Models\Project;
 use App\Services\Billing\BillingClock;
 use App\Services\Billing\BillingCycle;
-use App\Services\Billing\BillingPaymentService;
 use App\Services\Billing\BillingRenewalService;
-use App\Services\Billing\LegacyInvoiceReminderService;
 use App\Services\Billing\ReminderDispatcher;
 use App\Services\Billing\ReminderPolicy;
-use App\Services\WhatsAppService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Mail;
 
 /**
  * Phase 2: the recurring billing engine.
@@ -207,75 +202,107 @@ it('raises a monthly invoice at H-7 and reuses it at H-3 and H-1', function () {
         ->and($recorder->sent)->toHaveCount(3);
 });
 
-// ---------------------------------------------------------------- payment ---
+// ------------------------------------------------- the cycle rolls itself ---
 
-it('records a payment, closes the invoice and advances a yearly renewal', function () {
-    dispatcher();
-    $subscription = subscription(renewalClient());
-    runOn('2026-09-30');
-
-    $invoice = Invoice::where('purpose', Invoice::PURPOSE_RENEWAL)->sole();
-    $result = app(BillingPaymentService::class)->markPaid($invoice, ['method' => 'bank_transfer', 'reference' => 'TRF-1']);
-
-    expect($result['already_paid'])->toBeFalse()
-        ->and($result['renewal_advanced'])->toBeTrue()
-        ->and(Payment::count())->toBe(1)
-        ->and(Payment::first()->amount)->toBe('2500000.00')
-        ->and($invoice->fresh()->status)->toBe('paid')
-        ->and($invoice->fresh()->paid_at)->not->toBeNull()
-        ->and($subscription->fresh()->next_renewal_date->toDateString())->toBe('2027-10-30');
-});
-
-it('advances a monthly renewal by exactly one month', function () {
-    dispatcher();
-    $subscription = subscription(renewalClient(), [
-        'billing_cycle' => BillingSubscription::CYCLE_MONTHLY,
-        'start_date' => '2026-09-30',
-        'next_renewal_date' => '2026-10-30',
-    ]);
-    runOn('2026-10-23');
-
-    app(BillingPaymentService::class)->markPaid(Invoice::sole());
-
-    expect($subscription->fresh()->next_renewal_date->toDateString())->toBe('2026-11-30');
-});
-
-it('does not advance the renewal twice when mark-paid is submitted twice', function () {
-    dispatcher();
-    $subscription = subscription(renewalClient());
-    runOn('2026-09-30');
-
-    $invoice = Invoice::sole();
-    $payments = app(BillingPaymentService::class);
-
-    $payments->markPaid($invoice);
-    $second = $payments->markPaid($invoice->fresh());
-
-    // A double-clicked button must not skip a whole year of billing.
-    expect($second['already_paid'])->toBeTrue()
-        ->and($second['renewal_advanced'])->toBeFalse()
-        ->and(Payment::count())->toBe(1)
-        ->and($subscription->fresh()->next_renewal_date->toDateString())->toBe('2027-10-30');
-});
-
-it('stops reminding once the invoice is paid', function () {
+it('rolls the period forward once the due date has passed', function () {
+    // Time advances the subscription, not payment. Nothing here records money
+    // any more, so nobody has to nudge a date for the schedule to keep going.
     $recorder = dispatcher();
     $sub = subscription(renewalClient());
 
-    $summary30 = runOn('2026-09-30'); // H-30 raises and reminds
-    app(BillingPaymentService::class)->markPaid(Invoice::sole()); // client pays at H-15
+    expect(runOn('2026-09-30')['periods_rolled'])->toBe(0); // H-30
+    runOn('2026-10-23'); // H-7
+    runOn('2026-10-27'); // H-3
+    runOn('2026-10-30'); // the due date itself — not a threshold day
+    $roll = runOn('2026-11-15'); // past it
 
-    runOn('2026-10-23'); // would have been H-7
-    runOn('2026-10-27'); // would have been H-3
+    expect($recorder->sent)->toHaveCount(3)
+        ->and(BillingReminderLog::count())->toBe(3)
+        ->and(Invoice::count())->toBe(1)
+        ->and($roll['periods_rolled'])->toBe(1)
+        ->and($sub->fresh()->next_renewal_date->toDateString())->toBe('2027-10-30');
+});
 
-    // Paying advanced the cycle to 2027-10-30, so those dates are no longer
-    // near a renewal at all — the old thresholds simply stop matching. The
-    // client hears nothing more about a bill they have already settled.
-    expect($summary30['reminders_sent'])->toBe(1)
-        ->and($sub->fresh()->next_renewal_date->toDateString())->toBe('2027-10-30')
-        ->and(BillingReminderLog::count())->toBe(1)
-        ->and($recorder->sent)->toHaveCount(1)
-        ->and(Invoice::count())->toBe(1);
+it('bills every cycle with nobody touching the record', function () {
+    $recorder = dispatcher();
+    subscription(renewalClient());
+
+    runOn('2026-09-30'); // H-30 of the period opening 2026-10-30
+    expect(Invoice::count())->toBe(1);
+
+    runOn('2026-10-31'); // one day past the due date: the period rolls over
+    expect(Invoice::count())->toBe(1)
+        ->and($recorder->sent)->toHaveCount(1);
+
+    runOn('2027-09-30'); // H-30 of the next period, raised on its own
+    expect(Invoice::count())->toBe(2)
+        ->and($recorder->sent)->toHaveCount(2)
+        // Consecutive and non-overlapping, counted from start_date rather than
+        // added to the previous renewal date — so nothing drifts a day each year.
+        ->and(Invoice::orderBy('billing_period_start')->pluck('billing_period_start')->map->toDateString()->all())->toBe(['2026-10-30', '2027-10-30'])
+        ->and(Invoice::orderBy('billing_period_end')->pluck('billing_period_end')->map->toDateString()->all())->toBe(['2027-10-29', '2028-10-29']);
+});
+
+it('keeps a subscription with no end date running indefinitely', function () {
+    subscription(renewalClient());
+
+    runOn('2026-10-31');
+    runOn('2027-10-31');
+    $last = runOn('2028-10-31');
+
+    // Every run is past its due date, so each one bills the period that just
+    // ended and rolls onto the next. A year nobody remembered to invoice stays
+    // a debt rather than vanishing.
+    expect($last['periods_rolled'])->toBe(1)
+        ->and($last['subscriptions_expired'])->toBe(0)
+        ->and(Invoice::count())->toBe(3)
+        ->and(BillingSubscription::sole()->status)->toBe('active')
+        ->and(BillingSubscription::sole()->next_renewal_date->toDateString())->toBe('2029-10-30');
+});
+
+it('bills the period that just closed, not the oldest one it missed', function () {
+    // A client who signed up years ago and is only entered now: one run has to
+    // cross several anniversaries, and what is owed is the period that most
+    // recently ended — not a stack of old ones nobody can make sense of.
+    subscription(renewalClient(), [
+        'start_date' => '2023-10-30',
+        'next_renewal_date' => '2023-10-30',
+    ]);
+
+    $summary = runOn('2026-11-05');
+
+    expect($summary['periods_rolled'])->toBe(4)
+        ->and(Invoice::count())->toBe(1)
+        ->and(Invoice::sole()->billing_period_start->toDateString())->toBe('2026-10-30')
+        ->and(Invoice::sole()->billing_period_end->toDateString())->toBe('2027-10-29')
+        // A bill for a period already consumed is overdue the moment it exists.
+        ->and(Invoice::sole()->due_date->toDateString())->toBe('2026-10-30')
+        ->and(Invoice::sole()->isOverdue())->toBeTrue()
+        ->and(BillingSubscription::sole()->next_renewal_date->toDateString())->toBe('2027-10-30');
+});
+
+it('stops at the end of the term the client bought', function () {
+    $recorder = dispatcher();
+    subscription(renewalClient(), ['ends_on' => '2028-10-30']);
+
+    runOn('2026-09-30'); // H-30 of the period opening 2026-10-30
+    runOn('2026-10-31'); // rolls to 2027-10-30, still inside the term
+    runOn('2027-09-30'); // H-30 of that period
+    $last = runOn('2027-10-31');
+
+    // 2028-10-30 would open a period running past the day the service ends, so
+    // the subscription expires instead of rolling onto it — and the date stays
+    // where it is, because nothing was ever billed for that period.
+    expect($last['subscriptions_expired'])->toBe(1)
+        ->and($last['periods_rolled'])->toBe(0)
+        ->and(Invoice::count())->toBe(2)
+        ->and($recorder->sent)->toHaveCount(2)
+        ->and(BillingSubscription::sole()->status)->toBe('expired')
+        ->and(BillingSubscription::sole()->next_renewal_date->toDateString())->toBe('2027-10-30');
+
+    // Expired is not active, so the daily run stops seeing it altogether.
+    expect(runOn('2028-09-30')['subscriptions_checked'])->toBe(0)
+        ->and(Invoice::count())->toBe(2);
 });
 
 it('skips a threshold whose invoice is already settled', function () {
@@ -284,9 +311,9 @@ it('skips a threshold whose invoice is already settled', function () {
 
     runOn('2026-09-30'); // H-30 raises and reminds
 
-    // Settled outside the payment service — an import, a correction, or an
-    // operator editing the row. The renewal date has NOT moved, so the later
-    // thresholds still match and the engine has to refuse them on its own.
+    // Settled by an import or a correction — nothing in the app writes it any
+    // more. The renewal date has NOT moved, so the later thresholds still match
+    // and the engine has to refuse them on its own.
     Invoice::sole()->update(['status' => 'paid', 'paid_at' => today()]);
 
     $summary7 = runOn('2026-10-23');
@@ -300,23 +327,13 @@ it('skips a threshold whose invoice is already settled', function () {
         ->and($sub->fresh()->next_renewal_date->toDateString())->toBe('2026-10-30');
 });
 
-it('refuses a payment of zero', function () {
-    dispatcher();
-    subscription(renewalClient());
-    runOn('2026-09-30');
+// --------------------------------------------- project invoices: no nudge ---
 
-    expect(fn () => app(BillingPaymentService::class)->markPaid(Invoice::sole(), ['amount' => 0]))
-        ->toThrow(InvalidArgumentException::class);
-
-    expect(Invoice::sole()->status)->toBe('unpaid')
-        ->and(Payment::count())->toBe(0);
-});
-
-// ----------------------------------------------------------------- legacy ---
-
-it('leaves project invoices to the legacy path and renewals to the engine', function () {
-    Mail::fake();
-    dispatcher();
+it('reminds about a renewal and never about a project invoice', function () {
+    // The project-invoice reminder path is gone: those bills are settled
+    // outside the system, so a daily run must leave them alone entirely while
+    // still working through the renewal schedule.
+    $recorder = dispatcher();
 
     $client = renewalClient(['whatsapp' => null]);
     $project = Project::create(['client_id' => $client->id, 'name' => 'Web ABC', 'client_name' => 'PT ABC', 'status' => 'request']);
@@ -328,47 +345,20 @@ it('leaves project invoices to the legacy path and renewals to the engine', func
         'invoice_number' => 'INV-ABC-1001',
         'type' => 'dp',
         'amount' => 5000000,
-        'due_date' => '2026-10-01', // within the legacy 3-day window
+        'due_date' => '2026-10-01', // the day the old path would have chased this
     ]);
 
     subscription($client);
-    engine()->processDue(); // raises the renewal invoice at H-30
+    $summary = runOn('2026-09-30');
 
     $renewal = Invoice::where('purpose', Invoice::PURPOSE_RENEWAL)->sole();
-    $sent = app(LegacyInvoiceReminderService::class)->sendDue();
 
-    // The legacy path picked up the project invoice and ignored the renewal —
-    // without that filter the client would get two reminders for one bill.
-    expect($sent['legacy_reminders_sent'])->toBe(1)
-        ->and($projectInvoice->fresh()->last_reminder_sent_at)->not->toBeNull()
-        ->and($renewal->fresh()->last_reminder_sent_at)->toBeNull();
-
-    Mail::assertSentCount(1);
-});
-
-it('keeps a project invoice working exactly as before', function () {
-    Mail::fake();
-    $client = renewalClient();
-    $project = Project::create(['client_id' => $client->id, 'name' => 'Web ABC', 'client_name' => 'PT ABC', 'status' => 'request']);
-
-    $invoice = Invoice::create([
-        'project_id' => $project->id,
-        'invoice_number' => 'INV-ABC-1002',
-        'type' => 'pelunasan',
-        'amount' => 5000000,
-        'due_date' => today(),
-    ]);
-
-    expect($invoice->purpose)->toBe(Invoice::PURPOSE_PROJECT)
-        ->and(app(LegacyInvoiceReminderService::class)->remind($invoice))->toBeTrue();
-
-    // Marking a project invoice paid records the money but moves no renewal
-    // date, because there is no subscription behind it.
-    $result = app(BillingPaymentService::class)->markPaid($invoice->fresh());
-
-    expect($result['renewal_advanced'])->toBeFalse()
-        ->and($invoice->fresh()->status)->toBe('paid')
-        ->and(Payment::count())->toBe(1);
+    expect($summary['invoices_created'])->toBe(1)
+        ->and($projectInvoice->purpose)->toBe(Invoice::PURPOSE_PROJECT)
+        ->and(BillingReminderLog::count())->toBe(1)
+        ->and(BillingReminderLog::sole()->invoice_id)->toBe($renewal->id)
+        ->and($recorder->sent)->toHaveCount(1)
+        ->and($projectInvoice->fresh()->last_reminder_sent_at)->toBeNull();
 });
 
 // ------------------------------------------------------------------ flags ---
@@ -384,42 +374,6 @@ it('ignores a subscription that is not active', function () {
     expect($summary['subscriptions_checked'])->toBe(0)
         ->and(Invoice::count())->toBe(0)
         ->and(BillingReminderLog::count())->toBe(0);
-});
-
-it('raises no invoice when auto_invoice is off', function () {
-    $recorder = dispatcher();
-    subscription(renewalClient(), ['auto_invoice' => false]);
-
-    $summary = runOn('2026-09-30');
-
-    // A reminder must never be the reason an invoice appears.
-    expect($summary['invoices_created'])->toBe(0)
-        ->and(Invoice::count())->toBe(0)
-        ->and($recorder->sent)->toBeEmpty();
-});
-
-it('still reminds about a manually raised invoice when auto_invoice is off', function () {
-    $recorder = dispatcher();
-    $client = renewalClient();
-    $sub = subscription($client, ['auto_invoice' => false]);
-
-    // Someone raised this by hand for the same period.
-    Invoice::create([
-        'client_id' => $client->id,
-        'billing_subscription_id' => $sub->id,
-        'invoice_number' => 'INV-2026-000900',
-        'type' => 'full',
-        'purpose' => Invoice::PURPOSE_RENEWAL,
-        'amount' => 2500000,
-        'due_date' => '2026-10-30',
-        'billing_period_start' => '2026-10-30',
-        'billing_period_end' => '2027-10-29',
-    ]);
-
-    runOn('2026-09-30');
-
-    expect(Invoice::count())->toBe(1)
-        ->and($recorder->sent)->toHaveCount(1);
 });
 
 it('raises the invoice but sends nothing when auto_reminder is off', function () {
@@ -754,15 +708,6 @@ it('does nothing at all before the creation threshold', function () {
         ->and(BillingReminderLog::count())->toBe(0);
 });
 
-it('does not catch up an invoice when auto_invoice is off', function () {
-    dispatcher();
-    subscription(renewalClient(), ['auto_invoice' => false]);
-
-    runOn('2026-10-01');
-
-    expect(Invoice::count())->toBe(0);
-});
-
 // -------------------------------------------------------------- timezone ---
 
 it('uses the billing timezone for calendar days while the app stays on UTC', function () {
@@ -830,7 +775,7 @@ it('reads its timezone from configuration rather than hardcoding one', function 
         ->and(file_get_contents(config_path('billing.php')))
         ->toContain("env('BILLING_TIMEZONE'");
 
-    foreach (['ReminderPolicy', 'BillingRenewalService', 'BillingCycle', 'BillingPaymentService', 'BillingClock'] as $service) {
+    foreach (['ReminderPolicy', 'BillingRenewalService', 'BillingCycle', 'BillingClock'] as $service) {
         expect(file_get_contents(app_path("Services/Billing/{$service}.php")))
             ->not->toContain('setTimezone(')
             ->not->toContain('Asia/');

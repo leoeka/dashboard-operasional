@@ -263,13 +263,15 @@ it('lists the payments recorded against the invoice', function () {
         ->assertSee('Masuk lewat QRIS merchant');
 });
 
-it('says plainly when nothing has been paid yet', function () {
+it('raises the subject of payment nowhere on an invoice with no payment history', function () {
+    // Payment is settled outside the system now, so there is no empty table to
+    // explain — the page simply does not bring it up.
     $invoice = fdInvoice(['client_id' => fdClient()->id]);
 
     $this->actingAs(fdUser())
         ->get(route('pages.finance.invoices.show', $invoice))
         ->assertOk()
-        ->assertSee('Belum ada pembayaran tercatat.');
+        ->assertDontSee('Riwayat Pembayaran');
 });
 
 it('keeps the invoice detail behind authentication', function () {
@@ -278,57 +280,40 @@ it('keeps the invoice detail behind authentication', function () {
     $this->get(route('pages.finance.invoices.show', $invoice))->assertRedirect(route('login'));
 });
 
-// ------------------------------------------------------------ detail actions ---
+// ------------------------------------------------------- detail: no actions ---
 
-it('offers a manual reminder on an unpaid project invoice', function () {
+it('offers no action on any invoice, open, renewing or settled', function () {
     $client = fdClient();
-    $invoice = fdInvoice(['project_id' => fdProject($client)->id]);
 
-    $this->actingAs(fdUser())
-        ->get(route('pages.finance.invoices.show', $invoice))
-        ->assertOk()
-        ->assertSee(route('pages.finance.remind', $invoice))
-        ->assertSee(route('pages.finance.paid', $invoice));
+    foreach ([
+        fdInvoice(['project_id' => fdProject($client)->id]),
+        fdRenewalInvoice(fdSubscription($client)),
+        fdInvoice([
+            'project_id' => fdProject($client)->id,
+            'status' => 'paid',
+            'paid_at' => today(),
+        ]),
+    ] as $invoice) {
+        // Nothing on this invoice posts anywhere: this view reads. The renewal
+        // schedule is the only thing that messages a client, and payment
+        // happens elsewhere. The shell's logout form is not an invoice action,
+        // so the check is that no form here targets /finance at all.
+        $this->actingAs(fdUser())
+            ->get(route('pages.finance.invoices.show', $invoice))
+            ->assertOk()
+            ->assertDontSee('action="/finance', false)
+            ->assertDontSee('Tandai Lunas')
+            ->assertDontSee('Kirim Reminder')
+            ->assertSee('Kembali');
+    }
 });
 
-it('offers no manual reminder on a renewal invoice', function () {
-    $subscription = fdSubscription(fdClient());
-    $invoice = fdRenewalInvoice($subscription);
-
-    // A renewal follows its thresholds; a hand-sent email would not be one.
-    $this->actingAs(fdUser())
-        ->get(route('pages.finance.invoices.show', $invoice))
-        ->assertOk()
-        ->assertDontSee(route('pages.finance.remind', $invoice))
-        ->assertSee(route('pages.finance.paid', $invoice));
-});
-
-it('offers no action at all once the invoice is paid', function () {
-    $client = fdClient();
-    $invoice = fdInvoice([
-        'project_id' => fdProject($client)->id,
-        'status' => 'paid',
-        'paid_at' => today(),
-    ]);
-
-    $this->actingAs(fdUser())
-        ->get(route('pages.finance.invoices.show', $invoice))
-        ->assertOk()
-        ->assertDontSee(route('pages.finance.remind', $invoice))
-        ->assertDontSee(route('pages.finance.paid', $invoice))
-        ->assertSee('Lunas');
-});
-
-it('marks an invoice paid from the detail page through the existing route', function () {
-    $client = fdClient();
-    $invoice = fdInvoice(['project_id' => fdProject($client)->id]);
-
-    $this->actingAs(fdUser())
-        ->patch(route('pages.finance.paid', $invoice))
-        ->assertRedirect();
-
-    expect($invoice->fresh()->status)->toBe('paid')
-        ->and(Payment::where('invoice_id', $invoice->id)->count())->toBe(1);
+it('has no payment or manual reminder route left for a direct request to hit', function () {
+    // Hiding the buttons is not the rule. The routes are gone, so nothing can
+    // settle an invoice or mail a client outside the schedule from here.
+    expect(\Illuminate\Support\Facades\Route::has('pages.finance.paid'))->toBeFalse()
+        ->and(\Illuminate\Support\Facades\Route::has('pages.finance.remind'))->toBeFalse()
+        ->and(\Illuminate\Support\Facades\Route::has('pages.finance.destroy'))->toBeTrue();
 });
 
 it('does not expose a separate payments tab', function () {
@@ -747,16 +732,18 @@ it('never prints a class name assembled at runtime for the timeline', function (
     expect($markup)->not->toMatch('/bg-\{\{/');
 });
 
-it('removes manual invoice creation while keeping payment recording on paid invoices', function () {
+it('removes manual invoice creation along with payment recording', function () {
     expect(\Illuminate\Support\Facades\Route::has('pages.finance.store'))->toBeFalse();
 
-    $invoice = fdInvoice(['client_id' => fdClient()->id]);
-    $this->actingAs(fdUser())
-        ->patch(route('pages.finance.paid', $invoice))
-        ->assertRedirect();
+    // Nothing in the app writes a Payment or flips an invoice to paid any
+    // more, so the route that used to do both is gone rather than unused.
+    expect(\Illuminate\Support\Facades\Route::has('pages.finance.paid'))->toBeFalse()
+        ->and(class_exists(\App\Services\Billing\BillingPaymentService::class))->toBeFalse();
 
-    expect($invoice->fresh()->status)->toBe('paid')
-        ->and(Payment::where('invoice_id', $invoice->id)->count())->toBe(1);
+    $invoice = fdInvoice(['client_id' => fdClient()->id]);
+
+    expect($invoice->status)->toBe('unpaid')
+        ->and(Payment::count())->toBe(0);
 });
 
 // ------------------------------------------------- timeline day semantics ---

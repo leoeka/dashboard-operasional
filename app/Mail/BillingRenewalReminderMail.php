@@ -14,9 +14,8 @@ use App\Services\InvoicePdfService;
 /**
  * The renewal notice a client actually receives.
  *
- * Separate from InvoiceReminderMail rather than shared with it: that one is
- * written around a project — it names the project and its DP/Pelunasan type —
- * and a hosting renewal has neither.
+ * Written around a subscription and its billing period, so it never names a
+ * project or a DP/Pelunasan type — a hosting renewal has neither.
  *
  * The first threshold of a cycle (H-30 yearly, H-7 monthly) is the same message
  * that announces the invoice, so a client gets one email that day, not an

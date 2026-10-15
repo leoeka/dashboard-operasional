@@ -6,32 +6,9 @@
     <x-page-header :title="'Invoice ' . $invoice->invoice_number">
         <x-slot:actions>
             <div class="flex flex-wrap items-center gap-2">
-                @if ($invoice->status !== 'paid')
-                    {{-- Both actions post to the routes that already own them; this
-                         page reads, it does not implement a second way to pay. --}}
-                    <form method="POST" action="{{ route('pages.finance.paid', $invoice) }}"
-                        onsubmit="return confirm('Tandai invoice ini sebagai lunas?')">
-                        @csrf @method('PATCH')
-                        <button type="submit"
-                            class="grad-blue text-white text-sm px-4 py-2 rounded-lg hover:opacity-90 transition inline-flex items-center gap-2">
-                            <i class='bx bx-check-circle'></i> Tandai Lunas
-                        </button>
-                    </form>
-
-                    {{-- A renewal follows its own H-30/H-7/H-3 schedule and records
-                         every threshold it claims. Sending one by hand would send an
-                         email no threshold accounts for. --}}
-                    @unless ($invoice->isRenewal())
-                        <form method="POST" action="{{ route('pages.finance.remind', $invoice) }}">
-                            @csrf
-                            <button type="submit"
-                                class="bg-slate-100 text-slate-600 text-sm px-4 py-2 rounded-lg hover:bg-slate-200 transition inline-flex items-center gap-2">
-                                <i class='bx bx-send'></i> Kirim Reminder
-                            </button>
-                        </form>
-                    @endunless
-                @endif
-
+                {{-- Read-only by design. Payment is settled outside this system, so
+                     there is nothing to mark and no manual reminder to send — the
+                     renewal schedule is the only thing that messages a client. --}}
                 <a href="{{ route('pages.finance', ['tab' => 'invoices']) }}"
                     class="bg-slate-100 text-slate-600 text-sm px-4 py-2 rounded-lg hover:bg-slate-200 transition inline-flex items-center gap-2">
                     <i class='bx bx-arrow-back'></i> Kembali
@@ -178,15 +155,15 @@
                 </div>
             </x-card>
 
-            {{-- PAYMENTS --}}
-            <x-card padding="p-0">
-                <div class="px-6 py-4 border-b border-slate-100">
-                    <h2 class="font-semibold text-slate-800">Riwayat Pembayaran</h2>
-                </div>
+            {{-- PAYMENTS — nothing writes here any more, but invoices settled
+                 before payments moved outside the system still have their
+                 history, and it stays readable. --}}
+            @if ($invoice->payments->isNotEmpty())
+                <x-card padding="p-0">
+                    <div class="px-6 py-4 border-b border-slate-100">
+                        <h2 class="font-semibold text-slate-800">Riwayat Pembayaran</h2>
+                    </div>
 
-                @if ($invoice->payments->isEmpty())
-                    <div class="px-6 py-8 text-center text-sm text-slate-400">Belum ada pembayaran tercatat.</div>
-                @else
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm min-w-[720px]">
                             <thead>
@@ -220,8 +197,8 @@
                             </tbody>
                         </table>
                     </div>
-                @endif
-            </x-card>
+                </x-card>
+            @endif
         </div>
 
         {{-- RIGHT: who is billed, what for, and what the reminders did --}}
@@ -311,11 +288,6 @@
                             <dd class="text-slate-600">
                                 {{ $invoice->subscription->next_renewal_date?->translatedFormat('d M Y') ?? '—' }}
                             </dd>
-                        </div>
-                        <div class="flex justify-between gap-3">
-                            <dt class="text-slate-400">Invoice Otomatis</dt>
-                            <dd class="text-slate-600">
-                                {{ $invoice->subscription->auto_invoice ? 'Ya' : 'Tidak' }}</dd>
                         </div>
                         <div class="flex justify-between gap-3">
                             <dt class="text-slate-400">Reminder Otomatis</dt>

@@ -9,9 +9,8 @@ use App\Services\Billing\ReminderTimeline;
  * One invoice, in full — read-only.
  *
  * Separate from FinanceController because the detail view answers a different
- * question from the workspace tabs, and separate from InvoiceController because
- * that one owns the actions (create, mark paid, remind, delete) and this owns
- * none of them. The buttons on this page post to those same existing routes.
+ * question from the workspace tabs. It has no actions of its own: deleting an
+ * invoice belongs to InvoiceController, and nothing here changes one.
  */
 class FinanceInvoiceController extends Controller
 {

@@ -2,7 +2,6 @@
 
 use App\Jobs\SendBillingReminderEmail;
 use App\Mail\BillingRenewalReminderMail;
-use App\Mail\InvoiceReminderMail;
 use App\Models\BillingReminderLog;
 use App\Models\BillingSubscription;
 use App\Models\Client;
@@ -11,7 +10,6 @@ use App\Models\Project;
 use App\Services\Billing\BillingRenewalService;
 use App\Services\Billing\MailReminderDispatcher;
 use App\Services\Billing\ReminderDispatcher;
-use App\Services\Billing\LegacyInvoiceReminderService;
 use App\Services\WhatsAppService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
@@ -458,47 +456,30 @@ it('never stores a credential in the failure message', function () {
         ->toContain('[redacted]');
 });
 
-// ----------------------------------------------------------------- legacy ---
+// ---------------------------------------- project invoices get no nudge ----
 
-it('leaves the legacy project invoice email untouched', function () {
+it('sends nothing at all for a project invoice', function () {
     Mail::fake();
+
     $client = emailClient(['whatsapp' => null]);
     $project = Project::create(['client_id' => $client->id, 'name' => 'Web ABC', 'client_name' => 'PT ABC', 'status' => 'request']);
 
-    $invoice = Invoice::create([
+    Invoice::create([
         'project_id' => $project->id,
         'invoice_number' => 'INV-ABC-1001',
         'type' => 'dp',
         'amount' => 5000000,
-        'due_date' => today(),
+        'due_date' => today(), // the day the old project reminder used to fire
     ]);
 
-    app(LegacyInvoiceReminderService::class)->remind($invoice);
+    Illuminate\Support\Facades\Artisan::call('billing:process-renewals');
 
-    // Still the original Mailable, not the renewal one.
-    Mail::assertSent(InvoiceReminderMail::class, 1);
-    Mail::assertNotSent(BillingRenewalReminderMail::class);
-});
-
-it('still sends WhatsApp for a legacy project invoice', function () {
-    Mail::fake();
-
-    $whatsapp = Mockery::mock(WhatsAppService::class);
-    $whatsapp->shouldReceive('send')->once()->with('628111', Mockery::type('string'));
-    app()->instance(WhatsAppService::class, $whatsapp);
-
-    $client = emailClient(['whatsapp' => '628111']);
-    $project = Project::create(['client_id' => $client->id, 'name' => 'Web ABC', 'client_name' => 'PT ABC', 'status' => 'request']);
-
-    $invoice = Invoice::create([
-        'project_id' => $project->id,
-        'invoice_number' => 'INV-ABC-1002',
-        'type' => 'full',
-        'amount' => 5000000,
-        'due_date' => today(),
-    ]);
-
-    app(LegacyInvoiceReminderService::class)->remind($invoice);
+    // Those bills are settled outside the system now, so a full daily run
+    // neither mails a client nor leaves a reminder log behind for a project
+    // invoice — and it still sends nothing for the renewal when there is no
+    // renewal due.
+    Mail::assertNothingSent();
+    expect(BillingReminderLog::count())->toBe(0);
 });
 
 it('never sends WhatsApp for a recurring renewal', function () {

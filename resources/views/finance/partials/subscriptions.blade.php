@@ -57,6 +57,11 @@
         <x-empty-state icon="bx-repost" title="Belum ada langganan"
             description="Tambahkan layanan berulang seperti hosting, domain, maintenance atau SEO agar invoice dan reminder-nya berjalan otomatis." />
     @else
+        <p class="px-6 py-3 text-xs text-slate-500 border-b border-slate-100 bg-slate-50">
+            Pembayaran ditangani di luar sistem, jadi periode bergulir mengikuti tanggal — bukan
+            mengikuti pembayaran. Selama langganan aktif dan belum melewati tanggal berakhir,
+            invoice dan reminder terus berjalan sendiri; tidak ada yang perlu digeser tiap periode.
+        </p>
         <div class="overflow-x-auto">
             <table class="w-full text-sm min-w-[980px]">
                 <thead>
@@ -66,7 +71,7 @@
                         <th class="px-6 py-3 font-medium">Siklus</th>
                         <th class="px-6 py-3 font-medium">Nominal</th>
                         <th class="px-6 py-3 font-medium">Perpanjangan</th>
-                        <th class="px-6 py-3 font-medium">Otomatis</th>
+                        <th class="px-6 py-3 font-medium">Pengingat</th>
                         <th class="px-6 py-3 font-medium">Status</th>
                         <th class="px-6 py-3 font-medium text-right">Aksi</th>
                     </tr>
@@ -91,17 +96,15 @@
                                 @if ($s->status === 'active')
                                     <x-badge :color="$s->countdown_tone" class="mt-1 inline-block">{{ $s->countdown }}</x-badge>
                                 @endif
+                                @if ($s->ends_on)
+                                    <p class="text-xs text-slate-400 mt-1">Berakhir {{ $s->ends_on->translatedFormat('d M Y') }}</p>
+                                @endif
                             </td>
                             <td class="px-6 py-4">
-                                {{-- Both flags shown together: "no invoice" and
-                                     "no reminder" are different states and an
-                                     operator needs to tell them apart. --}}
-                                <div class="flex gap-1">
-                                    <span class="text-xs px-2 py-1 rounded {{ $s->auto_invoice ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400' }}"
-                                        title="Invoice otomatis">INV</span>
-                                    <span class="text-xs px-2 py-1 rounded {{ $s->auto_reminder ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400' }}"
-                                        title="Reminder otomatis">RMD</span>
-                                </div>
+                                {{-- Only the reminder is a per-subscription choice;
+                                     an invoice always follows the calendar. --}}
+                                <span class="text-xs px-2 py-1 rounded {{ $s->auto_reminder ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400' }}"
+                                    title="Reminder otomatis">RMD</span>
                             </td>
                             <td class="px-6 py-4">
                                 @php

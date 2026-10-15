@@ -14,8 +14,11 @@ use Illuminate\Support\Facades\Log;
 /**
  * The recurring billing engine: raise the invoice, then remind about it.
  *
- * Run daily. For each active subscription it works out how many calendar days
- * remain until the renewal date, then answers two separate questions:
+ * Run daily. For each active subscription it first rolls the period forward to
+ * whichever one is current today — time drives that, not payment, because
+ * payment happens outside this system — and stops for good once the date passes
+ * `ends_on`. Then it answers two separate questions about the period it landed
+ * on:
  *
  * - Should the invoice for this period exist by now? True from the creation
  *   threshold onward (H-30 yearly, H-7 monthly), so a run that missed the first
@@ -87,6 +90,8 @@ class BillingRenewalService
             'reminders_sent' => 0,
             'reminders_retried' => 0,
             'skipped_paid' => 0,
+            'periods_rolled' => 0,
+            'subscriptions_expired' => 0,
             'errors' => 0,
         ];
 
@@ -100,7 +105,7 @@ class BillingRenewalService
                     try {
                         $result = $this->processSubscription($subscription);
 
-                        foreach (['invoices_created', 'reminders_queued', 'reminders_sent', 'skipped_paid'] as $key) {
+                        foreach (['invoices_created', 'reminders_queued', 'reminders_sent', 'skipped_paid', 'periods_rolled', 'subscriptions_expired'] as $key) {
                             $summary[$key] += $result[$key];
                         }
 
@@ -283,55 +288,73 @@ class BillingRenewalService
      */
     public function processSubscription(BillingSubscription $subscription): array
     {
-        $result = ['invoices_created' => 0, 'reminders_queued' => 0, 'reminders_sent' => 0, 'skipped_paid' => 0, 'reminder_log_id' => null];
+        $result = [
+            'invoices_created' => 0,
+            'reminders_queued' => 0,
+            'reminders_sent' => 0,
+            'skipped_paid' => 0,
+            'periods_rolled' => 0,
+            'subscriptions_expired' => 0,
+            'reminder_log_id' => null,
+        ];
 
-        $daysUntil = $this->cycle->daysUntil($subscription->next_renewal_date);
-
-        // Two separate questions, on purpose.
+        // Cheap pre-filter, taken without a lock: on any given morning most
+        // subscriptions are nowhere near a reminder day.
         //
-        // The reminder must land on an exact day — H-7 means H-7, and a missed
-        // one stays missed rather than arriving late and wrong.
-        //
-        // The invoice is not a promise about a day; it is a debt owed from the
-        // creation threshold onward. Tying it to the same exact match made a
-        // single missed run (a server down on H-30) mean no invoice for the
-        // whole period, and the H-7 run then reminding about nothing.
-        $threshold = $this->policy->thresholdDueOn($subscription, $daysUntil);
-        $invoiceDue = $this->policy->invoiceDue($subscription, $daysUntil);
-
-        if (!$invoiceDue && $threshold === null) {
+        // A renewal date already in the past is deliberately NOT filtered out —
+        // that is exactly the subscription whose period has to roll over.
+        if ($this->cycle->daysUntil($subscription->next_renewal_date) > $this->policy->invoiceCreationThreshold($subscription)) {
             return $result;
         }
 
-        // The invoice decision is the part that must not race; delivery happens
-        // afterwards, outside the lock, so a slow dispatcher cannot hold a row.
-        [$invoice, $created] = DB::transaction(function () use ($subscription, $invoiceDue) {
+        // Rolling the period and deciding about the invoice are one atomic step.
+        // Two runs on the same morning must not disagree about which period is
+        // current, or the second one would bill a period the first already took.
+        $outcome = DB::transaction(function () use ($subscription): array {
+            /** @var BillingSubscription|null $locked */
             $locked = BillingSubscription::whereKey($subscription->getKey())->lockForUpdate()->first();
 
             if (!$locked || !$locked->isActive()) {
-                return [null, false];
+                return ['invoices' => 0, 'invoice' => null, 'threshold' => null, 'rolled' => 0, 'expired' => 0];
             }
 
-            $period = $this->cycle->periodFor($locked, $locked->next_renewal_date);
-            $existing = $this->existingInvoiceFor($locked, $period['start']);
+            ['steps' => $rolled, 'expired' => $expired, 'closed' => $closed] = $this->rollToCurrentPeriod($locked);
 
-            if ($existing) {
-                return [$existing, false];
+            // The period that has just run out is billed before the one now
+            // running, because the roll is what erases the only evidence it
+            // existed: a subscription entered for a client who started years
+            // ago, or a batch that slept through the creation day, would
+            // otherwise go quietly unbilled.
+            //
+            // It is the LAST closed period, not the oldest missed one. A
+            // subscription whose date sat untouched for three years owes this
+            // year's bill, not three old ones.
+            $invoices = $closed ? (int) $this->invoiceForPeriod($locked, $closed)['created'] : 0;
+
+            if ($expired) {
+                return ['invoices' => $invoices, 'invoice' => null, 'threshold' => null, 'rolled' => $rolled, 'expired' => 1];
             }
 
-            // auto_invoice off means a human raises the invoice. A reminder must
-            // never become the reason an invoice appears, so there is nothing to
-            // do until one exists.
-            if (!$invoiceDue || !$locked->auto_invoice) {
-                return [null, false];
-            }
+            $decision = $this->invoiceForPeriod($locked, $locked->next_renewal_date);
 
-            return [$this->createRenewalInvoice($locked, $period), true];
+            return [
+                'invoices' => $invoices + (int) $decision['created'],
+                'invoice' => $decision['invoice'],
+                'threshold' => $this->policy->thresholdDueOn($locked, $this->cycle->daysUntil($locked->next_renewal_date)),
+                'rolled' => $rolled,
+                'expired' => 0,
+            ];
         });
 
-        if ($created) {
-            $result['invoices_created']++;
+        $result['invoices_created'] = $outcome['invoices'];
+        $result['periods_rolled'] = $outcome['rolled'];
+        $result['subscriptions_expired'] = $outcome['expired'];
+
+        if ($outcome['expired']) {
+            return $result;
         }
+
+        $invoice = $outcome['invoice'];
 
         if (!$invoice) {
             return $result;
@@ -349,21 +372,87 @@ class BillingRenewalService
         // anything. A catch-up run that raised the invoice on H-29 writes no
         // reminder log at all, so the missed H-30 stays visibly missed instead
         // of being backfilled as though it had gone out on time.
+        $threshold = $outcome['threshold'];
+
         if ($threshold === null || !$subscription->auto_reminder) {
             return $result;
         }
 
-        ['outcome' => $outcome, 'log_id' => $logId] = $this->claimAndSend($invoice, $subscription, $threshold);
+        ['outcome' => $delivery, 'log_id' => $logId] = $this->claimAndSend($invoice, $subscription, $threshold);
 
         $result['reminder_log_id'] = $logId;
 
-        if ($outcome === 'sent') {
+        if ($delivery === 'sent') {
             $result['reminders_sent']++;
-        } elseif ($outcome === 'queued') {
+        } elseif ($delivery === 'queued') {
             $result['reminders_queued']++;
         }
 
         return $result;
+    }
+
+    /**
+     * The invoice for the period opening on $opens: reused if one already
+     * exists, raised once the period enters the creation window.
+     *
+     * @return array{invoice: Invoice|null, created: bool}
+     */
+    private function invoiceForPeriod(BillingSubscription $subscription, \Carbon\CarbonInterface $opens): array
+    {
+        if (!$this->policy->invoiceDue($subscription, $this->cycle->daysUntil($opens))) {
+            return ['invoice' => null, 'created' => false];
+        }
+
+        $period = $this->cycle->periodFor($subscription, $opens);
+        $existing = $this->existingInvoiceFor($subscription, $period['start']);
+
+        if ($existing) {
+            return ['invoice' => $existing, 'created' => false];
+        }
+
+        return ['invoice' => $this->createRenewalInvoice($subscription, $period), 'created' => true];
+    }
+
+    /**
+     * Moves the subscription onto whichever period is current today.
+     *
+     * Time drives this, not payment. Money is settled outside the system, so a
+     * renewal date that has passed simply means that period was billed and
+     * reminded for; the client keeps being billed every cycle until the term
+     * runs out, and nobody has to touch the record in between.
+     *
+     * The steps come from BillingCycle, which counts forward from `start_date`
+     * rather than adding to the previous renewal date — so a subscription never
+     * drifts a day earlier each year, and a run that was asleep for three years
+     * lands on the right anniversary in one go.
+     *
+     * `ends_on` is what stops it. A renewal date opens the period about to be
+     * billed, so a rolled date that lands on or after the end of the term would
+     * bill for service the client never bought: the subscription is marked
+     * expired instead, and this run does nothing else with it.
+     *
+     * @return array{steps: int, expired: int, closed: \Carbon\CarbonImmutable|null}
+     */
+    private function rollToCurrentPeriod(BillingSubscription $subscription): array
+    {
+        $steps = 0;
+        $closed = null;
+
+        while ($this->cycle->daysUntil($subscription->next_renewal_date) < 0) {
+            $closed = \Carbon\CarbonImmutable::parse($subscription->next_renewal_date)->startOfDay();
+            $next = $this->cycle->nextRenewalAfter($subscription);
+
+            if (!$subscription->coversRenewalOn($next)) {
+                $subscription->update(['status' => 'expired']);
+
+                return ['steps' => $steps, 'expired' => 1, 'closed' => $closed];
+            }
+
+            $subscription->update(['next_renewal_date' => $next]);
+            $steps++;
+        }
+
+        return ['steps' => $steps, 'expired' => 0, 'closed' => $closed];
     }
 
     /**
@@ -407,7 +496,10 @@ class BillingRenewalService
                     'discount' => 0,
                     'tax' => 0,
                     'currency' => $subscription->currency,
-                    'due_date' => $subscription->next_renewal_date,
+                    // The day the billed period opens, not the subscription's
+                    // current renewal date — after a roll those are two
+                    // different periods, and a past bill must stay past due.
+                    'due_date' => $period['start'],
                     'billing_period_start' => $period['start'],
                     'billing_period_end' => $period['end'],
                     'status' => 'unpaid',

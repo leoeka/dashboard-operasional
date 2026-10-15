@@ -23,6 +23,23 @@ class BillingSubscription extends Model
     public const SERVICE_TYPES = ['hosting', 'domain', 'website', 'maintenance', 'seo', 'other'];
     public const STATUSES = ['active', 'paused', 'cancelled', 'expired'];
 
+    /**
+     * What an operator pays for decides how often they are chased, and nobody
+     * should have to remember that mapping per client: hosting and domain are
+     * bought a year at a time, everything else is a monthly retainer.
+     *
+     * This is the only place the rule lives. The form no longer asks for a
+     * cycle; it derives one from the service type chosen here.
+     */
+    public const YEARLY_SERVICE_TYPES = ['hosting', 'domain'];
+
+    public static function cycleForServiceType(string $serviceType): string
+    {
+        return in_array($serviceType, self::YEARLY_SERVICE_TYPES, true)
+            ? self::CYCLE_YEARLY
+            : self::CYCLE_MONTHLY;
+    }
+
     protected $fillable = [
         'client_id',
         'project_id',
@@ -35,8 +52,8 @@ class BillingSubscription extends Model
         'currency',
         'start_date',
         'next_renewal_date',
+        'ends_on',
         'status',
-        'auto_invoice',
         'auto_reminder',
     ];
 
@@ -49,15 +66,14 @@ class BillingSubscription extends Model
         'billing_cycle' => self::CYCLE_YEARLY,
         'currency' => 'IDR',
         'status' => 'active',
-        'auto_invoice' => true,
         'auto_reminder' => true,
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'next_renewal_date' => 'date',
+        'ends_on' => 'date',
         'amount' => 'decimal:2',
-        'auto_invoice' => 'boolean',
         'auto_reminder' => 'boolean',
     ];
 
@@ -94,6 +110,19 @@ class BillingSubscription extends Model
     public function isActive(): bool
     {
         return $this->status === 'active';
+    }
+
+    /**
+     * Whether a renewal date still falls inside what the client subscribed to.
+     *
+     * A renewal date opens the period that is about to be billed, so a date
+     * landing on or after the end of the term would bill for service nobody
+     * bought. A null ends_on means there is no term: it runs until an operator
+     * stops it, which is every subscription written before terms existed.
+     */
+    public function coversRenewalOn(\Carbon\CarbonInterface $date): bool
+    {
+        return !$this->ends_on || $date->lt($this->ends_on->copy()->startOfDay());
     }
 
     /** Negative once the renewal date has passed. */
