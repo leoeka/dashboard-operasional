@@ -23,25 +23,25 @@ elemen-elemen di dalamnya).
 
 <x-modal :name="$name" maxWidth="sm" focusable>
     <div class="p-8 flex flex-col items-center text-center">
-        <h3 class="text-sm font-semibold text-slate-700 mb-5">{{ $title }}</h3>
+        <h3 class="text-sm font-semibold text-slate-700 mb-4">{{ $title }}</h3>
 
         <div class="relative w-40 h-40">
             <svg class="w-40 h-40 -rotate-90" viewBox="0 0 160 160">
                 <circle cx="80" cy="80" r="70" stroke-width="12" fill="none" class="stroke-slate-100" />
                 <circle id="{{ $name }}-ring" cx="80" cy="80" r="70" stroke-width="12" fill="none"
                     stroke-linecap="round" stroke-dasharray="439.8" stroke-dashoffset="439.8"
-                    class="stroke-blue-600 transition-all duration-500 ease-out"></circle>
+                    class="stroke-brand-600 transition-all duration-500 ease-out"></circle>
             </svg>
             <div class="absolute inset-0 flex flex-col items-center justify-center">
                 <span id="{{ $name }}-percent" class="text-2xl font-bold text-slate-800">0%</span>
-                <span id="{{ $name }}-status" class="text-[11px] text-slate-400 mt-1">Processing</span>
+                <span id="{{ $name }}-status" class="text-xs text-slate-500 mt-1">Processing</span>
             </div>
         </div>
 
         <p id="{{ $name }}-message" class="text-xs text-slate-500 mt-4 max-w-xs min-h-[2rem]"></p>
 
         <button type="button" id="{{ $name }}-close-btn" x-on:click="$dispatch('close')"
-            class="hidden mt-4 text-xs bg-slate-700 text-white rounded-lg px-4 py-2 hover:bg-slate-800 transition">
+            class="min-h-11 hidden mt-4 text-xs bg-slate-700 text-white rounded-md px-4 py-2 hover:bg-slate-800 transition">
             Close
         </button>
     </div>
@@ -74,10 +74,10 @@ elemen-elemen di dalamnya).
                 if (ring) {
                     const clamped = Math.max(0, Math.min(100, percent));
                     ring.style.strokeDashoffset = CIRCUMFERENCE - (clamped / 100) * CIRCUMFERENCE;
-                    ring.classList.remove('stroke-blue-600', 'stroke-emerald-500', 'stroke-red-500');
+                    ring.classList.remove('stroke-brand-600', 'stroke-emerald-600', 'stroke-red-600');
                     ring.classList.add(
-                        status === 'done' ? 'stroke-emerald-500' :
-                        status === 'failed' ? 'stroke-red-500' : 'stroke-blue-600'
+                        status === 'done' ? 'stroke-emerald-600' :
+                        status === 'failed' ? 'stroke-red-600' : 'stroke-brand-600'
                     );
                 }
                 if (percentEl) percentEl.innerText = Math.round(percent) + '%';

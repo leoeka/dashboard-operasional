@@ -3,10 +3,10 @@
     <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between gap-3">
         <div>
             <h2 class="font-semibold text-slate-800">Perpanjangan Mendatang</h2>
-            <p class="text-xs text-slate-400 mt-0.5">Layanan yang akan diperpanjang dalam 45 hari ke depan.</p>
+            <p class="text-xs text-slate-500 mt-1">Layanan yang akan diperpanjang dalam 45 hari ke depan.</p>
         </div>
         <a href="{{ route('pages.finance', ['tab' => 'subscriptions']) }}"
-            class="text-xs text-brand-500 hover:underline whitespace-nowrap">Lihat semua</a>
+            class="inline-flex items-center px-1 min-h-11 text-xs text-brand-600 hover:underline whitespace-nowrap">Lihat semua</a>
     </div>
 
     @if ($renewals->isEmpty())
@@ -16,32 +16,32 @@
         <div class="overflow-x-auto">
             <table class="w-full text-sm min-w-[820px]">
                 <thead>
-                    <tr class="text-left text-slate-400 border-b border-slate-100">
-                        <th class="px-6 py-3 font-medium">Client</th>
-                        <th class="px-6 py-3 font-medium">Layanan</th>
-                        <th class="px-6 py-3 font-medium">Siklus</th>
-                        <th class="px-6 py-3 font-medium">Nominal</th>
-                        <th class="px-6 py-3 font-medium">Perpanjangan</th>
-                        <th class="px-6 py-3 font-medium text-right">Hitung Mundur</th>
-                        <th class="px-6 py-3 font-medium text-right">Aksi</th>
+                    <tr class="text-left text-xs text-slate-600 bg-slate-50 border-b border-slate-100">
+                        <th class="px-6 py-3 font-semibold">Client</th>
+                        <th class="px-6 py-3 font-semibold">Layanan</th>
+                        <th class="px-6 py-3 font-semibold">Siklus</th>
+                        <th class="px-6 py-3 font-semibold text-right">Nominal</th>
+                        <th class="px-6 py-3 font-semibold text-right">Perpanjangan</th>
+                        <th class="px-6 py-3 font-semibold text-right">Hitung Mundur</th>
+                        <th class="px-6 py-3 font-semibold text-right">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @foreach ($renewals as $row)
                         @php($s = $row['model'])
                         <tr class="hover:bg-slate-50">
-                            <td class="px-6 py-4 text-slate-700">{{ $s->client?->company_name ?? '—' }}</td>
+                            <td class="px-6 py-4 text-slate-700">{{ $s->client?->company_name ?? '-' }}</td>
                             <td class="px-6 py-4">
                                 <p class="text-slate-700">{{ $s->name }}</p>
-                                <p class="text-xs text-slate-400">{{ ucfirst($s->service_type) }}@if ($s->project)
+                                <p class="text-xs text-slate-500">{{ ucfirst($s->service_type) }}@if ($s->project)
                                         · {{ $s->project->name }}
                                     @endif
                                 </p>
                             </td>
                             <td class="px-6 py-4 text-slate-500">{{ $s->isYearly() ? 'Tahunan' : 'Bulanan' }}</td>
-                            <td class="px-6 py-4 text-slate-700">Rp{{ number_format((float) $s->amount, 0, ',', '.') }}
+                            <td class="px-6 py-4 text-slate-700 font-mono text-right">Rp{{ number_format((float) $s->amount, 0, ',', '.') }}
                             </td>
-                            <td class="px-6 py-4 text-slate-500">
+                            <td class="px-6 py-4 text-slate-500 font-mono text-right">
                                 {{ $s->next_renewal_date->translatedFormat('d M Y') }}</td>
                             <td class="px-6 py-4 text-right">
                                 <x-badge :color="$row['tone']">{{ $row['countdown'] }}</x-badge>
@@ -53,7 +53,7 @@
                                  one and could duplicate a period. --}}
                             <td class="px-6 py-4 text-right">
                                 <a href="{{ route('pages.finance.subscriptions.edit', $s) }}"
-                                    class="text-slate-400 hover:text-brand-500" title="Kelola langganan">
+                                    class="text-slate-500 hover:text-brand-600 inline-flex items-center justify-center w-11 h-11 rounded-lg hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" title="Kelola langganan" aria-label="Kelola langganan">
                                     <i class='bx bx-edit-alt text-lg'></i>
                                 </a>
                             </td>

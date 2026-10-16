@@ -4,7 +4,7 @@
 @section('content')
 
     @if ($project)
-        <a href="{{ route('pages.projects') }}" class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
+        <a href="{{ route('pages.projects') }}" class="min-h-11 text-sm text-slate-600 flex items-center gap-1 mb-4">
             <i class='bx bx-arrow-back'></i> Back to Projects
         </a>
     @endif
@@ -14,11 +14,11 @@
         @if ($project)
             <div class="flex flex-col sm:flex-row gap-2 w-fit">
                 <a href="{{ route('pages.projects.seo-proposal.download', $project) }}"
-                    class="inline-flex items-center gap-2 text-xs font-semibold text-emerald-600 hover:text-emerald-800 border border-emerald-200 hover:bg-emerald-50 px-3 py-2 rounded-lg transition w-fit">
+                    class="min-h-11 inline-flex items-center gap-2 text-xs font-semibold text-slate-700 border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2 rounded-md transition w-fit">
                     <i class='bx bx-file'></i> Download Proposal (PDF)
                 </a>
                 <a href="{{ route('pages.projects.seo-backlink.report.download', $project) }}"
-                    class="inline-flex items-center gap-2 text-xs font-semibold text-blue-600 hover:text-blue-800 border border-blue-200 hover:bg-blue-50 px-3 py-2 rounded-lg transition w-fit">
+                    class="min-h-11 inline-flex items-center gap-2 text-xs font-semibold text-brand-600 hover:text-brand-700 border border-slate-300 hover:bg-brand-50 px-3 py-2 rounded-md transition w-fit">
                     <i class='bx bx-download'></i> Download Report (PDF)
                 </a>
             </div>
@@ -26,21 +26,21 @@
     </div>
 
     @if (session('success'))
-        <div class="mb-6 px-4 py-3 rounded-lg bg-emerald-50 text-emerald-600 text-sm">{{ session('success') }}</div>
+        <div class="mb-6 px-4 py-3 rounded-md bg-emerald-50 text-emerald-700 text-sm">{{ session('success') }}</div>
     @endif
     @if (session('error'))
-        <div class="mb-6 px-4 py-3 rounded-lg bg-red-50 text-red-600 text-sm">{{ session('error') }}</div>
+        <div class="mb-6 px-4 py-3 rounded-md bg-red-50 text-red-700 text-sm">{{ session('error') }}</div>
     @endif
     @if ($errors->any())
-        <div class="mb-6 px-4 py-3 rounded-lg bg-red-50 text-red-600 text-sm">{{ $errors->first() }}</div>
+        <div class="mb-6 px-4 py-3 rounded-md bg-red-50 text-red-700 text-sm">{{ $errors->first() }}</div>
     @endif
 
     {{-- PILIH PROJECT --}}
     <x-card class="mb-6">
         <form method="GET" class="flex flex-col sm:flex-row sm:items-center gap-3">
-            <label class="text-sm font-medium text-slate-600">Project:</label>
+            <label class="text-sm font-semibold text-slate-600">Project:</label>
             <select name="project" onchange="this.form.submit()"
-                class="flex-1 bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none">
+                class="min-h-11 min-w-0 flex-1 bg-slate-50 text-slate-700 rounded-md px-4 py-3 text-sm outline-none">
                 <option value="">-- Select project --</option>
                 @foreach ($projects as $p)
                     <option value="{{ $p->id }}" @selected($project && $project->id === $p->id)>
@@ -53,15 +53,15 @@
 
     @if (!$project)
         <x-card padding="p-16">
-            <p class="text-sm text-slate-400 text-center">Select a project above to manage SEO & Backlink.</p>
+            <p class="text-sm text-slate-600 text-center">Pilih project di atas untuk mengelola SEO & Backlink.</p>
         </x-card>
     @else
         {{-- INFORMASI UMUM --}}
         <x-card class="mb-6">
-            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-5">
+            <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
                 <div class="min-w-0">
-                    <p class="font-bold text-slate-800 text-lg truncate">{{ $project->name }}</p>
-                    <p class="text-sm text-slate-400">{{ $project->client_name }}</p>
+                    <p class="font-bold text-slate-800 text-base truncate">{{ $project->name }}</p>
+                    <p class="text-sm text-slate-600">{{ $project->client_name }}</p>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0">
                     <x-badge :color="$project->statusColor()">{{ $project->statusLabel() }}</x-badge>
@@ -70,12 +70,12 @@
 
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-6 text-sm">
                 <div>
-                    <p class="text-slate-400 mb-1">Website Type</p>
-                    <p class="font-medium text-slate-700">{{ $project->type ?? '-' }}</p>
+                    <p class="text-slate-600 mb-1">Website Type</p>
+                    <p class="font-semibold text-slate-700">{{ $project->type ?? '-' }}</p>
                 </div>
                 <div>
-                    <p class="text-slate-400 mb-1">Date Created</p>
-                    <p class="font-medium text-slate-700">{{ $project->created_at->translatedFormat('d M Y') }}</p>
+                    <p class="text-slate-600 mb-1">Date Created</p>
+                    <p class="font-semibold text-slate-700 font-mono">{{ $project->created_at->translatedFormat('d M Y') }}</p>
                 </div>
             </div>
         </x-card>
@@ -87,14 +87,14 @@
                 <div class="flex items-start justify-between gap-3">
                     <div class="flex items-center gap-3">
                         <div
-                            class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 border border-blue-100 flex items-center justify-center shrink-0">
+                            class="w-10 h-10 rounded-xl bg-brand-50 text-brand-600 border border-slate-300 flex items-center justify-center shrink-0">
                             <i class='bx bx-file-blank text-xl'></i>
                         </div>
                         <div>
                             <h2 class="font-bold text-slate-800 text-base">
                                 Project Proposal
                             </h2>
-                            <p class="text-xs text-slate-400">
+                            <p class="text-xs text-slate-600">
                                 Analysis & proposal document
                             </p>
                         </div>
@@ -124,16 +124,16 @@
                         $mockupCandidates = isset($proposalData['mockup']) ? [$proposalData['mockup']] : [];
                     }
                 @endphp
-                <div class="pt-5 mt-5 border-t border-slate-100 space-y-4">
+                <div class="pt-4 mt-4 border-t border-slate-100 space-y-4">
                     <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-[650px] flex flex-col">
-                        <div class="px-5 py-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+                        <div class="px-4 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
                             <span class="text-xs font-semibold text-slate-700 flex items-center gap-2">
-                                <i class='bx bxs-file-pdf text-red-500 text-base'></i>
+                                <i class='bx bxs-file-pdf text-red-700 text-base'></i>
                                 Document Viewer
                             </span>
                             @if ($proposal->pdf_path)
                                 <a href="{{ Storage::url($proposal->pdf_path) }}" target="_blank"
-                                    class="text-[11px] text-blue-600 hover:underline flex items-center gap-1">
+                                    class="inline-flex items-center gap-1 px-1 min-h-11 text-xs text-brand-600 hover:underline">
                                     Open New Tab <i class='bx bx-link-external'></i>
                                 </a>
                             @endif
@@ -153,11 +153,11 @@
                             @else
                                 <div class="h-full flex flex-col items-center justify-center text-center p-6">
                                     <div
-                                        class="w-16 h-16 bg-slate-200 text-slate-400 rounded-full flex items-center justify-center mb-3">
+                                        class="w-16 h-16 bg-slate-200 text-slate-600 rounded-full flex items-center justify-center mb-3">
                                         <i class='bx bx-file-blank text-3xl'></i>
                                     </div>
                                     <h3 class="text-sm font-semibold text-slate-700">PDF File Not Available Yet</h3>
-                                    <p class="text-xs text-slate-400 mt-1 max-w-sm">
+                                    <p class="text-xs text-slate-600 mt-1 max-w-sm">
                                         The proposal has not been generated yet, or the PDF file has not been saved on the server.
                                     </p>
                                 </div>
@@ -169,35 +169,32 @@
 
 
             {{-- Actions --}}
-            <div class="pt-5 mt-4 border-t border-slate-100">
+            <div class="pt-4 mt-4 border-t border-slate-100">
                 @if ($project->latestProposal)
                     {{-- Download jika PDF sudah tersedia --}}
                     @if ($project->latestProposal->pdf_path)
                         <a href="{{ route('pages.projects.proposal.download', $project) }}"
-                            class="w-full inline-flex items-center justify-center gap-2
-                                bg-slate-100 text-slate-700 hover:bg-slate-200
-                                text-xs font-semibold px-4 py-2.5 rounded-lg
-                                active:scale-95 transition">
+                            class="min-h-11 w-full inline-flex items-center justify-center gap-2 bg-slate-100 text-slate-700 hover:bg-slate-200 text-xs font-semibold px-4 py-3 rounded-md active:scale-95 transition">
                             <i class='bx bx-download'></i>
                             Download Proposal PDF
                         </a>
                     @endif
                     @if (count($mockupCandidates) === 1)
                         <a href="{{ route('pages.projects.mockup.demo', [$project, 0]) }}" target="_blank" rel="noopener"
-                            class="mt-2 w-full inline-flex items-center justify-center gap-2 border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-semibold px-4 py-2.5 rounded-lg transition">
+                            class="min-h-11 mt-2 w-full inline-flex items-center justify-center gap-2 border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold px-4 py-3 rounded-md transition">
                             <i class='bx bx-desktop'></i>
                             Open Live Demo
                         </a>
                         <form method="POST" action="{{ route('pages.projects.bundle.build', $project) }}" class="mt-3">
                             @csrf
                             <input type="hidden" name="mockup_index" value="0">
-                            <button type="submit" class="w-full inline-flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-slate-700 text-xs font-semibold px-4 py-2.5 rounded-lg transition">
+                            <button type="submit" class="min-h-11 w-full inline-flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-slate-700 text-xs font-semibold px-4 py-3 rounded-md transition">
                                 <i class='bx bx-package'></i> Buat WordPress siap install
                             </button>
                         </form>
                     @endif
                     @if (count($mockupCandidates) > 1)
-                        <div class="mt-5 border-t border-slate-100 pt-5">
+                        <div class="mt-4 border-t border-slate-100 pt-4">
                             <p class="text-sm font-bold text-slate-700">Pilih mockup untuk langsung dibuat menjadi WordPress</p>
                             <p class="mt-1 text-xs text-slate-500">Setiap opsi berisi tombol build. Gunakan opsi yang sudah dipilih klien dari proposal.</p>
                             <div class="mt-4 grid gap-3 md:grid-cols-3" id="mockup-candidate-grid">
@@ -212,13 +209,13 @@
                                         <p class="px-1 pt-2 text-xs font-semibold text-slate-700">Option {{ $index + 1 }}</p>
                                         {{-- Live, responsive website demo of this same blueprint (the PNG above stays for the PDF). --}}
                                         <a href="{{ route('pages.projects.mockup.demo', [$project, $index]) }}" target="_blank" rel="noopener"
-                                            class="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
+                                            class="min-h-11 mt-2 w-full inline-flex items-center justify-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition">
                                             <i class='bx bx-desktop'></i> Open Demo
                                         </a>
                                         <form method="POST" action="{{ route('pages.projects.bundle.build', $project) }}" class="mt-2">
                                             @csrf
                                             <input type="hidden" name="mockup_index" value="{{ $index }}">
-                                            <button type="submit" class="w-full rounded-lg bg-slate-900 text-white hover:bg-slate-700 px-3 py-2 text-xs font-semibold transition">
+                                            <button type="submit" class="min-h-11 w-full rounded-md bg-slate-900 text-white hover:bg-slate-700 px-3 py-2 text-xs font-semibold transition">
                                                 <i class='bx bx-package'></i> Buat WP dari Opsi {{ $index + 1 }}
                                             </button>
                                         </form>
@@ -227,17 +224,13 @@
                             </div>
                         </div>
                     @endif
-                    <p class="mt-3 rounded-lg bg-slate-50 px-4 py-2.5 text-center text-xs text-slate-500">
+                    <p class="mt-3 rounded-md bg-slate-50 px-4 py-3 text-center text-xs text-slate-600">
                         Build dijalankan dari opsi yang ditekan. Pastikan opsi tersebut sudah dipilih klien melalui proposal.
                     </p>
                 @else
                     {{-- Generate pertama kali — JS-driven, memicu job async + progress bar di kartu Mockup di bawah --}}
                     <button type="button" id="generate-proposal-btn" onclick="startGenerateProposal({{ $project->id }})"
-                        class="w-full inline-flex items-center justify-center gap-2
-                               grad-blue text-white text-xs font-semibold
-                               px-4 py-2.5 rounded-lg
-                               hover:opacity-90 active:scale-95
-                               shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed">
+                        class="w-full min-h-11 inline-flex items-center justify-center gap-2 bg-brand-600 text-white text-xs font-semibold px-4 py-3 rounded-md hover:bg-brand-700 active:scale-95 shadow-sm transition disabled:opacity-60 disabled:cursor-not-allowed">
                         <i class='bx bx-magic-wand text-sm'></i>
                         <span>Generate</span>
                     </button>
@@ -252,11 +245,11 @@
             (dipanggil dari script di bawah), bukan bar inline lagi. --}}
             <div id="mockup-idle-warning" class="text-center py-8 border border-dashed border-slate-200 rounded-xl">
                 <div
-                    class="mx-auto mb-3 w-10 h-10 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center">
+                    class="mx-auto mb-3 w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center">
                     <i class='bx bx-image-alt text-xl'></i>
                 </div>
-                <p class="text-sm font-medium text-slate-600">Mockup not yet created</p>
-                <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                <p class="text-sm font-semibold text-slate-600">Mockup not yet created</p>
+                <p class="text-xs text-slate-600 mt-1 max-w-sm mx-auto">
                     The mockup will be automatically generated once the proposal is successfully created. Please
                     generate the proposal first.
                 </p>
@@ -369,9 +362,9 @@
                 $isConnected = false; // TODO: ganti jadi cek kolom wp_application_password setelah fitur Connect Website dibangun
 
                 $connectHint = match (true) {
-                    $cmsPlatform === 'baru' => 'This is a freshly built site — get the WordPress admin username & password from whoever set it up, then paste them here.',
+                    $cmsPlatform === 'baru' => 'This is a freshly built site. Get the WordPress admin username & password from whoever set it up, then paste them here.',
                     $cmsPlatform === 'wordpress' => 'Request WordPress access from the client, then paste it here.',
-                    in_array($cmsPlatform, ['shopify', 'wix']) => 'This platform (' . ucfirst($cmsPlatform) . ') is not yet supported for automatic publishing — articles will be provided for manual download/copy.',
+                    in_array($cmsPlatform, ['shopify', 'wix']) => 'This platform (' . ucfirst($cmsPlatform) . ') is not yet supported for automatic publishing, articles will be provided for manual download/copy.',
                     default => 'Ask the client about their website platform to enable automatic publishing.',
                 };
 
@@ -399,18 +392,18 @@
                 {{-- NAVIGASI TAB --}}
                 <div class="flex gap-1 mb-6 border-b border-slate-200 overflow-x-auto">
                     <button type="button" @click="tab = 'ringkasan'; location.hash = 'ringkasan'"
-                        :class="tab === 'ringkasan' ? 'border-brand-500 text-brand-600 font-semibold' : 'border-transparent text-slate-400 hover:text-slate-600'"
-                        class="px-4 py-2.5 text-sm border-b-2 -mb-px transition whitespace-nowrap">
+                        :class="tab === 'ringkasan' ? 'border-brand-500 text-brand-600 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-600'"
+                        class="px-4 py-3 text-sm border-b-2 -mb-px transition whitespace-nowrap">
                         Summary
                     </button>
                     <button type="button" @click="tab = 'performa'; location.hash = 'performa'"
-                        :class="tab === 'performa' ? 'border-brand-500 text-brand-600 font-semibold' : 'border-transparent text-slate-400 hover:text-slate-600'"
-                        class="px-4 py-2.5 text-sm border-b-2 -mb-px transition whitespace-nowrap">
+                        :class="tab === 'performa' ? 'border-brand-500 text-brand-600 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-600'"
+                        class="px-4 py-3 text-sm border-b-2 -mb-px transition whitespace-nowrap">
                         Performance
                     </button>
                     <button type="button" @click="tab = 'traffic'; location.hash = 'traffic'"
-                        :class="tab === 'traffic' ? 'border-brand-500 text-brand-600 font-semibold' : 'border-transparent text-slate-400 hover:text-slate-600'"
-                        class="px-4 py-2.5 text-sm border-b-2 -mb-px transition whitespace-nowrap">
+                        :class="tab === 'traffic' ? 'border-brand-500 text-brand-600 font-semibold' : 'border-transparent text-slate-600 hover:text-slate-600'"
+                        class="px-4 py-3 text-sm border-b-2 -mb-px transition whitespace-nowrap">
                         Traffic Report
                     </button>
                 </div>
@@ -422,11 +415,11 @@
                             <h2 class="font-semibold text-slate-800">SEO & Backlink</h2>
                             @if ($isConnected)
                                 <span
-                                    class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                                    class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md bg-emerald-100 text-emerald-700">
                                     <i class='bx bx-check'></i> Connected
                                 </span>
                             @else
-                                <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
+                                <span class="text-xs font-semibold px-2 py-1 rounded-md bg-amber-100 text-amber-700">
                                     Not connected
                                 </span>
                             @endif
@@ -436,38 +429,38 @@
                         @if ($project->wants_seo)
                             <div class="border-t border-slate-100 pt-4 mb-4">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <i class='bx bx-search text-blue-600'></i>
-                                    <span class="text-sm font-medium text-slate-700">SEO Requirements</span>
+                                    <i class='bx bx-search text-brand-600'></i>
+                                    <span class="text-sm font-semibold text-slate-700">SEO Requirements</span>
                                 </div>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Target URL</span>
+                                        <span class="text-slate-600 w-28 flex-shrink-0">Target URL</span>
                                         <span class="text-slate-700 break-all">{{ $seo['target_url'] ?: '-' }}</span>
                                     </div>
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Location</span>
+                                        <span class="text-slate-600 w-28 flex-shrink-0">Location</span>
                                         <span class="text-slate-700">{{ $seo['location'] ?: '-' }}</span>
                                     </div>
                                     <div class="flex gap-2 sm:col-span-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Keyword</span>
+                                        <span class="text-slate-600 w-28 flex-shrink-0">Keyword</span>
                                         <span class="text-slate-700">
                                             @forelse ($keywordList->take(4) as $kw)
                                                 <span
-                                                    class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">{{ $kw }}</span>
+                                                    class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full mr-1 mb-1">{{ $kw }}</span>
                                             @empty
                                                 -
                                             @endforelse
                                             @if ($keywordList->count() > 4)
-                                                <span class="text-xs text-slate-400">+{{ $keywordList->count() - 4 }} more</span>
+                                                <span class="text-xs text-slate-600">+{{ $keywordList->count() - 4 }} more</span>
                                             @endif
                                         </span>
                                     </div>
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Platform</span>
+                                        <span class="text-slate-600 w-28 flex-shrink-0">Platform</span>
                                         <span>
                                             @if ($cmsPlatform)
                                                 <span
-                                                    class="inline-block bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full">{{ ucfirst($cmsPlatform === 'baru' ? 'New Website (from us)' : $cmsPlatform) }}</span>
+                                                    class="inline-block bg-brand-50 text-brand-700 text-xs px-2 py-1 rounded-full">{{ ucfirst($cmsPlatform === 'baru' ? 'New Website (from us)' : $cmsPlatform) }}</span>
                                             @else
                                                 -
                                             @endif
@@ -481,29 +474,29 @@
                         @if ($project->wants_backlink)
                             <div class="border-t border-slate-100 pt-4 mb-4">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <i class='bx bx-link text-blue-600'></i>
-                                    <span class="text-sm font-medium text-slate-700">Backlink Requirements</span>
+                                    <i class='bx bx-link text-brand-600'></i>
+                                    <span class="text-sm font-semibold text-slate-700">Backlink Requirements</span>
                                 </div>
-                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-sm">
+                                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Quantity</span>
+                                        <span class="text-slate-600 w-28 flex-shrink-0">Quantity</span>
                                         <span class="text-slate-700">{{ $backlink['quantity'] ?? '-' }} backlink</span>
                                     </div>
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Priority</span>
+                                        <span class="text-slate-600 w-28 flex-shrink-0">Priority</span>
                                         <span
                                             class="text-slate-700">{{ $backlink['priority'] === 'quality' ? 'Quality' : ($backlink['priority'] === 'quantity' ? 'Quantity' : '-') }}</span>
                                     </div>
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Niche</span>
+                                        <span class="text-slate-600 w-28 flex-shrink-0">Niche</span>
                                         <span class="text-slate-700">{{ $backlink['niche'] ?: '-' }}</span>
                                     </div>
                                     <div class="flex gap-2">
-                                        <span class="text-slate-400 w-28 flex-shrink-0">Anchor type</span>
+                                        <span class="text-slate-600 w-28 flex-shrink-0">Anchor type</span>
                                         <span class="text-slate-700">
                                             @forelse (($backlink['anchor_type'] ?? []) as $type)
                                                 <span
-                                                    class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1">{{ str_replace('_', ' ', ucfirst($type)) }}</span>
+                                                    class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full mr-1">{{ str_replace('_', ' ', ucfirst($type)) }}</span>
                                             @empty
                                                 -
                                             @endforelse
@@ -517,16 +510,16 @@
                         <div class="border-t border-slate-100 pt-4 flex flex-col sm:flex-row sm:items-center gap-3">
                             @if (!$isConnected)
                                 <button type="button" disabled
-                                    class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg opacity-60 cursor-not-allowed w-fit">
+                                    class="min-h-11 inline-flex items-center gap-2 bg-brand-600 text-white text-xs font-semibold px-4 py-2 rounded-md opacity-60 cursor-not-allowed w-fit">
                                     <i class='bx bx-plug'></i> Connect Website
                                 </button>
-                                <p class="text-xs text-slate-400">{{ $connectHint }}</p>
+                                <p class="text-xs text-slate-600">{{ $connectHint }}</p>
                             @else
                                 <button type="button" disabled
-                                    class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg opacity-60 cursor-not-allowed w-fit">
+                                    class="min-h-11 inline-flex items-center gap-2 bg-brand-600 text-white text-xs font-semibold px-4 py-2 rounded-md opacity-60 cursor-not-allowed w-fit">
                                     <i class='bx bx-magic-wand'></i> Generate Article
                                 </button>
-                                <p class="text-xs text-slate-400">Article generation feature not yet available</p>
+                                <p class="text-xs text-slate-600">Article generation feature not yet available</p>
                             @endif
                         </div>
                     </x-card>
@@ -534,43 +527,43 @@
                     {{-- KARTU ANALISIS AI — keyword & kompetitor otomatis --}}
                     <x-card class="mb-6">
                         <div class="flex items-center justify-between mb-1">
-                            <h2 class="font-semibold text-slate-800">AI Analysis — Keyword & Competitor</h2>
+                            <h2 class="font-semibold text-slate-800">AI Analysis: Keyword & Competitor</h2>
                             @if ($aiRecommendations)
                                 <span
-                                    class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                                    class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md bg-emerald-100 text-emerald-700">
                                     <i class='bx bx-check'></i> Analyzed
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-400 mb-4">Automatic keyword & competitor discovery via AI.</p>
+                        <p class="text-xs text-slate-600 mb-4">Automatic keyword & competitor discovery via AI.</p>
 
                         @if (!$resolvedUrl)
-                            <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <div class="text-sm text-amber-700 bg-amber-50 border-l-4 border-l-amber-700 rounded-md p-4">
                                 The client's website URL has not been filled in. Fill it in first on the
-                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-medium">Edit
+                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-semibold">Edit
                                     Project page</a>
-                                — the analysis will run automatically once after the URL is saved, or it can be triggered
+                                The analysis will run automatically once after the URL is saved, or it can be triggered
                                 manually here afterward.
                             </div>
                         @else
                             <div id="aiAnalysisBox" data-project-id="{{ $project->id }}">
                                 <div id="aiIdleState" class="{{ $aiRecommendations ? 'hidden' : '' }}">
                                     <button type="button" id="btnStartAnalysis"
-                                        class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
+                                        class="min-h-11 inline-flex items-center gap-2 bg-brand-600 text-white text-xs font-semibold px-4 py-2 rounded-md">
                                         <i class='bx bx-magic-wand'></i> Start AI Analysis
                                     </button>
                                 </div>
 
                                 <div id="aiProgressState" class="hidden">
                                     <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
-                                        <div id="aiProgressBar" class="bg-blue-600 h-2 rounded-full transition-all" style="width:0%">
+                                        <div id="aiProgressBar" class="bg-brand-600 h-2 rounded-full transition-all" style="width:0%">
                                         </div>
                                     </div>
                                     <p id="aiProgressMessage" class="text-xs text-slate-500"></p>
                                 </div>
 
                                 <div id="aiErrorState"
-                                    class="hidden text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                                    class="hidden text-sm text-red-700 bg-red-50 border-l-4 border-l-red-700 rounded-md p-4">
                                     <p id="aiErrorMessage"></p>
                                     <button type="button" id="btnRetryAnalysis"
                                         class="mt-2 text-xs font-semibold text-red-700 underline">Try again</button>
@@ -578,7 +571,7 @@
 
                                 @if ($aiRecommendations)
                                     <button type="button" id="btnRerunAnalysis"
-                                        class="text-xs font-semibold text-blue-600 hover:text-blue-800">
+                                        class="text-xs font-semibold text-brand-600 hover:text-brand-700">
                                         Re-run analysis
                                     </button>
                                 @endif
@@ -588,11 +581,11 @@
                                 <div class="border-t border-slate-100 mt-4 pt-4 space-y-4">
                                     @if (!empty($aiTopics['core_topics']))
                                         <div>
-                                            <p class="text-xs text-slate-400 mb-1">Core topics detected</p>
+                                            <p class="text-xs text-slate-600 mb-1">Core topics detected</p>
                                             <div>
                                                 @foreach ($aiTopics['core_topics'] as $topic)
                                                     <span
-                                                        class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">{{ $topic }}</span>
+                                                        class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full mr-1 mb-1">{{ $topic }}</span>
                                                 @endforeach
                                             </div>
                                         </div>
@@ -601,14 +594,14 @@
                                     {{-- ===== KANDIDAT KEYWORD — checkbox, tim pilih mana yang dipakai ===== --}}
                                     <div>
                                         <div class="flex items-center justify-between mb-2">
-                                            <p class="text-xs text-slate-400">
+                                            <p class="text-xs text-slate-600">
                                                 Keyword Candidates ({{ count($aiRecommendations['main_keywords'] ?? []) }})
                                                 <span
-                                                    class="ml-1 inline-block text-[10px] px-1.5 py-0.5 rounded-full {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500' }}">
+                                                    class="ml-1 inline-block text-xs px-2 py-1 rounded-md {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700' }}">
                                                     {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'Google Ads Data' : 'AI Estimate' }}
                                                 </span>
                                             </p>
-                                            <span id="keywordSelectedCount" class="text-xs text-slate-400"></span>
+                                            <span id="keywordSelectedCount" class="text-xs text-slate-600"></span>
                                         </div>
 
                                         <form id="keywordSelectForm">
@@ -616,7 +609,7 @@
                                             <div class="overflow-x-auto">
                                                 <table class="w-full text-sm">
                                                     <thead>
-                                                        <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
+                                                        <tr class="text-left text-xs text-slate-600 border-b border-slate-100">
                                                             <th class="pb-2 pr-2 w-6"></th>
                                                             <th class="pb-2 pr-4">Keyword</th>
                                                             <th class="pb-2 pr-4">Derivatives</th>
@@ -628,19 +621,19 @@
                                                     <tbody>
                                                         @foreach (($aiRecommendations['main_keywords'] ?? []) as $kw)
                                                             <tr class="border-b border-slate-50">
-                                                                <td class="py-1.5 pr-2">
+                                                                <td class="py-2 pr-2">
                                                                     <input type="checkbox" name="selected_keywords[]"
                                                                         value="{{ $kw['keyword'] ?? '' }}" class="keyword-checkbox" {{ !empty($kw['selected']) ? 'checked' : '' }}>
                                                                 </td>
-                                                                <td class="py-1.5 pr-4 font-medium text-slate-700">{{ $kw['keyword'] ?? '-' }}
+                                                                <td class="py-2 pr-4 font-semibold text-slate-700">{{ $kw['keyword'] ?? '-' }}
                                                                 </td>
-                                                                <td class="py-1.5 pr-4 text-slate-500 text-xs">
+                                                                <td class="py-2 pr-4 text-slate-500 text-xs">
                                                                     {{ implode(', ', array_filter((array) ($kw['derivative_keywords'] ?? []))) ?: '-' }}
                                                                 </td>
-                                                                <td class="py-1.5 pr-4 text-slate-500">{{ $kw['avg_monthly_searches'] ?? '-' }}
+                                                                <td class="py-2 pr-4 text-slate-500">{{ $kw['avg_monthly_searches'] ?? '-' }}
                                                                 </td>
-                                                                <td class="py-1.5 pr-4 text-slate-500">{{ $kw['competition'] ?? '-' }}</td>
-                                                                <td class="py-1.5 text-slate-500">{{ $kw['reasoning'] ?? '-' }}</td>
+                                                                <td class="py-2 pr-4 text-slate-500">{{ $kw['competition'] ?? '-' }}</td>
+                                                                <td class="py-2 text-slate-500">{{ $kw['reasoning'] ?? '-' }}</td>
                                                             </tr>
                                                         @endforeach
                                                     </tbody>
@@ -649,22 +642,22 @@
 
                                             <div class="flex items-center gap-2 mt-3">
                                                 <button type="submit" id="btnSaveKeywordSelection"
-                                                    class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
+                                                    class="min-h-11 inline-flex items-center gap-2 bg-brand-600 text-white text-xs font-semibold px-4 py-2 rounded-md">
                                                     <i class='bx bx-check'></i> Save Selection
                                                 </button>
-                                                <span id="keywordSelectSaved" class="hidden text-xs text-emerald-600">Saved.</span>
-                                                <span id="keywordSelectError" class="hidden text-xs text-red-600"></span>
+                                                <span id="keywordSelectSaved" class="hidden text-xs text-emerald-700">Saved.</span>
+                                                <span id="keywordSelectError" class="hidden text-xs text-red-700"></span>
                                             </div>
                                         </form>
                                     </div>
 
                                     @if (!empty($aiRecommendations['related_keywords']))
                                         <div>
-                                            <p class="text-xs text-slate-400 mb-1">Related keywords</p>
+                                            <p class="text-xs text-slate-600 mb-1">Related keywords</p>
                                             <div>
                                                 @foreach ($aiRecommendations['related_keywords'] as $kw)
                                                     <span
-                                                        class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">{{ $kw }}</span>
+                                                        class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full mr-1 mb-1">{{ $kw }}</span>
                                                 @endforeach
                                             </div>
                                         </div>
@@ -672,7 +665,7 @@
 
                                     @if (!empty($aiRecommendations['summary']))
                                         <div>
-                                            <p class="text-xs text-slate-400 mb-1">Strategy summary</p>
+                                            <p class="text-xs text-slate-600 mb-1">Strategy summary</p>
                                             <p class="text-sm text-slate-600">{{ $aiRecommendations['summary'] }}</p>
                                         </div>
                                     @endif
@@ -684,7 +677,7 @@
                                             $competitorPagespeed = $seo['competitor_pagespeed'] ?? null;
                                         @endphp
                                         <div class="border-t border-slate-100 pt-4">
-                                            <p class="text-xs text-slate-400 mb-2">Check up to 3 competitors to analyze:</p>
+                                            <p class="text-xs text-slate-600 mb-2">Check up to 3 competitors to analyze:</p>
 
                                             <form id="competitorSelectForm">
                                                 @csrf
@@ -694,23 +687,23 @@
                                                             <input type="checkbox" name="selected_urls[]" value="{{ $url }}"
                                                                 class="competitor-checkbox" {{ in_array($url, $selectedCompetitors) ? 'checked' : '' }}>
                                                             <a href="{{ $url }}" target="_blank" rel="noopener"
-                                                                class="text-blue-600 hover:underline break-all">{{ $url }}</a>
+                                                                class="text-brand-600 hover:underline break-all">{{ $url }}</a>
                                                         </li>
                                                     @endforeach
                                                 </ul>
 
                                                 <textarea name="manual_urls" rows="2"
                                                     placeholder="Add manually, 1 URL per line: https://other-competitor-example.com/"
-                                                    class="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 mb-2"></textarea>
+                                                    class="min-h-11 w-full text-sm border border-slate-300 rounded-md px-3 py-2 mb-2"></textarea>
 
                                                 <button type="submit" id="btnSelectCompetitors"
-                                                    class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
+                                                    class="min-h-11 inline-flex items-center gap-2 bg-brand-600 text-white text-xs font-semibold px-4 py-2 rounded-md">
                                                     <i class='bx bx-refresh'></i>
                                                     {{ $competitorPagespeed ? 'Re-select & Analyze' : 'Select & Analyze These Competitors' }}
                                                 </button>
-                                                <span id="compPagespeedSpinner" class="hidden text-xs text-slate-400 ml-2">Processing (can take
+                                                <span id="compPagespeedSpinner" class="hidden text-xs text-slate-600 ml-2">Processing (can take
                                                     1-2 minutes)...</span>
-                                                <p id="competitorSelectError" class="hidden text-xs text-red-600 mt-2"></p>
+                                                <p id="competitorSelectError" class="hidden text-xs text-red-700 mt-2"></p>
                                             </form>
 
                                             @if ($competitorPagespeed)
@@ -718,7 +711,7 @@
                                                     @foreach ($competitorPagespeed as $comp)
                                                         @php $compHost = parse_url($comp['url'], PHP_URL_HOST); @endphp
                                                         <div class="text-center">
-                                                            <p class="text-xs font-medium text-slate-600 mb-2 truncate" title="{{ $comp['url'] }}">
+                                                            <p class="text-xs font-semibold text-slate-600 mb-2 truncate" title="{{ $comp['url'] }}">
                                                                 {{ $compHost }}
                                                             </p>
                                                             <div class="flex justify-center gap-1">
@@ -729,13 +722,13 @@
                                                             </div>
 
                                                             @if (!empty($comp['error']))
-                                                                <p class="mt-2 text-[11px] text-red-600">{{ $comp['error'] }}</p>
+                                                                <p class="mt-2 text-xs text-red-700">{{ $comp['error'] }}</p>
                                                             @endif
 
                                                             <div class="mt-2 pt-2 border-t border-slate-100">
                                                                 <a href="https://www.semrush.com/analytics/overview/?q={{ urlencode($compHost) }}&searchType=domain"
                                                                     target="_blank" rel="noopener"
-                                                                    class="text-[11px] text-blue-600 hover:underline block">Open Semrush &rarr;</a>
+                                                                    class="inline-flex items-center px-1 min-h-11 text-xs text-brand-600 hover:underline">Open Semrush &rarr;</a>
 
                                                                 @if (!empty($seo['manual_screenshots']['competitor_semrush'][$compHost]))
                                                                     <div class="mt-1">
@@ -747,7 +740,7 @@
                                                                             @method('DELETE')
                                                                             <input type="hidden" name="target" value="competitor_semrush:{{ $compHost }}">
                                                                             <button type="submit"
-                                                                                class="text-[11px] text-red-600 hover:underline">Delete</button>
+                                                                                class="inline-flex items-center px-1 min-h-11 text-xs text-red-700 hover:underline">Delete</button>
                                                                         </form>
                                                                     </div>
                                                                 @else
@@ -756,9 +749,9 @@
                                                                         @csrf
                                                                         <input type="hidden" name="target" value="competitor_semrush:{{ $compHost }}">
                                                                         <input type="file" name="screenshot" accept="image/*" required
-                                                                            class="text-[11px] w-full">
+                                                                            class="min-h-11 text-xs w-full">
                                                                         <button type="submit"
-                                                                            class="text-[11px] bg-blue-600 text-white px-2 py-1 rounded mt-1">Upload</button>
+                                                                            class="min-h-11 text-xs bg-brand-600 text-white px-3 py-1 rounded-md mt-1">Upload</button>
                                                                     </form>
                                                                 @endif
                                                             </div>
@@ -766,7 +759,7 @@
                                                             <div class="mt-2 pt-2 border-t border-slate-100">
                                                                 <a href="https://pagespeed.web.dev/report?url={{ urlencode($comp['url']) }}"
                                                                     target="_blank" rel="noopener"
-                                                                    class="text-[11px] text-blue-600 hover:underline block">Open PageSpeed &rarr;</a>
+                                                                    class="inline-flex items-center px-1 min-h-11 text-xs text-brand-600 hover:underline">Open PageSpeed &rarr;</a>
 
                                                                 @if (!empty($seo['manual_screenshots']['competitor_pagespeed'][$compHost]))
                                                                     <div class="mt-1">
@@ -778,7 +771,7 @@
                                                                             @method('DELETE')
                                                                             <input type="hidden" name="target" value="competitor_pagespeed:{{ $compHost }}">
                                                                             <button type="submit"
-                                                                                class="text-[11px] text-red-600 hover:underline">Delete</button>
+                                                                                class="inline-flex items-center px-1 min-h-11 text-xs text-red-700 hover:underline">Delete</button>
                                                                         </form>
                                                                     </div>
                                                                 @else
@@ -787,9 +780,9 @@
                                                                         @csrf
                                                                         <input type="hidden" name="target" value="competitor_pagespeed:{{ $compHost }}">
                                                                         <input type="file" name="screenshot" accept="image/*" required
-                                                                            class="text-[11px] w-full">
+                                                                            class="min-h-11 text-xs w-full">
                                                                         <button type="submit"
-                                                                            class="text-[11px] bg-blue-600 text-white px-2 py-1 rounded mt-1">Upload</button>
+                                                                            class="min-h-11 text-xs bg-brand-600 text-white px-3 py-1 rounded-md mt-1">Upload</button>
                                                                     </form>
                                                                 @endif
                                                             </div>
@@ -876,7 +869,7 @@
                                             })();
                                         </script>
                                     @else
-                                        <p class="empty-note text-xs text-slate-400">No competitors found for this project yet.</p>
+                                        <p class="empty-note text-xs text-slate-600">No competitors found for this project yet.</p>
                                     @endif
                                 </div>
                             @endif
@@ -1018,37 +1011,37 @@
                             <h2 class="font-semibold text-slate-800">Website Performance (PageSpeed)</h2>
                             @if ($pagespeed)
                                 <span
-                                    class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                                    class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md bg-emerald-100 text-emerald-700">
                                     <i class='bx bx-check'></i> Analyzed
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-400 mb-4">Speed & Core Web Vitals (Lighthouse).</p>
+                        <p class="text-xs text-slate-600 mb-4">Speed & Core Web Vitals (Lighthouse).</p>
 
                         @if (!$resolvedUrl)
-                            <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <div class="text-sm text-amber-700 bg-amber-50 border-l-4 border-l-amber-700 rounded-md p-4">
                                 The client's website URL has not been filled in. Fill it in first on the
-                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-medium">Edit
+                                <a href="{{ route('pages.projects.edit', $project) }}" class="underline font-semibold">Edit
                                     Project page</a>.
                             </div>
                         @else
                             <div id="pagespeedBox">
                                 <button type="button" id="btnAnalyzePagespeed"
-                                    class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
+                                    class="min-h-11 inline-flex items-center gap-2 bg-brand-600 text-white text-xs font-semibold px-4 py-2 rounded-md">
                                     <i class='bx bx-tachometer'></i> {{ $pagespeed ? 'Re-run Analysis' : 'Analyze Performance' }}
                                 </button>
-                                <p class="text-xs text-slate-400 mt-1">Takes ~30-60 seconds.</p>
+                                <p class="text-xs text-slate-600 mt-1">Takes ~30-60 seconds.</p>
 
                                 <div id="pagespeedProgress" class="hidden mt-3">
                                     <div class="w-full bg-slate-100 rounded-full h-2 mb-2 overflow-hidden">
-                                        <div id="pagespeedProgressBar" class="bg-blue-600 h-2 rounded-full transition-all"
+                                        <div id="pagespeedProgressBar" class="bg-brand-600 h-2 rounded-full transition-all"
                                             style="width:0%"></div>
                                     </div>
                                     <p id="pagespeedProgressMessage" class="text-xs text-slate-500"></p>
                                 </div>
 
                                 <div id="pagespeedError"
-                                    class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3"></div>
+                                    class="hidden mt-3 text-sm text-red-700 bg-red-50 border-l-4 border-l-red-700 rounded-md p-4"></div>
                             </div>
 
                             @if ($pagespeed)
@@ -1056,7 +1049,7 @@
                                     @foreach (['mobile' => 'Mobile', 'desktop' => 'Desktop'] as $key => $label)
                                         @php $d = $pagespeed[$key] ?? null; @endphp
                                         @if ($d)
-                                            <div class="mb-5">
+                                            <div class="mb-4">
                                                 <p class="text-xs font-semibold text-slate-600 mb-2">{{ $label }}</p>
                                                 <div class="flex justify-center gap-2 mb-3">
                                                     @include('pdf.partials.gauge', ['score' => $d['scores']['performance'] ?? null, 'label' => 'Performance'])
@@ -1067,7 +1060,7 @@
                                                 <div class="overflow-x-auto">
                                                     <table class="w-full text-sm">
                                                         <thead>
-                                                            <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
+                                                            <tr class="text-left text-xs text-slate-600 border-b border-slate-100">
                                                                 <th class="pb-1 pr-4">Metric</th>
                                                                 <th class="pb-1 pr-4">Value</th>
                                                                 <th class="pb-1 pr-4">Status</th>
@@ -1078,19 +1071,19 @@
                                                             @foreach (['lcp' => 'Largest Contentful Paint (LCP)', 'cls' => 'Cumulative Layout Shift (CLS)', 'inp' => 'Interaction to Next Paint (INP)', 'fcp' => 'First Contentful Paint (FCP)', 'speed_index' => 'Speed Index'] as $metricKey => $metricLabel)
                                                                 @php $m = $d['metrics'][$metricKey] ?? null; @endphp
                                                                 <tr class="border-b border-slate-50">
-                                                                    <td class="py-1.5 pr-4 text-slate-700">{{ $metricLabel }}</td>
-                                                                    <td class="py-1.5 pr-4 text-slate-600">{{ $m['value'] ?? '-' }}
+                                                                    <td class="py-2 pr-4 text-slate-700">{{ $metricLabel }}</td>
+                                                                    <td class="py-2 pr-4 text-slate-600">{{ $m['value'] ?? '-' }}
                                                                         {{ $m['unit'] ?? '' }}
                                                                     </td>
-                                                                    <td class="py-1.5 pr-4">
+                                                                    <td class="py-2 pr-4">
                                                                         @php
                                                                             $statusMap = ['good' => ['Good', 'bg-emerald-50 text-emerald-700'], 'needs_improvement' => ['Needs Improvement', 'bg-amber-50 text-amber-700'], 'poor' => ['Poor', 'bg-red-50 text-red-700']];
-                                                                            [$statusLabel, $statusColor] = $statusMap[$m['status'] ?? ''] ?? ['-', 'bg-slate-100 text-slate-500'];
+                                                                            [$statusLabel, $statusColor] = $statusMap[$m['status'] ?? ''] ?? ['-', 'bg-slate-100 text-slate-700'];
                                                                         @endphp
                                                                         <span
-                                                                            class="text-xs px-2 py-0.5 rounded-full {{ $statusColor }}">{{ $statusLabel }}</span>
+                                                                            class="text-xs px-2 py-1 rounded-full {{ $statusColor }}">{{ $statusLabel }}</span>
                                                                     </td>
-                                                                    <td class="py-1.5 text-xs text-slate-400">
+                                                                    <td class="py-2 text-xs text-slate-600">
                                                                         {{ ($m['source'] ?? null) === 'field' ? 'Real user data' : (($m['source'] ?? null) === 'lab' ? 'Simulated' : '-') }}
                                                                     </td>
                                                                 </tr>
@@ -1101,12 +1094,12 @@
                                             </div>
                                         @endif
                                     @endforeach
-                                    <p class="text-xs text-slate-400">Last analyzed: {{ $pagespeed['analyzed_at'] ?? '-' }}</p>
+                                    <p class="text-xs text-slate-600">Last analyzed: {{ $pagespeed['analyzed_at'] ?? '-' }}</p>
 
                                     <div class="border-t border-slate-100 mt-4 pt-4">
-                                        <p class="text-xs font-medium text-slate-600 mb-1">Semrush Overview Screenshot (for Proposal)</p>
+                                        <p class="text-xs font-semibold text-slate-600 mb-1">Semrush Overview Screenshot (for Proposal)</p>
                                         <a href="https://www.semrush.com/analytics/overview/?q={{ urlencode(parse_url($resolvedUrl, PHP_URL_HOST)) }}&searchType=domain"
-                                            target="_blank" rel="noopener" class="text-xs text-blue-600 hover:underline">
+                                            target="_blank" rel="noopener" class="inline-flex items-center px-1 min-h-11 text-xs text-brand-600 hover:underline">
                                             Open Semrush for this domain &rarr;
                                         </a>
 
@@ -1120,7 +1113,7 @@
                                                     @method('DELETE')
                                                     <input type="hidden" name="target" value="own_semrush">
                                                     <input type="hidden" name="return_tab" value="performa">
-                                                    <button type="submit" class="text-xs text-red-600 hover:underline">Delete & re-upload</button>
+                                                    <button type="submit" class="inline-flex items-center px-1 min-h-11 text-xs text-red-700 hover:underline">Delete & re-upload</button>
                                                 </form>
                                             </div>
                                         @else
@@ -1131,15 +1124,15 @@
                                                 <input type="hidden" name="return_tab" value="performa">
                                                 <input type="file" name="screenshot" accept="image/*" required class="text-xs">
                                                 <button type="submit"
-                                                    class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg">Upload</button>
+                                                    class="min-h-11 text-xs bg-brand-600 text-white px-3 py-2 rounded-md">Upload</button>
                                             </form>
                                         @endif
                                     </div>
 
                                     <div class="border-t border-slate-100 mt-4 pt-4">
-                                        <p class="text-xs font-medium text-slate-600 mb-1">PageSpeed Report Screenshot (for Proposal)</p>
+                                        <p class="text-xs font-semibold text-slate-600 mb-1">PageSpeed Report Screenshot (for Proposal)</p>
                                         <a href="https://pagespeed.web.dev/report?url={{ urlencode($resolvedUrl) }}" target="_blank"
-                                            rel="noopener" class="text-xs text-blue-600 hover:underline">Open PageSpeed for this site
+                                            rel="noopener" class="inline-flex items-center px-1 min-h-11 text-xs text-brand-600 hover:underline">Open PageSpeed for this site
                                             &rarr;</a>
 
                                         @if (!empty($seo['manual_screenshots']['own_pagespeed']))
@@ -1152,7 +1145,7 @@
                                                     @method('DELETE')
                                                     <input type="hidden" name="target" value="own_pagespeed">
                                                     <input type="hidden" name="return_tab" value="performa">
-                                                    <button type="submit" class="text-xs text-red-600 hover:underline">Delete & re-upload</button>
+                                                    <button type="submit" class="inline-flex items-center px-1 min-h-11 text-xs text-red-700 hover:underline">Delete & re-upload</button>
                                                 </form>
                                             </div>
                                         @else
@@ -1163,7 +1156,7 @@
                                                 <input type="hidden" name="return_tab" value="performa">
                                                 <input type="file" name="screenshot" accept="image/*" required class="text-xs">
                                                 <button type="submit"
-                                                    class="text-xs bg-blue-600 text-white px-3 py-1.5 rounded-lg">Upload</button>
+                                                    class="min-h-11 text-xs bg-brand-600 text-white px-3 py-2 rounded-md">Upload</button>
                                             </form>
                                         @endif
                                     </div>
@@ -1232,10 +1225,10 @@
                         $geoReport = app(\App\Services\SeoSxoGeoReportService::class)->assemble($project);
                         $geoScores = $geoReport['scores'];
                         $geoStatusClass = [
-                            'good' => 'text-emerald-600',
-                            'needs_improvement' => 'text-amber-600',
-                            'poor' => 'text-red-600',
-                            'unknown' => 'text-slate-400',
+                            'good' => 'text-emerald-700',
+                            'needs_improvement' => 'text-amber-700',
+                            'poor' => 'text-red-700',
+                            'unknown' => 'text-slate-600',
                         ];
                         $geoStatusLabel = [
                             'good' => 'Baik',
@@ -1248,7 +1241,7 @@
                     <x-card class="mb-6">
                         <div class="mb-3">
                             <h2 class="font-semibold text-slate-800">SEO / SXO / GEO</h2>
-                            <p class="text-xs text-slate-500 mt-0.5">
+                            <p class="text-xs text-slate-500 mt-1">
                                 Kesehatan tiga lapis: ditemukan di Google (SEO), pengalaman pengunjung dari
                                 pencarian (SXO), siap dibaca &amp; dikutip mesin jawaban AI (GEO). Skor
                                 dihitung dari analisis yang sudah dijalankan di halaman ini.
@@ -1259,11 +1252,11 @@
                             @foreach (['seo' => 'SEO', 'sxo' => 'SXO', 'geo' => 'GEO'] as $k => $name)
                                 @php $sc = $geoScores[$k]; @endphp
                                 <div class="rounded-lg border border-slate-200 p-3 text-center">
-                                    <div class="text-xs font-semibold tracking-wide text-slate-400">{{ $name }}</div>
+                                    <div class="text-xs font-semibold tracking-wide text-slate-600">{{ $name }}</div>
                                     <div class="text-2xl font-bold {{ $geoStatusClass[$sc['status']] }}">
-                                        {{ $sc['value'] ?? '—' }}<span class="text-xs text-slate-300">{{ $sc['value'] === null ? '' : '/100' }}</span>
+                                        {{ $sc['value'] ?? '-' }}<span class="text-xs text-slate-600">{{ $sc['value'] === null ? '' : '/100' }}</span>
                                     </div>
-                                    <div class="text-[10px] {{ $geoStatusClass[$sc['status']] }}">{{ $geoStatusLabel[$sc['status']] }}</div>
+                                    <div class="text-xs {{ $geoStatusClass[$sc['status']] }}">{{ $geoStatusLabel[$sc['status']] }}</div>
                                 </div>
                             @endforeach
                         </div>
@@ -1272,47 +1265,47 @@
                             <button type="button"
                                 data-geo-analyze="{{ route('pages.projects.ai-crawler-access.analyze', $project) }}"
                                 data-geo-status="{{ route('pages.projects.ai-crawler-access.status', $project) }}"
-                                class="geo-btn text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
+                                class="min-h-11 geo-btn text-xs font-semibold px-3 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
                                 <i class='bx bx-bot'></i> Cek akses AI crawler
                             </button>
                             <button type="button"
                                 data-geo-analyze="{{ route('pages.projects.structured-data.analyze', $project) }}"
                                 data-geo-status="{{ route('pages.projects.structured-data.status', $project) }}"
-                                class="geo-btn text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
+                                class="min-h-11 geo-btn text-xs font-semibold px-3 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
                                 <i class='bx bx-code-curly'></i> Cek schema (structured data)
                             </button>
                             <button type="button"
                                 data-geo-analyze="{{ route('pages.projects.ctr-gap.analyze', $project) }}"
                                 data-geo-status="{{ route('pages.projects.ctr-gap.status', $project) }}"
-                                class="geo-btn text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
+                                class="min-h-11 geo-btn text-xs font-semibold px-3 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
                                 <i class='bx bx-line-chart-down'></i> Cek CTR gap
                             </button>
                             <button type="button"
                                 data-geo-analyze="{{ route('pages.projects.onpage-audit.analyze', $project) }}"
                                 data-geo-status="{{ route('pages.projects.onpage-audit.status', $project) }}"
-                                class="geo-btn text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
+                                class="min-h-11 geo-btn text-xs font-semibold px-3 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
                                 <i class='bx bx-file'></i> Audit on-page
                             </button>
                             <button type="button"
                                 data-geo-analyze="{{ route('pages.projects.technical-seo.analyze', $project) }}"
                                 data-geo-status="{{ route('pages.projects.technical-seo.status', $project) }}"
-                                class="geo-btn text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
+                                class="min-h-11 geo-btn text-xs font-semibold px-3 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
                                 <i class='bx bx-wrench'></i> Cek SEO teknis
                             </button>
                             <button type="button"
                                 data-geo-analyze="{{ route('pages.projects.content-extractability.analyze', $project) }}"
                                 data-geo-status="{{ route('pages.projects.content-extractability.status', $project) }}"
-                                class="geo-btn text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
+                                class="min-h-11 geo-btn text-xs font-semibold px-3 py-2 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50">
                                 <i class='bx bx-bulb'></i> Cek konten (AI)
                             </button>
                             <a href="{{ route('pages.projects.seo-sxo-geo.report.download', $project) }}"
-                                class="text-xs font-semibold px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-600 hover:bg-emerald-50">
+                                class="min-h-11 text-xs font-semibold px-3 py-2 rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50">
                                 <i class='bx bx-download'></i> Download laporan SEO/SXO/GEO
                             </a>
                         </div>
-                        <p class="text-[11px] text-slate-400 mt-2">
+                        <p class="text-xs text-slate-600 mt-2">
                             Skor SXO (engagement) &amp; CTR gap ikut terisi setelah analisis Search Console
-                            dan GA4 di tab <span class="font-medium">Traffic Report</span> dijalankan.
+                            dan GA4 di tab <span class="font-semibold">Traffic Report</span> dijalankan.
                         </p>
                         <p class="geo-msg hidden text-xs mt-2"></p>
 
@@ -1349,7 +1342,7 @@
                                                                 location.reload();
                                                             } else if (s.status === 'failed') {
                                                                 clearInterval(poll);
-                                                                msg.className = 'geo-msg text-xs mt-2 text-red-600';
+                                                                msg.className = 'geo-msg text-xs mt-2 text-red-700';
                                                                 btn.disabled = false;
                                                                 btn.innerHTML = label;
                                                             }
@@ -1357,7 +1350,7 @@
                                                 }, 2000);
                                             })
                                             .catch(() => {
-                                                msg.className = 'geo-msg text-xs mt-2 text-red-600';
+                                                msg.className = 'geo-msg text-xs mt-2 text-red-700';
                                                 msg.textContent = 'Gagal memulai analisis.';
                                                 btn.disabled = false;
                                                 btn.innerHTML = label;
@@ -1376,25 +1369,25 @@
                             <h2 class="font-semibold text-slate-800">Search Console Report</h2>
                             @if ($searchConsole)
                                 <span
-                                    class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                                    class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md bg-emerald-100 text-emerald-700">
                                     <i class='bx bx-check'></i> Data available
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-400 mb-4">Last 3 months.</p>
+                        <p class="text-xs text-slate-600 mb-4">Last 3 months.</p>
 
                         @if (!$resolvedUrl)
-                            <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <div class="text-sm text-amber-700 bg-amber-50 border-l-4 border-l-amber-700 rounded-md p-4">
                                 The client's website URL has not been filled in.
                             </div>
                         @else
                             <button type="button" id="btnAnalyzeGsc"
-                                class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
+                                class="min-h-11 inline-flex items-center gap-2 bg-brand-600 text-white text-xs font-semibold px-4 py-2 rounded-md">
                                 <i class='bx bx-refresh'></i> {{ $searchConsole ? 'Refresh Data' : 'Fetch Search Console Data' }}
                             </button>
-                            <span id="gscSpinner" class="hidden text-xs text-slate-400 ml-2">Loading...</span>
+                            <span id="gscSpinner" class="hidden text-xs text-slate-600 ml-2">Loading...</span>
 
-                            <div id="gscError" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                            <div id="gscError" class="hidden mt-3 text-sm text-red-700 bg-red-50 border-l-4 border-l-red-700 rounded-md p-4">
                             </div>
 
                             @if ($searchConsole)
@@ -1405,34 +1398,34 @@
                                 @endphp
                                 <div class="border-t border-slate-100 mt-4 pt-4">
                                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-                                        <div class="rounded-lg p-3 text-center bg-slate-50">
-                                            <div class="text-lg font-bold text-slate-700">{{ $gscTotals['clicks'] ?? 0 }}</div>
-                                            <div class="text-[11px] text-slate-400">Total Clicks</div>
+                                        <div class="rounded-md p-4 text-center bg-slate-50">
+                                            <div class="text-base font-bold text-slate-700">{{ $gscTotals['clicks'] ?? 0 }}</div>
+                                            <div class="text-xs text-slate-600">Total Clicks</div>
                                         </div>
-                                        <div class="rounded-lg p-3 text-center bg-slate-50">
-                                            <div class="text-lg font-bold text-slate-700">{{ $gscTotals['impressions'] ?? 0 }}</div>
-                                            <div class="text-[11px] text-slate-400">Impressions</div>
+                                        <div class="rounded-md p-4 text-center bg-slate-50">
+                                            <div class="text-base font-bold text-slate-700">{{ $gscTotals['impressions'] ?? 0 }}</div>
+                                            <div class="text-xs text-slate-600">Impressions</div>
                                         </div>
-                                        <div class="rounded-lg p-3 text-center bg-slate-50">
-                                            <div class="text-lg font-bold text-slate-700">
+                                        <div class="rounded-md p-4 text-center bg-slate-50">
+                                            <div class="text-base font-bold text-slate-700">
                                                 {{ isset($gscTotals['ctr']) ? round($gscTotals['ctr'] * 100, 1) . '%' : '-' }}
                                             </div>
-                                            <div class="text-[11px] text-slate-400">CTR</div>
+                                            <div class="text-xs text-slate-600">CTR</div>
                                         </div>
-                                        <div class="rounded-lg p-3 text-center bg-slate-50">
-                                            <div class="text-lg font-bold text-slate-700">
+                                        <div class="rounded-md p-4 text-center bg-slate-50">
+                                            <div class="text-base font-bold text-slate-700">
                                                 {{ isset($gscTotals['position']) ? round($gscTotals['position'], 1) : '-' }}
                                             </div>
-                                            <div class="text-[11px] text-slate-400">Average Position</div>
+                                            <div class="text-xs text-slate-600">Average Position</div>
                                         </div>
                                     </div>
 
                                     @if (!empty($gscTopQueries))
-                                        <p class="text-xs text-slate-400 mb-2">Top Search Queries</p>
+                                        <p class="text-xs text-slate-600 mb-2">Top Search Queries</p>
                                         <div class="overflow-x-auto mb-4">
                                             <table class="w-full text-sm">
                                                 <thead>
-                                                    <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
+                                                    <tr class="text-left text-xs text-slate-600 border-b border-slate-100">
                                                         <th class="pb-1 pr-4">Query</th>
                                                         <th class="pb-1 pr-4">Clicks</th>
                                                         <th class="pb-1 pr-4">Impressions</th>
@@ -1443,13 +1436,13 @@
                                                 <tbody>
                                                     @foreach ($gscTopQueries as $q)
                                                         <tr class="border-b border-slate-50">
-                                                            <td class="py-1.5 pr-4 text-slate-700">{{ $q['keys'][0] ?? '-' }}</td>
-                                                            <td class="py-1.5 pr-4 text-slate-600">{{ $q['clicks'] ?? 0 }}</td>
-                                                            <td class="py-1.5 pr-4 text-slate-600">{{ $q['impressions'] ?? 0 }}</td>
-                                                            <td class="py-1.5 pr-4 text-slate-600">
+                                                            <td class="py-2 pr-4 text-slate-700">{{ $q['keys'][0] ?? '-' }}</td>
+                                                            <td class="py-2 pr-4 text-slate-600">{{ $q['clicks'] ?? 0 }}</td>
+                                                            <td class="py-2 pr-4 text-slate-600">{{ $q['impressions'] ?? 0 }}</td>
+                                                            <td class="py-2 pr-4 text-slate-600">
                                                                 {{ isset($q['ctr']) ? round($q['ctr'] * 100, 1) . '%' : '-' }}
                                                             </td>
-                                                            <td class="py-1.5 text-slate-600">
+                                                            <td class="py-2 text-slate-600">
                                                                 {{ isset($q['position']) ? round($q['position'], 1) : '-' }}
                                                             </td>
                                                         </tr>
@@ -1460,11 +1453,11 @@
                                     @endif
 
                                     @if (!empty($gscByDevice))
-                                        <p class="text-xs text-slate-400 mb-2">Clicks per Device</p>
+                                        <p class="text-xs text-slate-600 mb-2">Clicks per Device</p>
                                         <div class="overflow-x-auto">
                                             <table class="w-full text-sm">
                                                 <thead>
-                                                    <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
+                                                    <tr class="text-left text-xs text-slate-600 border-b border-slate-100">
                                                         <th class="pb-1 pr-4">Device</th>
                                                         <th class="pb-1">Clicks</th>
                                                     </tr>
@@ -1472,9 +1465,9 @@
                                                 <tbody>
                                                     @foreach ($gscByDevice as $d)
                                                         <tr class="border-b border-slate-50">
-                                                            <td class="py-1.5 pr-4 text-slate-700 capitalize">{{ strtolower($d['keys'][0] ?? '-') }}
+                                                            <td class="py-2 pr-4 text-slate-700 capitalize">{{ strtolower($d['keys'][0] ?? '-') }}
                                                             </td>
-                                                            <td class="py-1.5 text-slate-600">{{ $d['clicks'] ?? 0 }}</td>
+                                                            <td class="py-2 text-slate-600">{{ $d['clicks'] ?? 0 }}</td>
                                                         </tr>
                                                     @endforeach
                                                 </tbody>
@@ -1482,7 +1475,7 @@
                                         </div>
                                     @endif
 
-                                    <p class="text-xs text-slate-400 mt-3">
+                                    <p class="text-xs text-slate-600 mt-3">
                                         Period: {{ $searchConsole['period']['start'] ?? '-' }} to
                                         {{ $searchConsole['period']['end'] ?? '-' }}
                                         &middot; Last fetched: {{ $searchConsole['analyzed_at'] ?? '-' }}
@@ -1538,43 +1531,43 @@
                             <h2 class="font-semibold text-slate-800">Google Analytics (GA4) Report</h2>
                             @if ($ga4)
                                 <span
-                                    class="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                                    class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-md bg-emerald-100 text-emerald-700">
                                     <i class='bx bx-check'></i> Data available
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-400 mb-4">Last 3 months.</p>
+                        <p class="text-xs text-slate-600 mb-4">Last 3 months.</p>
 
                         @if (!$resolvedUrl)
-                            <div class="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                            <div class="text-sm text-amber-700 bg-amber-50 border-l-4 border-l-amber-700 rounded-md p-4">
                                 The client's website URL has not been filled in.
                             </div>
                         @else
                             <button type="button" id="btnAnalyzeGa4"
-                                class="inline-flex items-center gap-2 grad-blue text-white text-xs font-semibold px-4 py-2 rounded-lg">
+                                class="min-h-11 inline-flex items-center gap-2 bg-brand-600 text-white text-xs font-semibold px-4 py-2 rounded-md">
                                 <i class='bx bx-refresh'></i> {{ $ga4 ? 'Refresh Data' : 'Fetch GA4 Data' }}
                             </button>
-                            <span id="ga4Spinner" class="hidden text-xs text-slate-400 ml-2">Loading...</span>
+                            <span id="ga4Spinner" class="hidden text-xs text-slate-600 ml-2">Loading...</span>
 
-                            <div id="ga4Error" class="hidden mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">
+                            <div id="ga4Error" class="hidden mt-3 text-sm text-red-700 bg-red-50 border-l-4 border-l-red-700 rounded-md p-4">
                             </div>
 
-                            <div id="ga4SelectBox" class="hidden mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                                <p class="text-sm text-blue-700 mb-2">Found several matching GA4 Properties, choose one:</p>
+                            <div id="ga4SelectBox" class="hidden mt-3 p-3 bg-brand-50 border border-slate-300 rounded-lg">
+                                <p class="text-sm text-brand-700 mb-2">Found several matching GA4 Properties, choose one:</p>
                                 <select id="ga4PropertySelect"
-                                    class="w-full bg-white border border-blue-200 rounded-lg px-3 py-2 text-sm mb-2"></select>
+                                    class="min-h-11 w-full bg-white border border-slate-500 rounded-md px-3 py-2 text-sm mb-2"></select>
                                 <button type="button" id="btnConfirmGa4Property"
-                                    class="text-xs font-semibold bg-blue-600 text-white px-3 py-1.5 rounded-lg">Use This
+                                    class="min-h-11 text-xs font-semibold bg-brand-600 text-white px-3 py-2 rounded-md">Use This
                                     Property</button>
                             </div>
 
-                            <div id="ga4ManualBox" class="hidden mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                            <div id="ga4ManualBox" class="hidden mt-3 p-3 bg-amber-50 border-l-4 border-l-amber-700 rounded-lg">
                                 <p class="text-sm text-amber-700 mb-2">Could not find a GA4 Property automatically. Enter the Property ID
                                     manually (GA4 → Admin → Property Settings, numbers only, e.g. 123456789):</p>
                                 <input type="text" id="ga4ManualInput" placeholder="123456789"
-                                    class="w-full border border-amber-200 rounded-lg px-3 py-2 text-sm mb-2">
+                                    class="min-h-11 w-full border border-slate-500 rounded-md px-3 py-2 text-sm mb-2">
                                 <button type="button" id="btnConfirmGa4Manual"
-                                    class="text-xs font-semibold bg-amber-600 text-white px-3 py-1.5 rounded-lg">Save & Fetch
+                                    class="min-h-11 text-xs font-semibold bg-brand-600 text-white px-3 py-2 rounded-md hover:bg-brand-700">Save & Fetch
                                     Data</button>
                             </div>
 
@@ -1586,40 +1579,40 @@
                                 @endphp
                                 <div class="border-t border-slate-100 mt-4 pt-4">
                                     <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-                                        <div class="rounded-lg p-3 text-center bg-slate-50">
-                                            <div class="text-lg font-bold text-slate-700">{{ $ga4Totals['organic_sessions'] ?? 0 }}</div>
-                                            <div class="text-[11px] text-slate-400">Organic Sessions</div>
+                                        <div class="rounded-md p-4 text-center bg-slate-50">
+                                            <div class="text-base font-bold text-slate-700">{{ $ga4Totals['organic_sessions'] ?? 0 }}</div>
+                                            <div class="text-xs text-slate-600">Organic Sessions</div>
                                         </div>
-                                        <div class="rounded-lg p-3 text-center bg-slate-50">
-                                            <div class="text-lg font-bold text-slate-700">{{ $ga4Totals['total_users'] ?? 0 }}</div>
-                                            <div class="text-[11px] text-slate-400">Total Users</div>
+                                        <div class="rounded-md p-4 text-center bg-slate-50">
+                                            <div class="text-base font-bold text-slate-700">{{ $ga4Totals['total_users'] ?? 0 }}</div>
+                                            <div class="text-xs text-slate-600">Total Users</div>
                                         </div>
-                                        <div class="rounded-lg p-3 text-center bg-slate-50">
-                                            <div class="text-lg font-bold text-slate-700">{{ $ga4Totals['conversions'] ?? 0 }}</div>
-                                            <div class="text-[11px] text-slate-400">Conversions</div>
+                                        <div class="rounded-md p-4 text-center bg-slate-50">
+                                            <div class="text-base font-bold text-slate-700">{{ $ga4Totals['conversions'] ?? 0 }}</div>
+                                            <div class="text-xs text-slate-600">Conversions</div>
                                         </div>
                                     </div>
 
                                     @if ($ga4NewVsReturning)
-                                        <p class="text-xs text-slate-400 mb-2">New vs Returning Users</p>
+                                        <p class="text-xs text-slate-600 mb-2">New vs Returning Users</p>
                                         <div class="flex gap-3 mb-4">
-                                            <div class="rounded-lg p-3 text-center bg-slate-50 flex-1">
-                                                <div class="text-lg font-bold text-slate-700">{{ $ga4NewVsReturning['new'] ?? 0 }}</div>
-                                                <div class="text-[11px] text-slate-400">New Users</div>
+                                            <div class="rounded-md p-4 text-center bg-slate-50 flex-1">
+                                                <div class="text-base font-bold text-slate-700">{{ $ga4NewVsReturning['new'] ?? 0 }}</div>
+                                                <div class="text-xs text-slate-600">New Users</div>
                                             </div>
-                                            <div class="rounded-lg p-3 text-center bg-slate-50 flex-1">
-                                                <div class="text-lg font-bold text-slate-700">{{ $ga4NewVsReturning['returning'] ?? 0 }}</div>
-                                                <div class="text-[11px] text-slate-400">Returning Users</div>
+                                            <div class="rounded-md p-4 text-center bg-slate-50 flex-1">
+                                                <div class="text-base font-bold text-slate-700">{{ $ga4NewVsReturning['returning'] ?? 0 }}</div>
+                                                <div class="text-xs text-slate-600">Returning Users</div>
                                             </div>
                                         </div>
                                     @endif
 
                                     @if (!empty($ga4Pages))
-                                        <p class="text-xs text-slate-400 mb-2">Top Landing Pages</p>
+                                        <p class="text-xs text-slate-600 mb-2">Top Landing Pages</p>
                                         <div class="overflow-x-auto">
                                             <table class="w-full text-sm">
                                                 <thead>
-                                                    <tr class="text-left text-xs text-slate-400 border-b border-slate-100">
+                                                    <tr class="text-left text-xs text-slate-600 border-b border-slate-100">
                                                         <th class="pb-1 pr-4">Page</th>
                                                         <th class="pb-1 pr-4">Sessions</th>
                                                         <th class="pb-1 pr-4">Engagement Rate</th>
@@ -1630,15 +1623,15 @@
                                                 <tbody>
                                                     @foreach ($ga4Pages as $p)
                                                         <tr class="border-b border-slate-50">
-                                                            <td class="py-1.5 pr-4 text-slate-700 break-all">{{ $p['landing_page'] ?? '-' }}</td>
-                                                            <td class="py-1.5 pr-4 text-slate-600">{{ $p['sessions'] ?? 0 }}</td>
-                                                            <td class="py-1.5 pr-4 text-slate-600">
+                                                            <td class="py-2 pr-4 text-slate-700 break-all">{{ $p['landing_page'] ?? '-' }}</td>
+                                                            <td class="py-2 pr-4 text-slate-600">{{ $p['sessions'] ?? 0 }}</td>
+                                                            <td class="py-2 pr-4 text-slate-600">
                                                                 {{ isset($p['engagement_rate']) ? round($p['engagement_rate'] * 100, 1) . '%' : '-' }}
                                                             </td>
-                                                            <td class="py-1.5 pr-4 text-slate-600">
+                                                            <td class="py-2 pr-4 text-slate-600">
                                                                 {{ isset($p['avg_engagement_time']) ? $p['avg_engagement_time'] . 's' : '-' }}
                                                             </td>
-                                                            <td class="py-1.5 text-slate-600">{{ $p['conversions'] ?? 0 }}</td>
+                                                            <td class="py-2 text-slate-600">{{ $p['conversions'] ?? 0 }}</td>
                                                         </tr>
                                                     @endforeach
                                                 </tbody>
@@ -1646,7 +1639,7 @@
                                         </div>
                                     @endif
 
-                                    <p class="text-xs text-slate-400 mt-3">
+                                    <p class="text-xs text-slate-600 mt-3">
                                         Property ID: {{ $seo['ga4_property_id'] ?? '-' }}
                                         &middot; Period: {{ $ga4['period']['start'] ?? '-' }} to {{ $ga4['period']['end'] ?? '-' }}
                                         &middot; Last fetched: {{ $ga4['analyzed_at'] ?? '-' }}
@@ -1696,7 +1689,7 @@
                                                     window.location.reload();
                                                 } else if (data.needs_selection) {
                                                     btn.disabled = false;
-                                                    propertySelect.innerHTML = data.candidates.map(c => `<option value="${c.property_id}">${c.name} (${c.property_id}) — ${c.url}</option>`).join('');
+                                                    propertySelect.innerHTML = data.candidates.map(c => `<option value="${c.property_id}">${c.name} (${c.property_id}) · ${c.url}</option>`).join('');
                                                     selectBox.classList.remove('hidden');
                                                 } else if (data.needs_manual_input) {
                                                     btn.disabled = false;

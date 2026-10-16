@@ -6,21 +6,21 @@
     <x-page-header title="Billing & Finance">
         <x-slot:actions>
             <a href="{{ route('pages.finance.subscriptions.create') }}"
-                class="grad-blue text-white text-sm px-4 py-2 rounded-lg hover:opacity-90 transition inline-flex items-center gap-2">
+                class="min-h-11 bg-brand-600 text-white text-sm px-4 py-2 rounded-md hover:bg-brand-700 transition inline-flex items-center gap-2">
                 <i class='bx bx-plus'></i> Langganan Baru
             </a>
         </x-slot:actions>
     </x-page-header>
 
     @if (session('success'))
-        <div class="mb-6 px-4 py-3 rounded-lg bg-emerald-50 text-emerald-600 text-sm">{{ session('success') }}</div>
+        <div class="mb-6 px-4 py-3 rounded-md bg-emerald-50 text-emerald-700 text-sm">{{ session('success') }}</div>
     @endif
     @if (session('error'))
-        <div class="mb-6 px-4 py-3 rounded-lg bg-red-50 text-red-600 text-sm">{{ session('error') }}</div>
+        <div class="mb-6 px-4 py-3 rounded-md bg-red-50 text-red-700 text-sm">{{ session('error') }}</div>
     @endif
     @if ($errors->any())
-        <div class="mb-6 px-4 py-3 rounded-lg bg-red-50 text-red-600 text-sm">
-            <ul class="list-disc list-inside space-y-0.5">
+        <div class="mb-6 px-4 py-3 rounded-md bg-red-50 text-red-700 text-sm">
+            <ul class="list-disc list-inside space-y-1">
                 @foreach ($errors->all() as $error)
                     <li>{{ $error }}</li>
                 @endforeach
@@ -33,7 +33,7 @@
     @include('finance.partials.summary', ['summary' => $summary])
 
     {{-- TABS --}}
-    <div class="mb-5 overflow-x-auto">
+    <div class="mb-4 overflow-x-auto">
         <div class="inline-flex gap-1 bg-slate-100 p-1 rounded-xl">
             @foreach ([
         'overview' => ['Overview', 'bx-grid-alt'],
@@ -42,8 +42,7 @@
         'reminders' => ['Riwayat Reminder', 'bx-bell'],
     ] as $key => [$label, $icon])
                 <a href="{{ route('pages.finance', ['tab' => $key]) }}"
-                    class="text-sm px-4 py-2 rounded-lg whitespace-nowrap transition inline-flex items-center gap-2
-                       {{ $tab === $key ? 'bg-white text-slate-800 shadow-sm font-medium' : 'text-slate-500 hover:text-slate-700' }}">
+                    class="min-h-11 text-sm px-4 py-2 rounded-md whitespace-nowrap transition inline-flex items-center gap-2 {{ $tab === $key ? 'bg-white text-slate-800 shadow-sm font-semibold' : 'text-slate-600 hover:text-slate-800' }}">
                     <i class='bx {{ $icon }}'></i> {{ $label }}
                 </a>
             @endforeach

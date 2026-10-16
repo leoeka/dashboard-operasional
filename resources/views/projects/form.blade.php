@@ -4,7 +4,7 @@
 @section('content')
 
     <a href="{{ route('pages.projects.show', $project) }}"
-        class="text-sm text-slate-400 flex items-center gap-1 mb-4 hover:text-slate-600">
+        class="text-sm text-slate-600 flex items-center gap-1 mb-4 hover:text-slate-600">
         <i class='bx bx-arrow-back'></i> Back
     </a>
 
@@ -12,15 +12,15 @@
 
     <x-card class="max-w-2xl">
         <form method="POST" id="projectForm" action="{{ route('pages.projects.update', $project) }}"
-            enctype="multipart/form-data" class="space-y-5">
+            enctype="multipart/form-data" class="space-y-6">
             @csrf
             @method('PUT')
 
             <div>
-                <label class="text-sm font-medium text-slate-600 mb-1 block">Client (from CRM)</label>
+                <label class="text-sm font-semibold text-slate-600 mb-1 block">Client (from CRM)</label>
                 <select name="client_id" id="clientSelect"
                     onchange="document.querySelector('[name=client_name]').value = this.options[this.selectedIndex].dataset.name || ''; onClientChange(this.value);"
-                    class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                    class="w-full min-h-11 bg-slate-50 text-slate-700 rounded-md px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                     <option value="">-- No client data in CRM --</option>
                     @foreach ($clients as $c)
                         <option value="{{ $c->id }}" data-name="{{ $c->company_name }}" @selected(old('client_id', $project->client_id) == $c->id)>
@@ -31,42 +31,42 @@
             </div>
 
             <div>
-                <label class="text-sm font-medium text-slate-600 mb-1 block">Project Name</label>
+                <label class="text-sm font-semibold text-slate-600 mb-1 block">Project Name</label>
                 <input type="text" name="name" value="{{ old('name', $project->name) }}" placeholder="e.g. PT ABC Website"
-                    class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                    class="w-full min-h-11 bg-slate-50 text-slate-700 rounded-md px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                 @error('name')
-                <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
+                <p class="text-xs text-red-700 mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div>
-                <label class="text-sm font-medium text-slate-600 mb-1 block">Client Name (shown in table)</label>
+                <label class="text-sm font-semibold text-slate-600 mb-1 block">Client Name (shown in table)</label>
                 <input type="text" name="client_name" value="{{ old('client_name', $project->client_name) }}"
-                    class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                    class="w-full min-h-11 bg-slate-50 text-slate-700 rounded-md px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                 @error('client_name')
-                <p class="text-xs text-red-500 mt-1">{{ $message }}</p> @enderror
-                <p class="text-xs text-slate-400 mt-1">Automatically filled when you select a Client above. Can be edited
+                <p class="text-xs text-red-700 mt-1">{{ $message }}</p> @enderror
+                <p class="text-xs text-slate-600 mt-1">Automatically filled when you select a Client above. Can be edited
                     manually if needed.</p>
             </div>
 
             <div>
-                <label class="text-sm font-medium text-slate-600 mb-1 block">Website Type</label>
+                <label class="text-sm font-semibold text-slate-600 mb-1 block">Website Type</label>
                 <input type="text" name="type" value="{{ old('type', $project->type) }}"
                     placeholder="e.g. Company Profile, E-commerce"
-                    class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                    class="w-full min-h-11 bg-slate-50 text-slate-700 rounded-md px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500">
             </div>
 
-            <div class="border border-slate-200 rounded-lg p-4 space-y-3">
-                <label class="text-sm font-medium text-slate-600 block">Brand &amp; Design Reference</label>
+            <div class="border border-slate-200 rounded-md p-4 space-y-3">
+                <label class="text-sm font-semibold text-slate-600 block">Brand &amp; Design Reference</label>
                 <div>
                     <label class="text-xs text-slate-500 block mb-1">Client logo (PNG, JPG, WebP; max. 2MB)</label>
                     <input type="file" name="client_logo" accept="image/png,image/jpeg,image/webp" class="block w-full text-sm text-slate-600">
                     @if ($project->client?->logo_path)
-                        <p class="text-xs text-slate-400 mt-1">A logo is already stored for this client. Uploading a file replaces it.</p>
+                        <p class="text-xs text-slate-600 mt-1">A logo is already stored for this client. Uploading a file replaces it.</p>
                     @endif
                 </div>
                 <div>
                     <label class="text-xs text-slate-500 block mb-1">Design reference type</label>
-                    <select name="design_reference_type" class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm">
+                    <select name="design_reference_type" class="w-full bg-slate-50 text-slate-700 rounded-md px-4 py-3 text-sm">
                         <option value="none" @selected(old('design_reference_type', $project->design_reference_type) === 'none')>No reference</option>
                         <option value="image" @selected(old('design_reference_type', $project->design_reference_type) === 'image')>Image</option>
                         <option value="zip" @selected(old('design_reference_type', $project->design_reference_type) === 'zip')>ZIP template</option>
@@ -74,9 +74,9 @@
                     </select>
                 </div>
                 <input type="url" name="design_reference_url" value="{{ old('design_reference_url', $project->design_reference_url) }}" placeholder="Reference website URL (optional)"
-                    class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm">
+                    class="w-full bg-slate-50 text-slate-700 rounded-md px-4 py-3 text-sm">
                 <input type="file" name="design_reference_file" accept="image/png,image/jpeg,image/webp,.zip" class="block w-full text-sm text-slate-600">
-                <p class="text-xs text-slate-400">References influence the mockup only; they are not used as executable templates.</p>
+                <p class="text-xs text-slate-600">References influence the mockup only; they are not used as executable templates.</p>
             </div>
 
             {{--
@@ -86,36 +86,36 @@
             mau tambah SEO/Backlink tanpa website baru — tinggal tidak
             dicentang "Website"-nya).
             --}}
-            <div class="border border-slate-200 rounded-lg p-4">
-                <label class="text-sm font-medium text-slate-600 mb-2 block">Service Requirements</label>
+            <div class="border border-slate-200 rounded-md p-4">
+                <label class="text-sm font-semibold text-slate-600 mb-2 block">Service Requirements</label>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <label
-                        class="flex items-center gap-2 border border-slate-200 rounded-lg p-2.5 cursor-pointer hover:bg-slate-50">
+                        class="flex items-center gap-2 border border-slate-200 rounded-md p-4 cursor-pointer hover:bg-slate-50">
                         <input type="checkbox" name="service_type[]" value="website" id="chk-website"
                             class="service-checkbox" {{ in_array('website', old('service_type', [])) ? 'checked' : '' }}>
                         <span class="text-sm text-slate-700">Website</span>
                     </label>
                     <label
-                        class="flex items-center gap-2 border border-slate-200 rounded-lg p-2.5 cursor-pointer hover:bg-slate-50">
+                        class="flex items-center gap-2 border border-slate-200 rounded-md p-4 cursor-pointer hover:bg-slate-50">
                         <input type="checkbox" name="service_type[]" value="seo" id="chk-seo" class="service-checkbox" {{ in_array('seo', old('service_type', [])) ? 'checked' : '' }}>
                         <span class="text-sm text-slate-700">SEO</span>
                     </label>
                     <label
-                        class="flex items-center gap-2 border border-slate-200 rounded-lg p-2.5 cursor-pointer hover:bg-slate-50">
+                        class="flex items-center gap-2 border border-slate-200 rounded-md p-4 cursor-pointer hover:bg-slate-50">
                         <input type="checkbox" name="service_type[]" value="backlink" id="chk-backlink"
                             class="service-checkbox" {{ in_array('backlink', old('service_type', [])) ? 'checked' : '' }}>
                         <span class="text-sm text-slate-700">Backlink</span>
                     </label>
                 </div>
-                <p class="text-xs text-slate-400 mt-2">
+                <p class="text-xs text-slate-600 mt-2">
                     For clients that already have a previous Website project, leave "Website" UNCHECKED if
                     this project is specifically for SEO/Backlink only.
                 </p>
             </div>
 
             {{-- SECTION SEO — kondisional --}}
-            <div class="service-section border border-slate-200 rounded-lg p-4" id="section-seo" style="display:none;">
-                <label class="text-sm font-medium text-slate-600 mb-2 block">SEO Requirements</label>
+            <div class="service-section border border-slate-200 rounded-md p-4" id="section-seo" style="display:none;">
+                <label class="text-sm font-semibold text-slate-600 mb-2 block">SEO Requirements</label>
 
                 {{--
                 AUTO-DETECT: kalau client yang dipilih sudah punya URL
@@ -124,11 +124,11 @@
                 tidak perlu copy-paste manual. Tetap bisa diedit/diganti
                 manual kalau perlu.
                 --}}
-                <div id="urlSuggestionBox" class="hidden mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                    <p class="text-blue-700">Website detected from this client's other project: <span id="detectedUrlText"
-                            class="font-medium"></span></p>
+                <div id="urlSuggestionBox" class="hidden mb-3 p-3 bg-brand-50 border border-slate-300 rounded-lg text-sm">
+                    <p class="text-brand-700">Website detected from this client's other project: <span id="detectedUrlText"
+                            class="font-semibold"></span></p>
                     <button type="button" onclick="useDetectedUrl()"
-                        class="mt-1 text-xs font-semibold text-blue-600 hover:text-blue-800">Use this URL</button>
+                        class="mt-1 text-xs font-semibold text-brand-600 hover:text-brand-700">Use this URL</button>
                 </div>
 
                 <div class="space-y-3">
@@ -136,16 +136,16 @@
                         <label class="text-xs text-slate-500 mb-1 block">Website URL</label>
                         <input type="text" name="seo_target_url" id="seoTargetUrl" placeholder="https://examplewebsite.com"
                             value="{{ old('seo_target_url', $project->seo_requirements['target_url'] ?? '') }}"
-                            class="w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-                        <p class="text-xs text-slate-400 mt-1">This is what the system uses for AI analysis (keywords &
-                            competitors) once saved — if it was previously empty, the analysis will automatically run
+                            class="min-h-11 w-full bg-slate-50 text-slate-700 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                        <p class="text-xs text-slate-600 mt-1">This is what the system uses for AI analysis (keywords &
+                            competitors) once saved. If it was previously empty, the analysis will automatically run
                             once this URL is filled in.</p>
 
                         <button type="button" id="btnAnalyzePreview" disabled
-                            class="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-brand-500 text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed">
+                            class="min-h-11 mt-2 inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed">
                             Analyze Now
                         </button>
-                        <p class="text-xs text-slate-400 mt-1">Check keyword & competitor preview before saving (optional).
+                        <p class="text-xs text-slate-600 mt-1">Check keyword & competitor preview before saving (optional).
                         </p>
 
                         <div id="previewProgress" class="hidden mt-2">
@@ -157,7 +157,7 @@
                         </div>
 
                         <div id="previewError"
-                            class="hidden mt-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3"></div>
+                            class="hidden mt-2 text-sm text-red-700 bg-red-50 border-l-4 border-l-red-700 rounded-md p-4"></div>
 
                         <div id="previewResult" class="hidden mt-3 border-t pt-3 space-y-3"></div>
 
@@ -167,13 +167,13 @@
                         <label class="text-xs text-slate-500 mb-1 block">Location/Area</label>
                         <input type="text" name="seo_location" placeholder="e.g. Denpasar, Bali"
                             value="{{ old('seo_location', $project->seo_requirements['location'] ?? '') }}"
-                            class="w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                            class="min-h-11 w-full bg-slate-50 text-slate-700 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                     </div>
                     <div>
                         <label class="text-xs text-slate-500 mb-1 block">Client's Website Platform <span
-                                class="text-red-500">*</span></label>
+                                class="text-red-700">*</span></label>
                         <select name="seo_cms_platform"
-                            class="conditional-required w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                            class="min-h-11 conditional-required w-full bg-slate-50 text-slate-700 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                             <option value="">-- Select Platform --</option>
                             <option value="wordpress" {{ old('seo_cms_platform', $project->seo_requirements['cms_platform'] ?? '') == 'wordpress' ? 'selected' : '' }}>WordPress</option>
                             <option value="baru" {{ old('seo_cms_platform', $project->seo_requirements['cms_platform'] ?? '') == 'baru' ? 'selected' : '' }}>New Website (built by us)</option>
@@ -184,36 +184,36 @@
             </div>
 
             {{-- SECTION BACKLINK — kondisional --}}
-            <div class="service-section border border-slate-200 rounded-lg p-4" id="section-backlink" style="display:none;">
-                <label class="text-sm font-medium text-slate-600 mb-2 block">Backlink Requirements</label>
+            <div class="service-section border border-slate-200 rounded-md p-4" id="section-backlink" style="display:none;">
+                <label class="text-sm font-semibold text-slate-600 mb-2 block">Backlink Requirements</label>
                 <div class="space-y-3">
                     <div>
                         <label class="text-xs text-slate-500 mb-1 block">Backlink Target URL <span
-                                class="text-red-500">*</span></label>
+                                class="text-red-700">*</span></label>
                         <input type="text" name="backlink_target_url" id="backlinkTargetUrl"
                             placeholder="https://examplewebsite.com"
                             value="{{ old('backlink_target_url', $project->backlink_requirements['target_url'] ?? '') }}"
-                            class="conditional-required w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-                        <p class="text-xs text-slate-400 mt-1">Usually the same as the website URL in the SEO section —
+                            class="min-h-11 conditional-required w-full bg-slate-50 text-slate-700 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                        <p class="text-xs text-slate-500 mt-1">Usually the same as the website URL in the SEO section,
                             automatically copied if left empty.</p>
                     </div>
                     <div>
                         <label class="text-xs text-slate-500 mb-1 block">Backlink Quantity <span
-                                class="text-red-500">*</span></label>
+                                class="text-red-700">*</span></label>
                         <input type="number" min="1" name="backlink_quantity"
                             value="{{ old('backlink_quantity', $project->backlink_requirements['quantity'] ?? '') }}"
-                            class="conditional-required w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                            class="min-h-11 conditional-required w-full bg-slate-50 text-slate-700 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                     </div>
                     <div>
                         <label class="text-xs text-slate-500 mb-1 block">Niche / Category</label>
                         <input type="text" name="backlink_niche" placeholder="e.g. Travel, Business, Technology"
                             value="{{ old('backlink_niche', $project->backlink_requirements['niche'] ?? '') }}"
-                            class="w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                            class="min-h-11 w-full bg-slate-50 text-slate-700 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                     </div>
                     <div>
                         <label class="text-xs text-slate-500 mb-1 block">Priority</label>
                         <select name="backlink_priority"
-                            class="w-full bg-slate-50 text-slate-700 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                            class="min-h-11 w-full bg-slate-50 text-slate-700 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                             <option value="quality">Quality</option>
                             <option value="quantity">Quantity</option>
                         </select>
@@ -223,9 +223,9 @@
 
             <div>
                 <div>
-                    <label class="text-sm font-medium text-slate-600 mb-1 block">Status</label>
+                    <label class="text-sm font-semibold text-slate-600 mb-1 block">Status</label>
                     <select name="status"
-                        class="w-full bg-slate-50 text-slate-700 rounded-lg px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                        class="w-full min-h-11 bg-slate-50 text-slate-700 rounded-md px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-brand-500">
                         @foreach (['request' => 'Request', 'in_progress' => 'In Progress', 'completed' => 'Completed'] as $value => $label)
                             <option value="{{ $value }}" @selected(old('status', $project->status) === $value)>{{ $label }}
                             </option>
@@ -235,7 +235,7 @@
             </div>
 
             <button type="submit"
-                class="grad-blue text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:opacity-90 transition">
+                class="bg-brand-600 text-white text-sm font-semibold px-4 py-3 rounded-md hover:bg-brand-700 transition">
                 Save Changes
             </button>
         </form>
@@ -402,30 +402,30 @@
                 let html = '';
 
                 if (topics.core_topics && topics.core_topics.length) {
-                    html += '<div><p class="text-xs text-slate-400 mb-1">Detected topics</p><div>' +
-                        topics.core_topics.map(t => `<span class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full mr-1 mb-1">${escapeHtml(t)}</span>`).join('') +
+                    html += '<div><p class="text-xs text-slate-600 mb-1">Detected topics</p><div>' +
+                        topics.core_topics.map(t => `<span class="inline-block bg-slate-100 text-slate-600 text-xs px-2 py-1 rounded-full mr-1 mb-1">${escapeHtml(t)}</span>`).join('') +
                         '</div></div>';
                 }
 
                 if (rec.main_keywords && rec.main_keywords.length) {
-                    html += '<div><p class="text-xs text-slate-400 mb-2">Top 10 Keywords</p><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-400 border-b"><th class="pb-1 pr-3">Keyword</th><th class="pb-1 pr-3">Volume/mo</th><th class="pb-1">Competition</th></tr></thead><tbody>';
+                    html += '<div><p class="text-xs text-slate-600 mb-2">Top 10 Keywords</p><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-600 border-b"><th class="pb-1 pr-3">Keyword</th><th class="pb-1 pr-3">Volume/mo</th><th class="pb-1">Competition</th></tr></thead><tbody>';
                     rec.main_keywords.forEach(kw => {
-                        html += `<tr class="border-b border-slate-50"><td class="py-1 pr-3 font-medium text-slate-700">${escapeHtml(kw.keyword)}</td><td class="py-1 pr-3 text-slate-500">${escapeHtml(kw.avg_monthly_searches ?? '-')}</td><td class="py-1 text-slate-500">${escapeHtml(kw.competition ?? '-')}</td></tr>`;
+                        html += `<tr class="border-b border-slate-50"><td class="py-1 pr-3 font-semibold text-slate-700">${escapeHtml(kw.keyword)}</td><td class="py-1 pr-3 text-slate-500">${escapeHtml(kw.avg_monthly_searches ?? '-')}</td><td class="py-1 text-slate-500">${escapeHtml(kw.competition ?? '-')}</td></tr>`;
                     });
                     html += '</tbody></table></div></div>';
                 }
 
                 if (competitors.length) {
-                    html += '<div><p class="text-xs text-slate-400 mb-1">Competitors found</p><ul class="text-sm text-blue-600 space-y-0.5">' +
+                    html += '<div><p class="text-xs text-slate-600 mb-1">Competitors found</p><ul class="text-sm text-brand-600 space-y-1">' +
                         competitors.map(u => `<li><a href="${encodeURI(u)}" target="_blank" rel="noopener" class="hover:underline break-all">${escapeHtml(u)}</a></li>`).join('') +
                         '</ul></div>';
                 }
 
                 if (rec.summary) {
-                    html += `<div><p class="text-xs text-slate-400 mb-1">Summary</p><p class="text-sm text-slate-600">${escapeHtml(rec.summary)}</p></div>`;
+                    html += `<div><p class="text-xs text-slate-600 mb-1">Summary</p><p class="text-sm text-slate-600">${escapeHtml(rec.summary)}</p></div>`;
                 }
 
-                html += '<p class="text-xs text-emerald-600">&#10003; This result will be automatically saved once you click Save Changes.</p>';
+                html += '<p class="text-xs text-emerald-700">&#10003; This result will be automatically saved once you click Save Changes.</p>';
 
                 previewResult.innerHTML = html;
                 previewResult.classList.remove('hidden');

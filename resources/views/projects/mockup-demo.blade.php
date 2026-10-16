@@ -12,7 +12,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>Demo Opsi {{ $candidate + 1 }} — {{ $project->name }}</title>
+<title>Demo Opsi {{ $candidate + 1 }} | {{ $project->name }}</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}

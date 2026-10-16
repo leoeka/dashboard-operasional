@@ -90,7 +90,9 @@
     </table>
 
     <h2>Performance</h2>
-    <p>Average completed project duration: <strong>{{ $avgDuration }} days</strong></p>
+    <p>Average completed project duration:
+        <strong>{{ $avgDuration === null ? 'not measurable yet: no completed projects' : $avgDuration . ' days' }}</strong>
+    </p>
 
 </body>
 </html>

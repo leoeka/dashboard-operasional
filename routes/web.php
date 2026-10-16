@@ -4,12 +4,10 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\WebsiteBuilderController;
 use App\Http\Controllers\SeoBacklinkController;
-use App\Http\Controllers\MockupController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\requestOrderController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\AboutController;
 use App\Http\Controllers\BillingSubscriptionController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InvoiceController;
@@ -125,16 +123,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/keywords/select', [SeoBacklinkController::class, 'selectKeywords'])
         ->name('pages.projects.keywords.select');
 
-    // 6. Mockup (browsing gallery only — not wired to the active proposal
-    // pipeline, kept because it may be reused later)
-    Route::get('/mockup', [MockupController::class, 'index'])->name('pages.mockup');
-
-    // 7. Website
-    Route::get('/website', function () {
-        return view('pages.website');
-    })->name('pages.website');
-
-    // 8. Finance
+    // 7. Finance
     // A reminder workspace, not a cash book: payments are settled outside this
     // system. The page reads; the only writes are the renewal engine's own
     // reminder retry and the invoice actions that still belong here.
@@ -158,10 +147,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/reports', [ReportController::class, 'index'])->name('pages.reports');
     Route::get('/reports/download', [ReportController::class, 'downloadPdf'])->name('pages.reports.download');
     Route::get('/reports/download-excel', [ReportController::class, 'downloadExcel'])->name('pages.reports.download-excel');
-
-    // 10. Settings
-    Route::get('/about', [AboutController::class, 'index'])->name('pages.about');
-
+   
     // 10. Profile
     Route::get('/profile', [ProfileController::class, 'index'])->name('profile');
     Route::get('/profile/edit', [ProfileController::class, 'edit'])->name('profile.edit');

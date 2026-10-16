@@ -181,15 +181,17 @@ it('falls back to the general contact when no billing contact is set', function 
         ->assertSee('budi@sumber.test');
 });
 
-it('shows a dash when the client has no contact details at all', function () {
+it('names the missing contact instead of leaving a bare placeholder', function () {
     $client = Client::create(['company_name' => 'PT Tanpa Kontak']);
     $invoice = fdInvoice(['client_id' => $client->id]);
 
+    // A dash asks the operator to guess whether the contact is empty or the
+    // page failed to load it.
     $this->actingAs(fdUser())
         ->get(route('pages.finance.invoices.show', $invoice))
         ->assertOk()
         ->assertSee('PT Tanpa Kontak')
-        ->assertSee('—');
+        ->assertSee('Belum ada kontak penagihan.');
 });
 
 it('lists the invoice items with quantity, unit price and total', function () {

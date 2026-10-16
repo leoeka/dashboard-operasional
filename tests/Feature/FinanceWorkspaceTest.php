@@ -812,10 +812,12 @@ it('blocks the delete even without the button', function () {
 
 it('only uses Alpine directives the runtime actually loads', function () {
     // The layout pulls Alpine core from a CDN with no plugins, so x-collapse
-    // would be an unknown directive that silently does nothing.
-    $layout = file_get_contents(resource_path('views/layouts/app.blade.php'));
+    // would be an unknown directive that silently does nothing. The script tag
+    // lives in the head component since the shell was split up.
+    $shell = file_get_contents(resource_path('views/layouts/app.blade.php'))
+        . file_get_contents(resource_path('views/components/app/head.blade.php'));
 
-    expect($layout)->toContain('alpinejs')
+    expect($shell)->toContain('alpinejs')
         ->not->toContain('collapse');
 
     foreach (['pages/finance.blade.php', 'finance/subscription-form.blade.php'] as $view) {

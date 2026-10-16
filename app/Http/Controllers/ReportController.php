@@ -68,7 +68,10 @@ class ReportController extends Controller
             fputcsv($handle, []);
 
             fputcsv($handle, ['PERFORMANCE']);
-            fputcsv($handle, ['Average Completed Project Duration (days)', $data['avgDuration']]);
+            fputcsv($handle, [
+                'Average Completed Project Duration (days)',
+                $data['avgDuration'] ?? 'no completed projects yet',
+            ]);
 
             fclose($handle);
         }, $filename, ['Content-Type' => 'text/csv']);
@@ -98,7 +101,15 @@ class ReportController extends Controller
                 ->whereYear('paid_at', $month->year)
                 ->sum('amount');
 
-            return ['label' => $month->translatedFormat('M Y'), 'total' => (float) $total];
+            return [
+                // The single label is what the CSV export prints; the view
+                // splits it over two lines because six columns cannot fit
+                // "May 2026" on one row without truncating it.
+                'label' => $month->translatedFormat('M Y'),
+                'month' => $month->translatedFormat('M'),
+                'year' => $month->year,
+                'total' => (float) $total,
+            ];
         });
         $maxIncome = $incomeChart->max('total') ?: 1;
 
@@ -113,10 +124,13 @@ class ReportController extends Controller
             ->count();
 
         // ===== PERFORMA =====
-        $doneProjects = Project::where('status', 'done')->get();
+        // 'completed' is the status the pipeline actually writes; 'done' never
+        // matched a row, so the average below silently reported 0 days.
+        $doneProjects = Project::where('status', 'completed')->get();
+        $completedProjectCount = $doneProjects->count();
         $avgDuration = $doneProjects->isNotEmpty()
             ? round($doneProjects->avg(fn($p) => $p->created_at->diffInDays($p->updated_at)))
-            : 0;
+            : null;
 
         return compact(
             'projectByStatus',
@@ -128,6 +142,7 @@ class ReportController extends Controller
             'topClients',
             'newClientsThisMonth',
             'avgDuration',
+            'completedProjectCount',
         );
     }
 }

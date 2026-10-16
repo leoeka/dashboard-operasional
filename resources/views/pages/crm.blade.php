@@ -3,104 +3,109 @@
 
 @section('content')
 
-
-    <!-- HEADER -->
     <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
         <div>
-            <h1 class="text-2xl font-bold text-gray-800">Client List</h1>
-            <p class="text-sm text-gray-600">Manage client data and related projects.</p>
+            <h1 class="text-2xl font-bold text-slate-800">Daftar Client</h1>
+            <p class="text-sm text-slate-600">Kelola data client dan project terkait.</p>
         </div>
-        <div>
-            <a href="{{ route('pages.request') }}"
-                class="grad-blue text-white text-sm font-semibold px-4 py-2.5 rounded-lg flex items-center gap-2 hover:opacity-90 transition w-fit">
-                <i class='bx bx-plus'></i> Add New Client
-            </a>
-        </div>
+        <a href="{{ route('pages.request') }}"
+            class="bg-brand-600 text-white text-sm font-semibold px-4 py-3 rounded-md flex items-center gap-2 hover:bg-brand-700 transition w-fit">
+            <i class='bx bx-plus' aria-hidden="true"></i> Client Baru
+        </a>
     </div>
 
-    <!-- ALERT NOTIFIKASI -->
     @if (session('success'))
-        <div class="mb-4 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg">
+        <div class="mb-4 p-4 bg-emerald-50 border-l-4 border-l-emerald-700 text-emerald-700 rounded-lg text-sm">
             {{ session('success') }}
         </div>
     @endif
 
-    <!-- FITUR PENCARIAN -->
-    <div class="bg-white p-4 rounded-lg shadow mb-6">
+    <x-card>
         <form action="{{ route('pages.crm') }}" method="GET" class="flex flex-col sm:flex-row gap-2">
-            <input type="text" name="search" value="{{ request('search') }}"
-                placeholder="Search by company, name, email, or phone..."
-                class="w-full sm:w-1/3 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <label class="sr-only" for="crm-search">Cari client</label>
+            <input id="crm-search" type="text" name="search" value="{{ request('search') }}"
+                placeholder="Cari nama perusahaan, kontak, email, atau telepon..."
+                class="min-h-11 w-full sm:w-1/3 border border-slate-200 bg-slate-50 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
             <div class="flex gap-2">
                 <button type="submit"
-                    class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-900">
-                    Search
+                    class="min-h-11 bg-slate-800 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-slate-900 transition">
+                    Cari
                 </button>
                 @if (request('search'))
                     <a href="{{ route('pages.crm') }}"
-                        class="bg-gray-200 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-300">
-                        Reset
+                        class="min-h-11 bg-slate-100 text-slate-600 px-4 py-2 rounded-md text-sm font-semibold hover:bg-slate-200 transition">
+                        Bersihkan
                     </a>
                 @endif
             </div>
         </form>
-    </div>
+    </x-card>
 
-    <!-- TABEL DATA CLIENT -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
+    <x-card padding="" class="overflow-hidden mt-4">
         <div class="overflow-x-auto">
             <table class="w-full text-left border-collapse">
                 <thead>
-                    <tr class="text-left text-slate-400 border-b border-slate-100">
-                        <th class="px-6 py-4 font-medium">Company</th>
-                        <th class="px-6 py-4 font-medium">Contact Name</th>
-                        <th class="px-6 py-4 font-medium">Contact Info</th>
-                        <th class="px-6 py-4 font-medium">Project Count</th>
-                        <th class="px-6 py-4 font-medium">Created Date</th>
-                        <th class="px-6 py-4 font-medium text-center">Action</th>
+                    <tr class="text-left text-xs text-slate-600 bg-slate-50 border-b border-slate-100">
+                        <th class="px-6 py-4 font-semibold">Perusahaan</th>
+                        <th class="px-6 py-4 font-semibold">Nama Kontak</th>
+                        <th class="px-6 py-4 font-semibold">Kontak</th>
+                        <th class="px-6 py-4 font-semibold">Project</th>
+                        <th class="px-6 py-4 font-semibold text-right">Tanggal Dibuat</th>
+                        <th class="px-6 py-4 font-semibold text-center">Aksi</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200 text-sm text-gray-700">
+                <tbody class="divide-y divide-slate-100 text-sm text-slate-700">
                     @forelse ($clients as $client)
-                        <tr class="hover:bg-gray-50 transition">
-                            <td class="px-6 py-4 font-semibold text-gray-900">
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="px-6 py-4 font-semibold text-slate-900">
                                 {{ $client->company_name }}
                             </td>
                             <td class="px-6 py-4">
-                                {{ $client->contact_name ?? '-' }}
+                                {{ $client->contact_name ?: '-' }}
                             </td>
                             <td class="px-6 py-4">
                                 <div class="flex flex-col gap-1">
                                     @if ($client->email)
-                                        <span class="text-xs text-gray-600">✉ {{ $client->email }}</span>
+                                        <span class="text-xs text-slate-600">{{ $client->email }}</span>
                                     @endif
                                     @if ($client->phone)
-                                        <span class="text-xs text-gray-600">📞 {{ $client->phone }}</span>
+                                        <span class="text-xs text-slate-600">{{ $client->phone }}</span>
                                     @endif
                                     @if (!$client->email && !$client->phone)
-                                        <span class="text-xs text-gray-400">-</span>
+                                        <span class="text-xs text-slate-500">Belum ada kontak</span>
                                     @endif
                                 </div>
                             </td>
                             <td class="px-6 py-4">
-                                <span class="px-2 py-1 text-xs font-semibold bg-blue-100 text-blue-800 rounded-full">
-                                    {{ $client->projects->count() }} Project
-                                </span>
+                                <x-badge color="blue">{{ $client->projects->count() }} project</x-badge>
                             </td>
-                            <td class="px-6 py-4 text-xs text-gray-500">
+                            <td class="px-6 py-4 text-xs text-slate-500 font-mono text-right">
                                 {{ $client->created_at ? $client->created_at->format('d M Y') : '-' }}
                             </td>
                             <td class="px-6 py-4 text-center">
                                 <a href="{{ route('pages.crm-view', $client->id) }}"
-                                    class="inline-block bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1 rounded text-xs font-medium border border-blue-200">
+                                    class="inline-flex items-center justify-center h-11 px-4 rounded-lg text-xs font-semibold text-brand-600 hover:bg-brand-50 border border-slate-300 transition"
+                                    aria-label="Lihat detail {{ $client->company_name }}">
                                     Detail
                                 </a>
                             </td>
                         </tr>
                     @empty
+                        {{-- Two different empties read as one failure if they share
+                             a sentence: an empty book and a search that matched
+                             nothing need different next steps. --}}
                         <tr>
-                            <td colspan="6" class="px-6 py-8 text-center text-gray-500">
-                                No client data yet.
+                            <td colspan="6" class="px-6 py-10 text-center">
+                                @if (request('search'))
+                                    <p class="text-sm text-slate-700">Tidak ada client yang cocok dengan
+                                        "{{ request('search') }}".</p>
+                                    <a href="{{ route('pages.crm') }}"
+                                        class="inline-block mt-3 text-sm text-brand-600 hover:underline">Hapus kata kunci</a>
+                                @else
+                                    <p class="text-sm text-slate-700">Belum ada client terdaftar.</p>
+                                    <a href="{{ route('pages.request') }}"
+                                        class="inline-block mt-3 text-sm text-brand-600 hover:underline">Tambah client pertama</a>
+                                @endif
                             </td>
                         </tr>
                     @endforelse
@@ -108,10 +113,11 @@
             </table>
         </div>
 
-        <!-- PAGINATION -->
-        <div class="p-4 border-t border-gray-200">
-            {{ $clients->links() }}
-        </div>
-    </div>
+        @if ($clients->hasPages())
+            <div class="p-4 border-t border-slate-100">
+                {{ $clients->links() }}
+            </div>
+        @endif
+    </x-card>
 
 @endsection
