@@ -10,6 +10,8 @@ use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Queue\SerializesModels;
+use App\Services\InvoicePdfService;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Mengirim WhatsApp untuk satu reminder renewal. Terpisah dari job email:
@@ -35,7 +37,7 @@ class SendBillingReminderWhatsApp implements ShouldQueue
         ];
     }
 
-    public function handle(WhatsAppService $whatsapp): void
+    public function handle(WhatsAppService $whatsapp, InvoicePdfService $invoicePdf): void
     {
         $log = BillingReminderLog::with(['invoice.subscription', 'invoice.client', 'invoice.project.client'])
             ->find($this->reminderLogId);
@@ -63,15 +65,26 @@ class SendBillingReminderWhatsApp implements ShouldQueue
             return;
         }
 
-        $layanan = $subscription?->name ? " untuk layanan {$subscription->name}" : '';
+        // Render PDF yang sama dengan lampiran email. Kalau gagal, jangan kirim apa pun.
+        try {
+            $pdf = $invoicePdf->render($invoice);
+        } catch (\Throwable $e) {
+            Log::error('WhatsApp reminder: gagal membuat PDF invoice.', [
+                'reminder_log_id' => $this->reminderLogId,
+                'invoice_id' => $invoice->id,
+                'error' => $e->getMessage(),
+            ]);
+            return;
+        }
 
-        $message = "Halo {$client->contact_name}, invoice perpanjangan {$invoice->invoice_number}{$layanan} sebesar Rp"
-            . number_format((float) $invoice->amount, 0, ',', '.')
-            . " jatuh tempo {$invoice->due_date->translatedFormat('d M Y')}. Mohon segera diselesaikan.";
+        // Nomor invoice bisa mengandung "/" atau karakter lain yang tidak aman untuk nama file.
+        $safeNumber = trim(preg_replace('/[^A-Za-z0-9_-]+/', '-', (string) $invoice->invoice_number), '-');
+        $filename = 'Invoice-' . ($safeNumber ?: $invoice->id) . '.pdf';
 
-        if ($whatsapp->send($client->whatsapp, $message)) {
+        $caption = "Invoice {$invoice->invoice_number}";
+
+        if ($whatsapp->sendDocument($client->whatsapp, $pdf, $filename, $caption)) {
             $log->update(['whatsapp_sent_at' => now()]);
         }
-        // Gagal: sudah tercatat di log oleh WhatsAppService; tidak dicoba ulang otomatis.
     }
 }

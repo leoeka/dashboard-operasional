@@ -74,6 +74,72 @@ class WhatsAppService
     }
 
     /**
+     * Kirim dokumen (mis. PDF invoice) via Fonnte dengan upload langsung (parameter "file").
+     * Caption opsional: kalau null/kosong, yang terkirim hanya dokumennya.
+     */
+    public function sendDocument(string $phone, string $fileContent, string $filename, ?string $caption = null): bool
+    {
+        $token = config('services.fonnte.token');
+
+        if (!$token) {
+            Log::warning('WhatsApp (Fonnte): FONNTE_TOKEN belum diisi di .env, dokumen tidak dikirim.', [
+                'phone' => $phone,
+            ]);
+            return false;
+        }
+
+        $normalizedPhone = $this->normalizePhoneNumber($phone);
+
+        $payload = [
+            'target' => $normalizedPhone,
+            'countryCode' => '62',
+            'filename' => $filename,
+        ];
+
+        if ($caption !== null && $caption !== '') {
+            $payload['message'] = $caption;
+        }
+
+        try {
+            // attach() otomatis memakai multipart/form-data, jadi JANGAN pakai asForm() di sini.
+            $response = Http::withHeaders(['Authorization' => $token])
+                ->timeout(60)
+                ->attach('file', $fileContent, $filename)
+                ->post('https://api.fonnte.com/send', $payload);
+
+            $result = $response->json();
+
+            if (!($result['status'] ?? false)) {
+                Log::warning('WhatsApp (Fonnte): gagal mengirim dokumen.', [
+                    'phone' => $normalizedPhone,
+                    'filename' => $filename,
+                    'reason' => ProviderException::sanitise((string) ($result['reason'] ?? 'unknown')),
+                ]);
+                return false;
+            }
+
+            $messageId = $result['id'] ?? '';
+            if (is_array($messageId)) {
+                $messageId = implode(',', $messageId);
+            }
+
+            Log::info('WhatsApp (Fonnte): dokumen berhasil dikirim / masuk antrian.', [
+                'phone' => $normalizedPhone,
+                'filename' => $filename,
+                'detail' => ProviderException::sanitise((string) ($result['detail'] ?? '')),
+                'message_id' => ProviderException::sanitise((string) $messageId),
+            ]);
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('WhatsApp (Fonnte) sendDocument exception: ' . ProviderException::sanitise($e->getMessage()), [
+                'phone' => $normalizedPhone,
+            ]);
+            return false;
+        }
+    }
+
+    /**
      * Normalisasi format nomor sebelum dikirim ke Fonnte. Fonnte sendiri
      * sudah otomatis ganti awalan "0" jadi countryCode (default 62), tapi
      * kita bersihkan dulu di sisi kita supaya data yang di-log/disimpan
