@@ -340,3 +340,92 @@ it('renders the hero focal point as object-position', function () {
 
     expect($html)->toContain('object-position:75% 50%');
 });
+
+it('defaults the chrome to what every approved blueprint was screenshotted with', function () {
+    // A page written before the nav and footer were designable has no token,
+    // and must still resolve to exactly the arrangement its PNG showed.
+    expect(CompositionSpec::globalDesign([])['header_layout'])->toBe('bar')
+        ->and(CompositionSpec::globalDesign(['layout_variant' => 'overlay-bg'])['footer_layout'])->toBe('columns')
+        ->and(CompositionSpec::globalDesign(['renderer_version' => 2])['header_layout'])->toBe('floating_pill');
+
+    // The two layouts that ride in the strip the full-page renderer clears
+    // cannot be honoured on a legacy page, so they fall back to the plain bar.
+    expect(CompositionSpec::globalDesign(['header_layout' => 'overlay_hero'])['header_layout'])->toBe('bar')
+        ->and(CompositionSpec::globalDesign(['header_layout' => 'floating_pill'])['header_layout'])->toBe('bar')
+        ->and(CompositionSpec::globalDesign(['renderer_version' => 2, 'header_layout' => 'sticky_glass'])['header_layout'])->toBe('floating_pill')
+        ->and(CompositionSpec::globalDesign(['header_layout' => 'sticky_glass'])['header_layout'])->toBe('bar');
+});
+
+it('renders every chrome layout the designer may choose', function () {
+    foreach (CompositionSpec::HEADER_LAYOUTS as $layout) {
+        expect(renderBlade(blueprint([], [], ['renderer_version' => 2, 'header_layout' => $layout])))
+            ->toContain('class="nav nav--' . $layout . '"');
+    }
+
+    foreach (CompositionSpec::FOOTER_LAYOUTS as $layout) {
+        expect(renderBlade(blueprint([], [], ['renderer_version' => 2, 'footer_layout' => $layout])))
+            ->toContain('class="footer footer--' . $layout . '"');
+    }
+});
+
+it('draws each footer layout from its own arrangement', function () {
+    // bar / columns need no rule of their own: that is what the base styles
+    // already draw. Everything else has to be styled or the token is a no-op.
+    $css = view('mockup.styles', [
+        'site' => \App\Support\MockupSite::build(blueprint([], [], ['renderer_version' => 2]), ['brand' => 'Kopi']),
+    ])->render();
+
+    expect($css)->toContain('.nav--center_brand')->toContain('.full-page .nav--floating_pill')
+        ->toContain('.full-page .nav--overlay_hero')->toContain('.footer--asymmetric')->toContain('.footer--minimal');
+
+    $minimal = renderBlade(blueprint([], [], ['renderer_version' => 2, 'footer_layout' => 'minimal']));
+    $asymmetric = renderBlade(blueprint([], [], ['renderer_version' => 2, 'footer_layout' => 'asymmetric']));
+    $columns = renderBlade(blueprint([], [], ['renderer_version' => 2, 'footer_layout' => 'columns']));
+    $foot = fn (string $html) => preg_match('/<footer class="footer footer--\w+">.*?<\/footer>/s', $html, $m) ? $m[0] : '';
+
+    expect($foot($minimal))->toContain('footer-links')->not->toContain('<h4>')
+        ->and($foot($asymmetric))->toContain('footer-lead')->toContain('footer-cols')
+        ->and($foot($columns))->not->toContain('footer-lead');
+});
+
+it('ships the chosen nav in the built page, not only in the mockup', function () {
+    // The WordPress page HTML is baked from mockup.body — the same partial the
+    // PNG renders — so a nav the client approved cannot arrive as a different one.
+    $mockup = blueprint([], [], ['renderer_version' => 2, 'header_layout' => 'center_brand', 'footer_layout' => 'asymmetric']);
+    $body = view('mockup.body', ['site' => \App\Support\MockupSite::build($mockup, ['brand' => 'Kopi'])])->render();
+
+    expect($body)->toContain('class="nav nav--center_brand"')
+        ->toContain('class="footer footer--asymmetric"')
+        ->and(renderBlade($mockup))->toContain('class="nav nav--center_brand"');
+});
+
+it('never lets two options open with the same nav or close on the same footer', function () {
+    $service = app(GenerateMockupGptService::class);
+
+    // Three designers that all ignored the chrome field would each resolve to
+    // the same default nav — the exact complaint this rule answers.
+    $omitted = array_map(
+        fn (string $hero) => blueprint(['composition' => $hero], [], ['renderer_version' => 2]),
+        ['split', 'editorial', 'centered_minimal']
+    );
+    $distinct = reflect($service, 'enforceDistinctDesigns', [$omitted]);
+    $headers = array_map(fn (array $c) => $c['design']['header_layout'], $distinct);
+
+    expect($headers)->toBe(['floating_pill', 'bar', 'center_brand'])
+        ->and(array_unique($headers))->toHaveCount(3)
+        ->and(array_unique(array_map(fn (array $c) => $c['design']['footer_layout'], $distinct)))->toHaveCount(3);
+
+    // A chosen layout stays; only the repeat and the invented name move.
+    $chosen = [
+        blueprint([], [], ['renderer_version' => 2, 'header_layout' => 'center_brand', 'footer_layout' => 'minimal']),
+        blueprint([], [], ['renderer_version' => 2, 'header_layout' => 'center_brand', 'footer_layout' => 'minimal']),
+        blueprint([], [], ['renderer_version' => 2, 'header_layout' => 'glass_morphism', 'footer_layout' => 'sticky_bottom']),
+    ];
+    $kept = reflect($service, 'enforceDistinctDesigns', [$chosen]);
+
+    expect($kept[0]['design']['header_layout'])->toBe('center_brand')
+        ->and($kept[1]['design']['header_layout'])->toBe('floating_pill')
+        ->and($kept[2]['design']['header_layout'])->toBe('bar')
+        ->and($kept[0]['design']['footer_layout'])->toBe('minimal')
+        ->and($kept[2]['design']['footer_layout'])->toBeIn(CompositionSpec::FOOTER_LAYOUTS);
+});

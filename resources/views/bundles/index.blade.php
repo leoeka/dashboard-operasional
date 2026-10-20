@@ -15,12 +15,12 @@
             <i class='bx bx-info-circle mt-1 text-xl'></i>
             <div>
                 <p class="font-bold">Anda sudah berada di langkah terakhir.</p>
-                <p class="mt-1 leading-6">Proposal memuat beberapa opsi mockup. Setelah klien memilih opsi melalui proposal, buka workspace dan tekan tombol pada opsi tersebut untuk langsung membuat theme WordPress siap install.</p>
+                <p class="mt-1 leading-6">Proposal memuat beberapa opsi mockup. Catat pilihan klien di workspace dengan tombol pada opsi tersebut, lalu build theme WordPress siap install dari opsi yang tercatat itu.</p>
             </div>
         </div>
     </div>
 
-    <x-page-header title="Build WordPress dengan GPT">
+    <x-page-header title="Build WordPress">
         <x-slot:actions>
             <a href="{{ route('pages.projects') }}"
                 class="min-h-11 inline-flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-slate-800 px-3 py-2 rounded-md border border-slate-300 bg-white transition">
@@ -37,10 +37,9 @@
     @endif
     @if ($latestBundle?->status === 'building')
         <div role="status" class="mb-6 px-4 py-3 rounded-md border-l-4 border-l-brand-700 bg-brand-50 text-brand-700 text-sm">
-            Build WordPress sedang berjalan. ZIP belum siap diunduh.
+            Build WordPress sedang berjalan. ZIP belum siap diunduh. Halaman ini memuat sendiri saat build selesai atau gagal.
         </div>
-    @elseif ($latestBundle?->status === 'failed')
-        <div role="alert" class="mb-6 px-4 py-3 rounded-md border-l-4 border-l-red-700 bg-red-50 text-red-700 text-sm">
+    @elseif ($latestBundle?->status === 'failed')        <div role="alert" class="mb-6 px-4 py-3 rounded-md border-l-4 border-l-red-700 bg-red-50 text-red-700 text-sm">
             Build terakhir gagal. ZIP dari build sebelumnya tidak tersedia sebagai hasil terbaru. Kembali ke workspace untuk mencoba lagi.
         </div>
     @endif
@@ -68,10 +67,10 @@
                     <p class="text-xs uppercase tracking-wide text-slate-600 font-semibold mb-3">Alur pekerjaan</p>
                     <ol class="space-y-3 text-sm text-slate-600">
                         <li><span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">1</span>Data client dan user story</li>
-                        <li><span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">2</span>Gemini menganalisis bisnis dan target market</li>
-                        <li><span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">3</span>GPT membuat mockup, proposal, dan konten</li>
-                        <li><span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">4</span>Klien memilih opsi mockup di proposal</li>
-                        <li><span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-700">5</span>Tekan opsi tersebut di workspace untuk langsung build WordPress</li>
+                        <li><span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">2</span>Gemini membaca target pasar dari user story</li>
+                        <li><span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">3</span>GPT membuat konten, mockup, dan proposal</li>
+                        <li><span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-xs font-bold text-amber-700">4</span>Klien memilih salah satu opsi mockup</li>
+                        <li><span class="mr-2 inline-flex h-5 w-5 items-center justify-center rounded-full bg-sky-100 text-xs font-bold text-sky-700">5</span>Catat pilihan itu di workspace, lalu build WordPress dari opsi tersebut</li>
                     </ol>
                 </div>
 
@@ -89,4 +88,34 @@
         </x-card>
 
     </div>
+
+    @if ($latestBundle?->status === 'building')
+        {{-- Baris bundle hanya tahu build belum selesai, bukan sampai mana.
+        Status yang sama dibaca popup workspace, jadi halaman ini berhenti
+        menunggu sendiri begitu ZIP jadi, build gagal, atau tidak ada lagi
+        yang melaporkannya. --}}
+        <script>
+            (function watchBundleBuild() {
+                fetch(@js(route('pages.projects.bundle.status', $project)), {
+                        headers: {
+                            'Accept': 'application/json'
+                        },
+                    })
+                    .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Status build tidak tersedia.'))))
+                    .then((data) => {
+                        if (data.status === 'done' || data.status === 'failed') {
+                            window.location.reload();
+                            return;
+                        }
+                        // idle = tidak ada lagi yang melaporkan build ini. Baris
+                        // bundle tetap "building" dan halaman ini dibiarkan apa
+                        // adanya; memuat ulang hanya akan mengulang polling.
+                        if (data.status !== 'idle') {
+                            setTimeout(watchBundleBuild, 3000);
+                        }
+                    })
+                    .catch(() => setTimeout(watchBundleBuild, 10000));
+            })();
+        </script>
+    @endif
 @endsection

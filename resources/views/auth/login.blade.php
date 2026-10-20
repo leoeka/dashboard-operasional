@@ -4,15 +4,6 @@
 @section('content')
     <div class="max-w-sm w-full bg-white rounded-xl border border-slate-200 overflow-hidden">
 
-        <div class="bg-brand-600 p-6 text-center">
-            <div
-                class="w-12 h-12 rounded-lg bg-white/10 flex items-center justify-center mx-auto mb-3">
-                <i class='bx bx-grid-alt text-3xl text-white' aria-hidden="true"></i>
-            </div>
-            <h1 class="text-2xl font-bold text-white">SiteFlow</h1>
-            <p class="text-xs font-semibold text-white mt-1">Masuk untuk mengelola project Anda</p>
-        </div>
-
         <div class="p-6">
             @if (session('status'))
                 <div class="mb-4 text-sm text-emerald-700 bg-emerald-50 rounded-md border-l-4 border-l-emerald-700 p-4">

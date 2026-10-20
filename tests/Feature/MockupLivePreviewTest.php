@@ -158,7 +158,7 @@ it('does not render site chrome sections from the content stage as page content'
         ->get(route('pages.projects.mockup.preview', [$project, 0]))
         ->getContent();
 
-    expect(substr_count($html, '<footer class="footer">'))->toBe(1)
+    expect(substr_count($html, '<footer class="footer footer--'))->toBe(1)
         ->and($html)->not->toContain('<h2>Footer</h2>');
 });
 
@@ -242,15 +242,36 @@ it('does not present a default or internal mockup selection as the client choice
     $this->actingAs($user)
         ->get(route('pages.project-workspace', ['project' => $project->id]))
         ->assertOk()
-        ->assertSee('data-mockup-card data-index="0" class="rounded-xl border border-slate-200', false)
-        ->assertDontSee('border-blue-500', false)
-        ->assertDontSee('ring-2 ring-blue-100', false);
+        // Nothing is marked as the client's answer, and the build stays locked
+        // until a card is pressed on purpose.
+        ->assertSee('data-mockup-card data-index="0"', false)
+        ->assertDontSee('Pilihan klien')
+        ->assertDontSee('border-brand-600', false)
+        ->assertSee('Build WordPress masih terkunci')
+        ->assertSee('Klien pilih opsi ini');
 
     $this->actingAs($user)
         ->get(route('pages.projects.mockup.demo', [$project, 0]))
         ->assertOk()
         ->assertDontSee('Dipilih')
         ->assertDontSee('Disetujui');
+});
+
+it('marks the option the client chose and opens the build for that option', function () {
+    $project = previewProject([v2Blueprint(), v2Blueprint()]);
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->post(route('pages.projects.proposal.approve', $project), ['mockup_index' => 1])
+        ->assertRedirect();
+
+    $this->actingAs($user)
+        ->get(route('pages.project-workspace', ['project' => $project->id]))
+        ->assertOk()
+        ->assertSee('Pilihan klien')
+        ->assertSee('Build memakai Opsi 2 yang disetujui klien.')
+        ->assertSee('Buat WordPress siap install')
+        ->assertDontSee('Build WordPress masih terkunci');
 });
 
 it('serves photographs by public URL, never an absolute storage path', function () {

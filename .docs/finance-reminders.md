@@ -48,6 +48,16 @@ Pertanyaan untuk tim: **apakah agency pernah menjual hosting/domain dengan masa 
 - `BillingRenewalService::retryDelivery()` mengubah status dengan update bersyarat di database (`failed` dan percobaan masih tersedia). Setelah retry pertama mengklaim log sebagai `pending`, permintaan berikutnya tidak membuat antrean duplikat.
 - Riwayat reminder menampilkan tombol Kirim ulang selama masih ada percobaan. Log yang mencapai batas percobaan tetap berstatus gagal dan tombol disembunyikan.
 
+## Penanda lunas (ditambahkan 2026-10-17)
+
+- Uang tetap mengalir di luar sistem. Yang dicatat aplikasi hanya **fakta bahwa tagihan sudah diselesaikan dan tanggalnya**: `status` jadi `paid` dan `paid_at` diisi. Tidak ada nominal, metode, atau referensi, dan tidak ada baris baru di `payments`. Tabel serta model `Payment` dibiarkan apa adanya supaya invoice yang diselesaikan sebelum perubahan ini tetap punya riwayat.
+- Dua route: `pages.finance.invoices.paid` dan `pages.finance.invoices.unpaid` (PATCH), keduanya `InvoiceController`. Tombolnya hanya di halaman detail invoice, bukan di daftar.
+- Form mengirim tanggal dengan default hari ini dan `max` hari ini. Batas atasnya dibandingkan lewat `BillingClock` dan **kedua** sisi dibungkus `businessDate()`: `today()` adalah tengah malam zona bisnis sedangkan hasil `parse()` adalah tengah malam UTC, jadi dibandingkan sebagai instan akan mengira pembayaran hari ini sebagai besok. `Invoice::isOverdue()` sudah membungkus kedua sisi untuk alasan yang sama.
+- Yang ditolak: invoice `cancelled`, invoice yang sudah lunas (tanggalnya tidak tertimpa oleh klik kedua), penandaan tanggal di masa depan, dan pembatalan pada invoice yang belum pernah ditandai. Menyembunyikan tombol bukan aturan, jadi pemeriksaan ini ada di controller, bukan hanya di Blade.
+- Efeknya ke mesin: `BillingRenewalService` melewati threshold yang tersisa untuk invoice lunas, dan `retryDelivery()` menolak mengirim ulang log milik invoice yang sudah ditandai. Test menegakkan keduanya, bukan hanya yang pertama.
+- Yang TIDAK berubah: periode langganan tetap bergulir mengikuti tanggal meski lunas tercatat. Gulir tidak menunggu pembayaran karena pembayaran terjadi di tempat yang tidak bisa dilihat aplikasi.
+- Test: `tests/Feature/FinanceMarkPaidTest.php` (13 test, jalankan dengan `php artisan test --filter=FinanceMarkPaidTest`).
+
 ## Alur SQL dan pemeriksaan
 
 Summary memakai hitungan database untuk total klien dan langganan; metrik status invoice sudah dihapus. Riwayat gagal tidak membuat log duplikat karena retry memakai `billing_reminder_logs` yang sama.

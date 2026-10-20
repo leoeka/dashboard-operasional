@@ -14,10 +14,11 @@ use Illuminate\Support\Facades\Storage;
  * What happens when a provider says no.
  *
  * A quota running out used to throw the whole run away: the next attempt began
- * again at the business analysis, paying Gemini and the designer a second time
- * to reach the same failed step. Worse, some failures were swallowed — a design
- * call that failed quietly substituted invented colours, so a client could be
- * shown a "finished" proposal no stage had really produced.
+ * again at the first stage, paying the market reader, the content writer and
+ * the designer a second time to reach the same failed step. Worse, some
+ * failures were swallowed — a design call that failed quietly substituted
+ * invented colours, so a client could be shown a "finished" proposal no stage
+ * had really produced.
  *
  * The rule now is: stop where it broke, keep everything already earned, say
  * exactly what went wrong, and resume at the failed stage on retry.
@@ -175,13 +176,14 @@ it('keeps finished stages and resumes at the one that failed', function () {
     $checkpoints = app(PipelineCheckpointService::class);
     $project = resilienceProject();
 
+    $checkpoints->recordSuccess($project, 'target_market', ['target_market' => 'Pecinta kopi.']);
     $checkpoints->recordSuccess($project, 'competitor_research', []);
-    $checkpoints->recordSuccess($project, 'gemini_analysis', resilienceAnalysis());
+    $checkpoints->recordSuccess($project, 'website_content', resilienceAnalysis());
     $checkpoints->recordSuccess($project, 'design_blueprint', [['design' => [], 'pages' => []]]);
     $checkpoints->recordFailure($project, 'mockup_assets', new ProviderException('openai', ProviderException::QUOTA_EXHAUSTED));
 
     expect($checkpoints->nextStage($project))->toBe('mockup_assets')
-        ->and($checkpoints->completed($project, 'gemini_analysis')['payload']['sitemap']['global_cta'])->toBe('Pesan')
+        ->and($checkpoints->completed($project, 'website_content')['payload']['sitemap']['global_cta'])->toBe('Pesan')
         ->and($checkpoints->failure($project)->error_code)->toBe(ProviderException::QUOTA_EXHAUSTED);
 });
 
@@ -196,9 +198,9 @@ it('replays a completed stage instead of running it a second time', function () 
         return ['analysis' => 'done'];
     };
 
-    expect($checkpoints->remember($project, 'gemini_analysis', $work))->toBe(['analysis' => 'done'])
-        ->and($checkpoints->remember($project, 'gemini_analysis', $work))->toBe(['analysis' => 'done'])
-        // The second call replayed the stored result — Gemini was not paid twice.
+    expect($checkpoints->remember($project, 'website_content', $work))->toBe(['analysis' => 'done'])
+        ->and($checkpoints->remember($project, 'website_content', $work))->toBe(['analysis' => 'done'])
+        // The second call replayed the stored result — the content writer was not paid twice.
         ->and($runs)->toBe(1);
 });
 
@@ -249,8 +251,9 @@ it('resumes asset generation against the already-frozen blueprints once the quot
     ]);
 
     // The stages before this one already succeeded in a real run.
+    $checkpoints->recordSuccess($project, 'target_market', ['target_market' => 'Pecinta kopi.']);
     $checkpoints->recordSuccess($project, 'competitor_research', []);
-    $checkpoints->recordSuccess($project, 'gemini_analysis', resilienceAnalysis());
+    $checkpoints->recordSuccess($project, 'website_content', resilienceAnalysis());
 
     // Attempt 1: the designs succeed, the photographs do not.
     $blueprints = $checkpoints->remember($project, 'design_blueprint', fn () => $service->generateMockupBlueprints($project, resilienceAnalysis()));
@@ -328,7 +331,11 @@ it('does not duplicate assets or screenshots when the same stage runs twice', fu
     expect($afterSecond)->toBe($afterFirst);
 });
 
-it('leaves no bundle record behind when the GPT WordPress build fails', function () {
+it('builds the theme with no API key at all and writes no bundle record', function () {
+    // The build stopped being a provider call: the approved blueprint is
+    // already on disk, so a missing key must not stop a ZIP being made, and
+    // the builder still must not touch the bundle table (that is the job's
+    // row, written only around a real export).
     config(['services.openai.key' => null]);
     $project = resilienceProject();
 
@@ -336,12 +343,17 @@ it('leaves no bundle record behind when the GPT WordPress build fails', function
         'project_id' => $project->id,
         'client_name' => $project->client_name,
         'version' => 1,
-        'status' => 'pending',
-        'ai_reasoning' => json_encode(['mockup' => ['pages' => []], 'analysis' => []]),
+        'status' => 'approved',
+        'ai_reasoning' => json_encode([
+            'mockup' => ['pages' => []],
+            'analysis' => [],
+            'selected_mockup_index' => 0,
+            'mockup_candidates' => [['website_concept' => 'Option one', 'pages' => []]],
+        ]),
     ]);
 
-    expect(fn () => app(\App\Services\BundleBuilderService::class)->build($project->fresh()))
-        ->toThrow(ProviderException::class);
+    $bundle = app(\App\Services\BundleBuilderService::class)->build($project->fresh());
 
-    expect(\App\Models\ProjectBundle::where('project_id', $project->id)->exists())->toBeFalse();
+    expect($bundle['mockup'])->toBe(['pages' => []])
+        ->and(\App\Models\ProjectBundle::where('project_id', $project->id)->exists())->toBeFalse();
 });

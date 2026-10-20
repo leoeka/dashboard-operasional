@@ -11,7 +11,6 @@ use Illuminate\Support\Str;
 class BundleBuilderService
 {
     public function __construct(
-        private OpenAiWordPressBuilderService $openAiBuilder,
         private ElementorPageBuilderService $elementorPageBuilder,
         private MockupAssetService $mockupAssets,
     ) {}
@@ -74,9 +73,6 @@ class BundleBuilderService
 
         $bundle['mockup_rendering'] = $this->buildMockupRendering($project, $mockup, $sectionImages['map'], $bundle['assets']);
 
-        $bundle['wordpress'] = $this->openAiBuilder->build($project, $bundle);
-        $bundle['built_with'] = 'openai';
-
         return $bundle;
     }
 
@@ -109,6 +105,11 @@ class BundleBuilderService
                 'images' => $images,
                 'webfonts' => true,
                 'link' => static fn (string $slug): string => '__EXITO_PAGE_URL:'.$slug.'__',
+                // Only the page itself is stored as content. The navigation bar
+                // and footer belong to the theme (see the chrome render below),
+                // so a page the client adds later in WordPress arrives with the
+                // same navigation and footer as the approved pages.
+                'chrome' => ['render' => false],
             ]);
             $body = view('mockup.body', ['site' => $site])->render();
             $pages[$page['slug']] = ['title' => $page['name'], 'html' => "<!-- wp:html -->\n{$body}\n<!-- /wp:html -->"];
@@ -118,7 +119,47 @@ class BundleBuilderService
         $css = view('mockup.styles', ['site' => $homeSite])->render();
         $css = preg_replace('/^<style>|<\/style>$/', '', trim($css)) ?? $css;
 
-        return ['pages' => $pages, 'css' => $css, 'fonts_url' => $homeSite['fonts_url'], 'lang' => $homeSite['lang']];
+        // The same two partials, rendered once more for the theme's header.php
+        // and footer.php. Only the link list, the brand link, the logo and the
+        // copyright year change: instead of a frozen list of pages they become
+        // the WordPress calls that read the site's own menu, so editing the
+        // navigation in wp-admin changes every page at once. The logo slot
+        // carries a token the exporter fills with the path of the logo file
+        // that ships inside the theme (BundleExporterService::embedThemeAssets).
+        $chromeSite = MockupSite::build($mockup, [
+            'brand' => $brand,
+            'logo' => $logo ? '__EXITO_THEME_ASSET__' : null,
+            'page' => 'home',
+            'images' => $images,
+            'chrome' => [
+                'menu' => "<?php exito_client_nav_menu('links'); ?>",
+                'footer_menu' => $homeSite['global']['footer_layout'] === 'minimal'
+                    ? "<?php exito_client_nav_menu('footer-links'); ?>"
+                    : "<?php exito_client_nav_menu(''); ?>",
+                'home' => "<?php echo esc_url(home_url('/')); ?>",
+                'cta_href' => "<?php echo exito_client_cta_href(); ?>",
+                'year' => "<?php echo (int) date('Y'); ?>",
+            ],
+        ]);
+
+        return [
+            'pages' => $pages,
+            'css' => $css,
+            'fonts_url' => $homeSite['fonts_url'],
+            'lang' => $homeSite['lang'],
+            'chrome' => [
+                'wrapper' => '<div class="site '.($chromeSite['full_page'] ? 'full-page' : 'legacy-page').'">',
+                'header' => view('mockup.header', ['site' => $chromeSite])->render(),
+                'footer' => view('mockup.footer', ['site' => $chromeSite])->render(),
+            ],
+            // The approved navigation, as data: the importer turns it into the
+            // WordPress menu items, and the theme keeps the label for the CTA.
+            'nav' => array_map(
+                static fn (array $item): array => ['label' => $item['name'], 'slug' => $item['slug']],
+                $chromeSite['nav_primary']
+            ),
+            'cta' => $chromeSite['cta'],
+        ];
     }
 
     protected function resolveAnalysis(Project $project, array $proposalAnalysis = []): array
@@ -133,11 +174,10 @@ class BundleBuilderService
     /**
      * Describes the project's own website category. This used to return a
      * fixed "Restaurant Modern" / category "restaurant" for every project,
-     * and the value is handed straight to GPT in the build prompt (see
-     * OpenAiWordPressBuilderService::buildPrompt()) — so a law firm or a
-     * coffee roaster was being told, in writing, that it was a restaurant
-     * build. Where the project states no type, nothing is claimed rather
-     * than a category being invented.
+     * and that claim travelled into the bundle and the proposal, so a law
+     * firm or a coffee roaster was described as a restaurant build. Where the
+     * project states no type, nothing is claimed rather than a category being
+     * invented.
      */
     protected function resolveTemplate(Project $project): array
     {
@@ -215,10 +255,10 @@ class BundleBuilderService
     protected function buildThemePackage(array $template, array $brand): array
     {
         return [
-            // Must match the folder prefix the AI builder prompt is told to
-            // use for theme files (see OpenAiWordPressBuilderService) —
-            // BundleExporterService filters wordpress.files by this name,
-            // so a mismatch here means it always finds zero theme files.
+            // Every file in the shipped theme is written under this folder
+            // name (see BundleExporterService::themeShell()), and WordPress
+            // installs the theme by that folder, so it is the one identity
+            // the ZIP and the README have to agree on.
             'name' => 'exito-client-theme',
             'template_slug' => $template['slug'],
             'brand_name' => $brand['company_name'],
@@ -251,19 +291,15 @@ class BundleBuilderService
     /**
      * Gathers the client's real logo and any photos uploaded for this
      * project (see ProjectFile::categoryLabels()), as actual binary image
-     * data — not just a path string. These get:
-     * - shown to GPT as vision input, so the builder knows what the
-     *   real logo/photos look like (see OpenAiWordPressBuilderService),
-     * - embedded verbatim into the generated theme's assets/ folder at a
-     *   fixed filename the AI is told to reference (see
-     *   BundleExporterService::embedThemeAssets()), so the shipped site
-     *   uses the client's actual files rather than an AI-invented
-     *   placeholder logo/photo.
+     * data — not just a path string. These get embedded verbatim into the
+     * generated theme's assets/ folder at a fixed filename
+     * (BundleExporterService::embedThemeAssets()), so the shipped site uses
+     * the client's actual files rather than a placeholder, and the mockup
+     * shell references them by those same paths.
      *
      * Bounded to a handful of images (1 logo + up to 4 photos) to keep the
-     * build prompt and ZIP a reasonable size. Reads that fail (missing
-     * file, non-image mime type) are just skipped rather than failing the
-     * whole build.
+     * ZIP a reasonable size. Reads that fail (missing file, non-image mime
+     * type) are just skipped rather than failing the whole build.
      *
      * @return array{logo: ?array{filename:string,mime:string,bytes:string}, images: array<int, array{filename:string,mime:string,bytes:string}>, files: array}
      */

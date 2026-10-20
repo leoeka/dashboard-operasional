@@ -181,8 +181,8 @@ it('treats a partial set of options as an unfinished stage, not a smaller succes
     $blueprints = [idempotencyBlueprint(), idempotencyBlueprint()];
     $blueprints[1]['pages'][0]['sections'][0]['composition'] = 'asymmetric_split';
 
-    // Enough photographs for the first option only.
-    imageApi(4);
+    // One photograph: enough for the first option's hero, not the second's.
+    imageApi(1);
 
     try {
         $service->renderCandidates($project, $blueprints);
@@ -206,7 +206,9 @@ it('completes once the missing option is filled in on retry, without redoing the
     $blueprints = [idempotencyBlueprint(), idempotencyBlueprint()];
     $blueprints[1]['pages'][0]['sections'][0]['composition'] = 'asymmetric_split';
 
-    $api = imageApi(4);
+    // Only the first option's hero can be bought; the second one is still
+    // missing when the quota comes back.
+    $api = imageApi(1);
     try {
         $service->renderCandidates($project, $blueprints);
     } catch (ProviderException) {
@@ -226,6 +228,78 @@ it('completes once the missing option is filled in on retry, without redoing the
         expect($candidate['degraded'])->toBeFalse()
             ->and($candidate['screenshot_path'])->not->toBeNull();
     }
+});
+
+it('photographs a draft once per option, not every section the design wants', function () {
+    app()->instance(ScreenshotService::class, new CountingScreenshotService());
+    config(['services.openai.mockup_candidate_count' => 2]);
+
+    $project = idempotencyProject();
+    $service = app(GenerateMockupGptService::class);
+
+    $blueprints = [idempotencyBlueprint(), idempotencyBlueprint()];
+    $blueprints[1]['pages'][0]['sections'][0]['composition'] = 'asymmetric_split';
+
+    $api = imageApi(99);
+    $candidates = $service->renderCandidates($project, $blueprints);
+    $asked = drainAsked($api);
+
+    // This blueprint wants four photographs per option (hero + three cards), so
+    // showing two options used to cost eight. A client chooses between designs
+    // from their hero, so a draft buys one photograph per option and the cards
+    // of the options he does not pick are never bought.
+    expect($asked)->toHaveCount(2)
+        ->and($asked)->toBe(['Kopi Nusantara', 'Kopi Nusantara'])
+        // Not one card photograph, and that is not a defect: those sections
+        // render in their photo-free form, in the PNG and in the ZIP alike.
+        ->and($asked)->not->toContain('Gayo')
+        ->and($candidates[0]['degraded'])->toBeFalse()
+        ->and($candidates[0]['assets']['pages']['home']['sections'] ?? null)->toBeNull()
+        ->and($candidates[0]['screenshot_path'])->not->toBeNull();
+});
+
+it('buys the section photographs for the option the client approves', function () {
+    $shots = new CountingScreenshotService();
+    app()->instance(ScreenshotService::class, $shots);
+
+    $project = idempotencyProject();
+    $service = app(GenerateMockupGptService::class);
+
+    $api = imageApi(99);
+    $draft = $service->renderCandidates($project, [idempotencyBlueprint()])[0];
+    drainAsked($api);
+
+    $completed = $service->completeCandidate($project, $draft, 1);
+    $asked = drainAsked($api);
+
+    expect($asked)->toBe(['Gayo', 'Toraja', 'Kintamani'])
+        // The hero the draft already paid for is reused, not re-bought.
+        ->and($asked)->not->toContain('Kopi Nusantara')
+        ->and($completed['assets']['pages']['home']['sections'])->toBeArray()
+        // And the picture the client approved is replaced by the one that
+        // ships, so approving a draft never delivers unseen photographs.
+        ->and($shots->calls)->toBe(2);
+});
+
+it('keeps the approved draft when the top-up photographs cannot be bought', function () {
+    $shots = new CountingScreenshotService();
+    app()->instance(ScreenshotService::class, $shots);
+
+    $project = idempotencyProject();
+    $service = app(GenerateMockupGptService::class);
+
+    $api = imageApi(1);
+    $draft = $service->renderCandidates($project, [idempotencyBlueprint()])[0];
+
+    $api['budget'] = 0;
+    $completed = $service->completeCandidate($project, $draft, 1);
+
+    // An exhausted image quota must not undo the guarantee that approval works
+    // with no AI call at all. What comes back is the draft untouched: the same
+    // manifest and the same PNG the client chose, which is what a photo-free
+    // design renders anyway.
+    expect($completed)->toBe($draft)
+        ->and($shots->calls)->toBe(1);
 });
 
 it('replays a finished proposal instead of rendering the PDF again', function () {

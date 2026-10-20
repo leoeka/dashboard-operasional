@@ -1139,9 +1139,10 @@ class ElementorPageBuilderService
         // these attributes (text colour, then background), or the Block Editor
         // marks the block invalid ("Attempt Block Recovery") — verified in a real
         // WordPress 7.1 editor. The underline removal and inline-block display
-        // this used to inline live in the theme's block-content.css instead
-        // (BundleExporterService::blockContentCss()), which is enqueued on the
-        // live site and in the editor.
+        // this used to inline are deliberately absent: no extra block stylesheet
+        // ships with the theme, and this block markup is only a fallback — every
+        // page the build actually imports is the approved mockup rendering, which
+        // carries its own styling in the theme's style.css.
         $inlineStyle = '';
 
         if ($textColor) {
@@ -1285,7 +1286,9 @@ class ElementorPageBuilderService
         // Exactly the declarations core/group's save() derives from the attrs
         // above, in its order — anything else (the old `overflow:hidden;
         // padding:16px` shorthand) is flagged invalid in the Block Editor. The
-        // photo-clipping overflow lives in block-content.css instead.
+        // photo-clipping overflow is not lost: the pages that actually ship are
+        // the approved mockup rendering, whose `.card` carries it (mockup
+        // styles, shipped as the theme's style.css).
         $borderColor = MockupDesignSpec::token('card_border_color');
         $style = "border-color:{$borderColor};border-width:{$border};border-radius:{$radius};"
             . "padding-top:{$padding};padding-right:{$padding};padding-bottom:{$padding};padding-left:{$padding}";

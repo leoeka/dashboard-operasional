@@ -5,14 +5,12 @@
     <div class="max-w-4xl mx-auto bg-white p-4 sm:p-8 rounded-lg shadow-md">
         <h2 class="text-2xl font-bold mb-6 text-slate-800">Add Client & New Draft Project</h2>
 
-        {{-- Pesan Alert Error --}}
         @if (session('error'))
             <div class="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded-md">
                 {{ session('error') }}
             </div>
         @endif
 
-        {{-- Alert Kesalahan Validasi Input --}}
         @if ($errors->any())
             <div class="mb-4 p-4 bg-red-50 border-l-4 border-l-red-700 text-red-700 rounded-md">
                 <ul class="list-disc pl-4">
@@ -27,11 +25,10 @@
             id="requestForm">
             @csrf
 
-            <!-- SECTION 1: DATA CLIENT -->
             <div class="border-b pb-4">
                 <h3 class="text-base font-semibold text-slate-800 mb-4">1. Client Information</h3>
                 <div class="mb-4">
-                    <label class="block text-sm font-semibold text-slate-800">Select Client</label>
+                    <label for="clientSelect" class="block text-sm font-semibold text-slate-800">Select Client</label>
                     <select name="client_id" id="clientSelect"
                         class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
                         <option value="">-- New Client --</option>
@@ -47,50 +44,55 @@
                             </option>
                         @endforeach
                     </select>
-                    <p class="text-xs text-slate-600 mt-1">Select an existing client to create a new request without duplicating client data.</p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="newClientFields">
                     <div>
-                        <label class="block text-sm font-semibold text-slate-800">Contact/Client Name <span
+                        <label for="client_name" class="block text-sm font-semibold text-slate-800">Contact/Client Name <span
                                 class="text-red-700">*</span></label>
-                        <input type="text" name="client_name" value="{{ old('client_name') }}"
+                        <input type="text" id="client_name" name="client_name" value="{{ old('client_name') }}"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-slate-800">Company Name <span
+                        <label for="company_name" class="block text-sm font-semibold text-slate-800">Company Name <span
                                 class="text-red-700">*</span></label>
-                        <input type="text" name="company_name" value="{{ old('company_name') }}"
+                        <input type="text" id="company_name" name="company_name" value="{{ old('company_name') }}"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-slate-800">Email</label>
-                        <input type="email" name="email" value="{{ old('email') }}"
+                        <label for="email" class="block text-sm font-semibold text-slate-800">Email</label>
+                        <input type="email" id="email" name="email" value="{{ old('email') }}"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-slate-800">Phone Number / WhatsApp</label>
-                        <input type="text" name="phone" value="{{ old('phone') }}"
+                        <label for="phone" class="block text-sm font-semibold text-slate-800">Phone Number / WhatsApp</label>
+                        <input type="text" id="phone" name="phone" value="{{ old('phone') }}"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-semibold text-slate-800">Address</label>
-                        <textarea name="address" rows="2"
+                        <label for="address" class="block text-sm font-semibold text-slate-800">Address</label>
+                        <textarea id="address" name="address" rows="2"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">{{ old('address') }}</textarea>
                     </div>
                 </div>
             </div>
 
-            <!-- SECTION 2: PILIH KEBUTUHAN LAYANAN -->
             <div class="border-b pb-4">
-                <h3 class="text-base font-semibold text-slate-800 mb-4">2. Service Requirements <span
-                        class="text-red-700">*</span></h3>
-                <p class="text-xs text-slate-600 mb-3">Select one or more services the client needs (combinations allowed,
-                    e.g. Web + SEO, or SEO + Backlink, or all three).</p>
+                <h3 class="text-base font-semibold text-slate-800 mb-4">2. Project Request</h3>
+
+                <div class="mb-4">
+                    <label for="project_name" class="block text-sm font-semibold text-slate-800">Project Name <span
+                            class="text-red-700">*</span></label>
+                    <input type="text" id="project_name" name="project_name" value="{{ old('project_name') }}"
+                        class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
+                </div>
+
+                <label class="block text-sm font-semibold text-slate-800 mb-2">Service Requirements <span
+                        class="text-red-700">*</span></label>
 
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <label
@@ -120,67 +122,46 @@
                 <p id="service-error" class="text-xs text-red-700 mt-2 hidden">Select at least one service requirement.</p>
             </div>
 
-            <!-- SECTION 3: DATA PROJECT & REQUIREMENTS (WEBSITE) -->
             <div class="border-b pb-4 service-section" id="section-website" style="display:none;">
                 <h3 class="text-base font-semibold text-slate-800 mb-4">3. Website Project Requirements</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-semibold text-slate-800">Website Name <span
+                        <label for="website_type" class="block text-sm font-semibold text-slate-800">Website Type <span
                                 class="text-red-700">*</span></label>
-                        <input type="text" name="website_name" placeholder="e.g. Kopi Nusantara Store"
-                            value="{{ old('website_name') }}"
+                        <input type="text" id="website_type" name="website_type" value="{{ old('website_type') }}"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500 conditional-required">
-                        <p class="text-xs text-slate-600 mt-1">Used as the project/site name and to help suggest the domain.</p>
-                    </div>
-
-                    <div>
-                        <label class="block text-sm font-semibold text-slate-800">Website Type <span
-                                class="text-red-700">*</span></label>
-                        <select name="website_type"
-                            class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500 conditional-required">
-                            <option value="">-- Select Website Type --</option>
-                            <option value="Company Profile"
-                                {{ old('website_type') == 'Company Profile' ? 'selected' : '' }}>Company Profile</option>
-                            <option value="Online Shop / E-Commerce"
-                                {{ old('website_type') == 'Online Shop / E-Commerce' ? 'selected' : '' }}>Online Shop /
-                                E-Commerce</option>
-                            <option value="Landing Page" {{ old('website_type') == 'Landing Page' ? 'selected' : '' }}>
-                                Landing Page</option>
-                            <option value="Custom Web Application"
-                                {{ old('website_type') == 'Custom Web Application' ? 'selected' : '' }}>Custom Web
-                                Application</option>
-                        </select>
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-semibold text-slate-800">User Story <span
+                        <label for="user_story" class="block text-sm font-semibold text-slate-800">Main Goal of This Website <span
                                 class="text-red-700">*</span></label>
-                        <textarea name="user_story" rows="3"
-                            placeholder="Describe, from the client's perspective, what they want this website to do, e.g. what the business does, what visitors should be able to see/do, key products or services to feature, etc."
+                        <textarea id="user_story" name="user_story" rows="3"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500 conditional-required">{{ old('user_story') }}</textarea>
-                        <p class="text-xs text-slate-600 mt-1">Written by the team, based on what the client requested. This is the main brief the AI uses to build the proposal.</p>
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-semibold text-slate-800">Target Market <span
+                        <label for="target_market" class="block text-sm font-semibold text-slate-800">Target Market / Audience</label>
+                        <textarea id="target_market" name="target_market" rows="2"
+                            class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">{{ old('target_market') }}</textarea>
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label for="website_features" class="block text-sm font-semibold text-slate-800">Content &amp; Features Needed <span
                                 class="text-red-700">*</span></label>
-                        <textarea name="target_market" rows="2"
-                            placeholder="e.g. East Java, young urban professionals, B2B buyers in the manufacturing sector, etc."
-                            class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500 conditional-required">{{ old('target_market') }}</textarea>
-                        <p class="text-xs text-slate-600 mt-1">Who/where this website should target: region, audience segment, or industry.</p>
+                        <textarea id="website_features" name="website_features" rows="3"
+                            class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500 conditional-required">{{ old('website_features') }}</textarea>
                     </div>
 
                     <div class="md:col-span-2 border-t border-slate-200 pt-4">
                         <h4 class="text-base font-semibold text-slate-800 mb-2">Brand &amp; Design Reference</h4>
 
-                        <label class="block text-sm font-semibold text-slate-800">Client Logo</label>
-                        <input type="file" name="client_logo" accept="image/png,image/jpeg,image/webp"
-                            class="min-h-11 mt-1 block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-50">
-                        <p class="text-xs text-slate-600 mt-1">Optional. PNG, JPG, or WebP; max. 2MB. This logo is rendered in the website mockup, not sent to AI 1.</p>
+                        <label for="client_logo" class="block text-sm font-semibold text-slate-800">Client Logo</label>
+                        <input type="file" id="client_logo" name="client_logo" accept="image/png,image/jpeg,image/webp"
+                            class="min-h-11 mt-1 block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                             <div>
-                                <label class="block text-sm font-semibold text-slate-800">Design Reference Type</label>
+                                <label for="designReferenceType" class="block text-sm font-semibold text-slate-800">Design Reference Type</label>
                                 <select name="design_reference_type" id="designReferenceType"
                                     class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
                                     <option value="none" @selected(old('design_reference_type', 'none') === 'none')>No reference</option>
@@ -190,46 +171,54 @@
                                 </select>
                             </div>
                             <div id="designReferenceFileField">
-                                <label class="block text-sm font-semibold text-slate-800">Reference File</label>
-                                <input type="file" name="design_reference_file" accept="image/png,image/jpeg,image/webp,.zip"
-                                    class="min-h-11 mt-1 block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-50">
+                                <label for="design_reference_file" class="block text-sm font-semibold text-slate-800">Reference File</label>
+                                <input type="file" id="design_reference_file" name="design_reference_file" accept="image/png,image/jpeg,image/webp,.zip"
+                                    class="min-h-11 mt-1 block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
                             </div>
                             <div id="designReferenceUrlField">
-                                <label class="block text-sm font-semibold text-slate-800">Reference Website URL</label>
-                                <input type="url" name="design_reference_url" value="{{ old('design_reference_url') }}" placeholder="https://example.com"
+                                <label for="design_reference_url" class="block text-sm font-semibold text-slate-800">Reference Website URL</label>
+                                <input type="url" id="design_reference_url" name="design_reference_url" value="{{ old('design_reference_url') }}"
                                     class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
                             </div>
                         </div>
-                        <p class="text-xs text-slate-600 mt-2">References guide AI 2 and the mockup renderer; they are not copied or executed as a WordPress template.</p>
 
-                        <label class="block text-sm font-semibold text-slate-800 mt-4">Other Attachments</label>
-                        <input type="file" name="assets[]" multiple
-                            class="min-h-11 website-asset-input mt-1 block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-50">
-                        <p class="text-xs text-slate-600 mt-1">Upload a brief or supporting documents (JPG, PNG, PDF, DOCX, ZIP; max. 10MB/file).</p>
+                        <span class="block text-sm font-semibold text-slate-800 mt-4">Does the client have assets? (logo, photos, documents) <span
+                                class="text-red-700">*</span></span>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                            <label
+                                class="flex items-center gap-3 border border-slate-500 rounded-md p-3 cursor-pointer hover:bg-brand-50 has-[:checked]:bg-brand-50 has-[:checked]:border-brand-600">
+                                <input type="radio" name="has_client_assets" value="1" id="client_assets_yes"
+                                    class="h-5 w-5 text-brand-600 border-slate-500 rounded-full focus:ring-brand-500"
+                                    @checked(old('has_client_assets') === '1')>
+                                <span class="text-sm font-semibold text-slate-800">Yes</span>
+                            </label>
+
+                            <label
+                                class="flex items-center gap-3 border border-slate-500 rounded-md p-3 cursor-pointer hover:bg-brand-50 has-[:checked]:bg-brand-50 has-[:checked]:border-brand-600">
+                                <input type="radio" name="has_client_assets" value="0" id="client_assets_no"
+                                    class="h-5 w-5 text-brand-600 border-slate-500 rounded-full focus:ring-brand-500"
+                                    @checked(old('has_client_assets') === '0')>
+                                <span class="text-sm font-semibold text-slate-800">No</span>
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- SECTION 4: KEBUTUHAN SEO -->
             <div class="border-b pb-4 service-section" id="section-seo" style="display:none;">
                 <h3 class="text-base font-semibold text-slate-800 mb-4">4. SEO Requirements</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                   <div class="md:col-span-2" id="seo-existing-url-wrapper">
-                        <label class="block text-sm font-semibold text-slate-800">Website URL to Optimize <span
+                    <div class="md:col-span-2" id="seo-existing-url-wrapper">
+                        <label for="seo_target_url" class="block text-sm font-semibold text-slate-800">Website URL to Optimize <span
                                 class="text-red-700">*</span></label>
                         <input type="text" name="seo_target_url" id="seo_target_url"
-                            placeholder="https://examplewebsite.com" value="{{ old('seo_target_url') }}"
+                            value="{{ old('seo_target_url') }}"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500 conditional-required">
-                        <p class="text-xs text-slate-600 mt-1" id="seo-note-baru" style="display:none;">
-                            *Since the website is also being newly built, fill in this field once the final domain/URL is
-                            available (you may leave it blank for now if not yet available, automatic SEO analysis will wait until this URL is filled in).
-                        </p>
 
                         <button type="button" id="btnAnalyzePreview" disabled
                             class="min-h-11 mt-2 inline-flex items-center gap-2 text-xs font-semibold px-3 py-2 rounded-md bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed">
                             Analyze Now
                         </button>
-                        <p class="text-xs text-slate-500 mt-1">Preview keywords & competitors before saving (optional).</p>
 
                         <div id="previewProgress" class="hidden mt-2">
                             <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
@@ -246,105 +235,82 @@
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-slate-800">Target Location/Area (if any)</label>
-                        <input type="text" name="seo_location" placeholder="e.g. Denpasar, Bali"
+                        <label for="seo_location" class="block text-sm font-semibold text-slate-800">Target Location/Area (if any)</label>
+                        <input type="text" id="seo_location" name="seo_location"
                             value="{{ old('seo_location') }}"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
                     </div>
 
-                    {{--
-                        FIX: field ini sebelumnya ke-nested di dalam div
-                        "Kompetitor" (md:col-span-2), bukan jadi grid item
-                        sejajar — sekarang dipindah jadi sibling normal biar
-                        tampil rapi 2 kolom sesuai grid section ini.
-                    --}}
-                   <!-- GANTI blok <select name="seo_cms_platform">...</select> yang lama
-     (di dalam <div id="section-seo">) dengan ini: -->
-
                     <div>
-                        <label class="block text-sm font-semibold text-slate-800">Client Website Platform <span
+                        <label for="seo_cms_platform" class="block text-sm font-semibold text-slate-800">Client Website Platform <span
                                 class="text-red-700">*</span></label>
-                        <select name="seo_cms_platform"
+                        <select id="seo_cms_platform" name="seo_cms_platform"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500 conditional-required">
                             <option value="">-- Select Platform --</option>
                             <option value="wordpress" {{ old('seo_cms_platform') == 'wordpress' ? 'selected' : '' }}>WordPress</option>
                             <option value="baru" {{ old('seo_cms_platform') == 'baru' ? 'selected' : '' }}>New Website (built by us)</option>
                             <option value="lainnya" {{ old('seo_cms_platform') == 'lainnya' ? 'selected' : '' }}>Other Platform (manual publish)</option>
                         </select>
-                        <p class="text-xs text-slate-600 mt-1">
-                            WordPress & New Website: articles can be published automatically. Other platforms: articles are downloaded/sent manually.
-                        </p>
                     </div>
                 </div>
             </div>
 
-            <!-- SECTION 5: KEBUTUHAN BACKLINK -->
             <div class="border-b pb-4 service-section" id="section-backlink" style="display:none;">
                 <h3 class="text-base font-semibold text-slate-800 mb-4">5. Backlink Requirements</h3>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="md:col-span-2" id="backlink-existing-url-wrapper">
-                        <label class="block text-sm font-semibold text-slate-800">Backlink Target URL <span
+                        <label for="backlink_target_url" class="block text-sm font-semibold text-slate-800">Backlink Target URL <span
                                 class="text-red-700">*</span></label>
                         <input type="text" name="backlink_target_url" id="backlink_target_url"
-                            placeholder="https://examplewebsite.com" value="{{ old('backlink_target_url') }}"
+                            value="{{ old('backlink_target_url') }}"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500 conditional-required">
-                        <p class="text-xs text-slate-600 mt-1">Usually the same as the website URL above, automatically
-                            copied if left blank.</p>
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-slate-800">Number of Backlinks <span
+                        <label for="backlink_quantity" class="block text-sm font-semibold text-slate-800">Number of Backlinks <span
                                 class="text-red-700">*</span></label>
-                        <input type="number" min="1" name="backlink_quantity"
+                        <input type="number" id="backlink_quantity" min="1" name="backlink_quantity"
                             value="{{ old('backlink_quantity') }}"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500 conditional-required">
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-slate-800">Anchor Text</label>
-                        <input type="text" name="backlink_anchor_text" value="{{ old('backlink_anchor_text') }}"
+                        <label for="backlink_anchor_text" class="block text-sm font-semibold text-slate-800">Anchor Text</label>
+                        <input type="text" id="backlink_anchor_text" name="backlink_anchor_text" value="{{ old('backlink_anchor_text') }}"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
                     </div>
 
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-semibold text-slate-800">Desired Backlink Niche /
+                        <label for="backlink_niche" class="block text-sm font-semibold text-slate-800">Desired Backlink Niche /
                             Category</label>
-                        <input type="text" name="backlink_niche" placeholder="Optional, e.g. Travel, Business, Technology"
+                        <input type="text" id="backlink_niche" name="backlink_niche"
                             value="{{ old('backlink_niche') }}"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
                     </div>
 
-                    {{--
-                        FIX: 2 field ini sebelumnya ke-taruh di dalam
-                        section-seo (salah tempat) — jadi cuma muncul kalau
-                        centang SEO, padahal ini soal Backlink. Dipindah ke
-                        sini, section-backlink, tempat yang benar.
-                    --}}
                     <div>
-                        <label class="block text-sm font-semibold text-slate-800">Desired Anchor Text Type</label>
-                        <select name="backlink_anchor_type[]" multiple
+                        <label for="backlink_anchor_type" class="block text-sm font-semibold text-slate-800">Desired Anchor Text Type</label>
+                        <select id="backlink_anchor_type" name="backlink_anchor_type[]" multiple
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
-                            <option value="exact_match">Exact Match (exact keyword)</option>
-                            <option value="partial_match">Partial Match</option>
-                            <option value="branding">Branding (brand name)</option>
-                            <option value="generic">Generic (click here, etc.)</option>
+                            @php $anchorTypes = (array) old('backlink_anchor_type', []); @endphp
+                            <option value="exact_match" @selected(in_array('exact_match', $anchorTypes))>Exact Match (exact keyword)</option>
+                            <option value="partial_match" @selected(in_array('partial_match', $anchorTypes))>Partial Match</option>
+                            <option value="branding" @selected(in_array('branding', $anchorTypes))>Branding (brand name)</option>
+                            <option value="generic" @selected(in_array('generic', $anchorTypes))>Generic (click here, etc.)</option>
                         </select>
-                        <p class="text-xs text-slate-600 mt-1">Optional, can be left blank for now and adjusted later
-                            after the team reviews the SEO analysis results.</p>
                     </div>
 
                     <div>
-                        <label class="block text-sm font-semibold text-slate-800">Priority</label>
-                        <select name="backlink_priority"
+                        <label for="backlink_priority" class="block text-sm font-semibold text-slate-800">Priority</label>
+                        <select id="backlink_priority" name="backlink_priority"
                             class="mt-1 block w-full min-h-11 border border-slate-500 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
-                            <option value="quality">Quality (fewer, high-authority sites)</option>
-                            <option value="quantity">Quantity (more sites, varied authority)</option>
+                            <option value="quality" @selected(old('backlink_priority', 'quality') === 'quality')>Quality (fewer, high-authority sites)</option>
+                            <option value="quantity" @selected(old('backlink_priority') === 'quantity')>Quantity (more sites, varied authority)</option>
                         </select>
                     </div>
                 </div>
             </div>
 
-            <!-- BUTTON SUBMIT -->
             <div class="flex flex-col sm:flex-row sm:justify-end gap-3 pt-4">
                 <a href="{{ route('pages.projects') }}"
                     class="min-h-11 px-4 py-2 border border-slate-300 bg-white text-slate-700 rounded-md hover:bg-slate-50 text-center">Cancel</a>
@@ -370,7 +336,6 @@
                 backlink: document.getElementById('section-backlink'),
             };
 
-            const seoNoteBaru = document.getElementById('seo-note-baru');
             const serviceError = document.getElementById('service-error');
             const seoUrlInput = document.getElementById('seo_target_url');
             const backlinkUrlInput = document.getElementById('backlink_target_url');
@@ -383,7 +348,11 @@
 
                 newClientFields?.querySelectorAll('input, textarea').forEach(field => {
                     field.disabled = isExistingClient;
-                    field.required = !isExistingClient;
+                });
+
+                ['client_name', 'company_name'].forEach(name => {
+                    const field = document.querySelector(`#newClientFields [name="${name}"]`);
+                    if (field) field.required = !isExistingClient;
                 });
 
                 if (isExistingClient && selected) {
@@ -397,7 +366,17 @@
 
                     Object.entries(values).forEach(([name, value]) => {
                         const field = document.querySelector(`[name="${name}"]`);
-                        if (field) field.value = value;
+                        if (field) {
+                            field.value = value;
+                            field.dataset.autofilled = '1';
+                        }
+                    });
+                } else {
+                    newClientFields?.querySelectorAll('input, textarea').forEach(field => {
+                        if (field.dataset.autofilled === '1') {
+                            field.value = '';
+                            delete field.dataset.autofilled;
+                        }
                     });
                 }
             }
@@ -405,7 +384,6 @@
             clientSelect?.addEventListener('change', toggleClientMode);
             toggleClientMode();
 
-            // Field wajib di tiap section, hanya "required" saat section-nya aktif
             function setConditionalRequired(section, isActive) {
                 section.querySelectorAll('.conditional-required').forEach(field => {
                     field.required = isActive;
@@ -419,37 +397,29 @@
                     setConditionalRequired(sections[key], isChecked);
                 });
 
-                document.querySelectorAll('.website-asset-input').forEach(input => {
-                    input.disabled = !checkboxes.website.checked;
-                });
-
-                // Kondisi khusus kombinasi: Website + SEO dipilih bersamaan
-                // -> URL SEO tidak wajib diisi manual (website belum jadi/URL belum final)
                 const websiteChecked = checkboxes.website.checked;
                 const seoChecked = checkboxes.seo.checked;
 
                 if (websiteChecked && seoChecked) {
                     seoUrlInput.required = false;
-                    seoNoteBaru.style.display = 'block';
                 } else if (seoChecked) {
                     seoUrlInput.required = true;
-                    seoNoteBaru.style.display = 'none';
+                }
+
+                if (!seoChecked) {
+                    analysisTokenInput.value = '';
+                    previewResult.classList.add('hidden');
+                    previewResult.innerHTML = '';
+                    previewError.classList.add('hidden');
                 }
             }
 
-            // FIX (fitur SEO & Backlink otomatis): tim cukup isi 1 URL —
-            // kalau kolom URL backlink masih kosong saat checkbox Backlink
-            // dicentang / saat URL SEO diisi, salin otomatis dari URL SEO.
             function autoFillBacklinkUrl() {
                 if (checkboxes.backlink.checked && backlinkUrlInput && !backlinkUrlInput.value && seoUrlInput && seoUrlInput.value) {
                     backlinkUrlInput.value = seoUrlInput.value;
                 }
             }
 
-            // FIX (fitur SEO & Backlink otomatis, mode PREVIEW): tombol
-            // "Analisis Sekarang" — jalankan AI SEBELUM form disubmit,
-            // hasilnya ditampilkan di sini untuk direview, token-nya
-            // dititip di hidden input supaya ikut kekirim saat Simpan.
             const analyzeBtn = document.getElementById('btnAnalyzePreview');
             const previewProgress = document.getElementById('previewProgress');
             const previewProgressBar = document.getElementById('previewProgressBar');
@@ -467,9 +437,10 @@
                 return div.innerHTML;
             }
 
-           function updateAnalyzeButtonState() {
+            function updateAnalyzeButtonState() {
                 if (analyzeBtn) analyzeBtn.disabled = !seoUrlInput || !seoUrlInput.value.trim();
             }
+
             seoUrlInput?.addEventListener('input', function () {
                 updateAnalyzeButtonState();
                 if (analysisTokenInput && analysisTokenInput.value) {
@@ -497,7 +468,7 @@
                         url: seoUrlInput.value.trim(),
                         location: document.querySelector('[name="seo_location"]')?.value || '',
                         business_name: document.querySelector('[name="company_name"]')?.value || '',
-                        business_type: document.querySelector('[name="website_name"]')?.value || '',
+                        business_type: document.querySelector('[name="website_type"]')?.value || '',
                     }),
                 })
                     .then(res => res.json())
@@ -585,26 +556,30 @@
                 if (!anyChecked) {
                     e.preventDefault();
                     serviceError.classList.remove('hidden');
-                    window.scrollTo({
-                        top: 0,
-                        behavior: 'smooth'
-                    });
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 } else {
                     serviceError.classList.add('hidden');
                 }
             });
 
-            // Jalankan sekali saat load (misal setelah validasi gagal & old() terisi kembali)
             toggleSections();
 
             const designReferenceType = document.getElementById('designReferenceType');
             const designReferenceFileField = document.getElementById('designReferenceFileField');
             const designReferenceUrlField = document.getElementById('designReferenceUrlField');
+
             function toggleDesignReferenceFields() {
                 const type = designReferenceType?.value || 'none';
-                designReferenceFileField.style.display = ['image', 'zip'].includes(type) ? 'block' : 'none';
-                designReferenceUrlField.style.display = type === 'url' ? 'block' : 'none';
+                const showFile = ['image', 'zip'].includes(type);
+                const showUrl = type === 'url';
+                designReferenceFileField.style.display = showFile ? 'block' : 'none';
+                designReferenceUrlField.style.display = showUrl ? 'block' : 'none';
+                const fileInput = document.getElementById('design_reference_file');
+                const urlInput = document.getElementById('design_reference_url');
+                if (fileInput) fileInput.disabled = !showFile;
+                if (urlInput) urlInput.disabled = !showUrl;
             }
+
             designReferenceType?.addEventListener('change', toggleDesignReferenceFields);
             toggleDesignReferenceFields();
         })();

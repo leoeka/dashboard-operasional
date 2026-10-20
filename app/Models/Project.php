@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\ActivityLog;
 use App\Models\Invoice;
+use App\Support\MockupSite;
 
 class Project extends Model
 {
@@ -26,6 +27,8 @@ class Project extends Model
         'name',
         'client_name',
         'type',
+        'website_features',
+        'has_client_assets',
         'website_name',
         'value',
         'status',
@@ -43,6 +46,7 @@ class Project extends Model
     protected $casts = [
         'wants_seo' => 'boolean',
         'wants_backlink' => 'boolean',
+        'has_client_assets' => 'boolean',
         'seo_requirements' => 'array',
         'backlink_requirements' => 'array',
     ];
@@ -92,19 +96,19 @@ class Project extends Model
         };
     }
 
+    public function serviceTypes(): array
+    {
+        return array_values(array_filter([
+            ($this->type || (!$this->wants_seo && !$this->wants_backlink)) ? 'website' : null,
+            $this->wants_seo ? 'seo' : null,
+            $this->wants_backlink ? 'backlink' : null,
+        ]));
+    }
+
     public function serviceTypeLabel(): string
     {
-        $types = [];
-
-        if ($this->type || (!$this->wants_seo && !$this->wants_backlink)) {
-            $types[] = 'Web';
-        }
-        if ($this->wants_seo) {
-            $types[] = 'SEO';
-        }
-        if ($this->wants_backlink) {
-            $types[] = 'Backlink';
-        }
+        $labels = ['website' => 'Web', 'seo' => 'SEO', 'backlink' => 'Backlink'];
+        $types = array_map(fn ($type) => $labels[$type], $this->serviceTypes());
 
         return implode(' + ', $types) ?: 'Project';
     }
@@ -132,5 +136,39 @@ class Project extends Model
     public function bundles()
     {
         return $this->hasMany(ProjectBundle::class);
+    }
+
+    /**
+     * Whether a WordPress build may run, and which option it runs on.
+     *
+     * Both the click (BundleController::build) and the worker
+     * (BuildProjectBundleJob) ask this, and they must get the same answer: the
+     * recorded client choice is the only thing allowed to pick an option, so a
+     * second copy of the rule would be a second place to leak it.
+     *
+     * @return array{mockup: ?array, message: string, data: array}
+     */
+    public function approvedBuildOption(): array
+    {
+        $proposal = $this->latestProposal;
+
+        if (! $proposal) {
+            return ['mockup' => null, 'message' => 'Generate proposal dan mockup terlebih dahulu.', 'data' => []];
+        }
+
+        $data = json_decode((string) $proposal->ai_reasoning, true) ?: [];
+        $selectedIndex = $data['selected_mockup_index'] ?? null;
+
+        if ($proposal->status !== 'approved' || ! is_int($selectedIndex)) {
+            return ['mockup' => null, 'message' => 'Build WordPress terkunci sampai pilihan klien dicatat. Tekan "Klien pilih opsi ini" pada mockup yang dipilih klien.', 'data' => $data];
+        }
+
+        $mockup = MockupSite::candidateAt($data, $selectedIndex);
+
+        if (! $mockup) {
+            return ['mockup' => null, 'message' => 'Opsi yang disetujui tidak ada di proposal versi ini. Generate proposal ulang.', 'data' => $data];
+        }
+
+        return ['mockup' => $mockup, 'message' => '', 'data' => $data];
     }
 }

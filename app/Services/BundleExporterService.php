@@ -16,11 +16,16 @@ class BundleExporterService
         $themeRoot = trim((string) ($bundle['theme']['name'] ?? 'exito-client-theme'), '/');
         $themeFiles = $this->buildCompleteThemeFiles($bundle, $themeRoot);
 
-        // theme-install.zip is now the ONLY file that actually needs to be
-        // uploaded to WordPress: the approved pages, their content, and
-        // every generated photo are already baked into it (see
-        // injectPageImporterIntoTheme()) — install this one theme,
+        // theme-install.zip is the ONLY file that gets uploaded to WordPress:
+        // the approved pages, their content, and every photo are already baked
+        // into it (see injectPageImporterIntoTheme()) — install this one theme,
         // activate it, done. No separate plugin.
+        //
+        // It used to be wrapped in a second archive, bundle-export.zip, that
+        // added a README plus text/JSON copies of the content and the client's
+        // assets. Nothing outside the theme zip was ever uploaded or read, and
+        // two files in the folder meant two chances to download the wrong one.
+        // The README now ships inside the theme, where the installer sees it.
         $themeInstallPath = $outputDir.DIRECTORY_SEPARATOR.'theme-install.zip';
         $themeZip = new ZipArchive;
         if ($themeZip->open($themeInstallPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
@@ -31,97 +36,35 @@ class BundleExporterService
         }
         $themeZip->close();
 
-        // bundle-export.zip wraps that same theme zip together with a
-        // README and text/JSON copies of the content & client assets for
-        // reference — nice to have, but nothing inside it besides the
-        // theme zip is ever uploaded anywhere.
-        $zipPath = $outputDir.DIRECTORY_SEPARATOR.'bundle-export.zip';
-
-        $zip = new ZipArchive;
-        if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            throw new \RuntimeException('File ZIP bundle tidak dapat dibuat.');
-        }
-
-        $zip->addFile($themeInstallPath, '01-theme/'.$themeRoot.'.zip');
-
-        $files = [
-            'content' => $bundle['content'] ?? [],
-            'assets' => $bundle['assets'] ?? [],
-        ];
-
-        foreach ($files as $folder => $payload) {
-            $targetFolder = $folder === 'assets' ? '03-assets' : '02-content';
-            $zip->addFromString($targetFolder.'/README.txt', "Bundle component: {$folder}\n");
-            if (is_array($payload)) {
-                foreach ($payload as $key => $value) {
-                    if (is_array($value)) {
-                        $json = json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-                        $zip->addFromString($targetFolder.'/'.$key.'.json', $json);
-                    } else {
-                        $zip->addFromString($targetFolder.'/'.$key.'.txt', (string) $value);
-                    }
-                }
-            }
-        }
-
-        $zip->addFromString('03-assets/README.txt', "Copy client assets to the WordPress media library during setup.\n");
-        $zip->addFromString('README.md', $this->buildReadme($themeRoot));
-        $zip->close();
-
-        // theme-install.zip is the real deliverable — the one file that
-        // gets uploaded to WordPress. bundle-export.zip (built above) just
-        // wraps it with reference material for anyone who wants that too.
         return $themeInstallPath;
     }
 
     /**
-     * Assembles the final theme file set: the AI builder's chrome
-     * (style.css/header.php/footer.php/etc.), a generated screenshot, the
-     * deterministic page/photo importer (injectPageImporterIntoTheme —
-     * this is what makes the theme self-sufficient, no separate plugin),
-     * the client's real logo/photos, and a fresh style.css cache-busting
-     * version. Used for both theme-install.zip and the copy embedded in
-     * bundle-export.zip, so they're never able to drift apart.
+     * Assembles the final theme file set: the deterministic shell
+     * (style.css carrying the approved mockup stylesheet, the template files,
+     * and the functions.php that loads it), a generated screenshot, the
+     * client's real logo/photos, the deterministic page/photo importer
+     * (injectPageImporterIntoTheme — this is what makes the theme
+     * self-sufficient, no separate plugin), and a fresh style.css
+     * cache-busting version.
      */
     private function buildCompleteThemeFiles(array $bundle, string $themeRoot): array
     {
-        $wordpressFiles = $bundle['wordpress']['files'] ?? [];
-        $themeFiles = [];
-
-        foreach ($wordpressFiles as $relativePath => $contents) {
-            if (is_string($relativePath) && is_string($contents)) {
-                $relativePath = str_replace('\\', '/', ltrim($relativePath, '/'));
-                if (str_starts_with($relativePath, $themeRoot.'/')) {
-                    $themeFiles[$relativePath] = $contents;
-                }
-            }
-        }
-
-        if (empty($themeFiles)) {
-            throw new \RuntimeException('File theme WordPress tidak ditemukan dalam hasil build.');
-        }
-
-        // This theme is now the ONLY file the client installs — there is
-        // no separate plugin left as a fallback. WordPress refuses to
-        // install a theme whose style.css has no `Theme Name:` header, the
-        // exact same class of failure ("invalid header") this project has
-        // already hit once for the old plugin — guarantee it deterministically
-        // instead of trusting the AI remembered to include one.
-        $this->ensureThemeHeader($themeFiles, $themeRoot, $bundle);
+        $themeFiles = $this->themeShell($bundle, $themeRoot);
 
         $themeFiles[$themeRoot.'/screenshot.png'] = $this->themeScreenshot($bundle);
 
         // The client's real logo/photos (BundleBuilderService::collectAssets),
-        // written into the theme at the exact same fixed paths the AI
-        // builder prompts were told to reference — guarantees the real
-        // files exist regardless of what the AI actually did with them.
+        // written into the theme at the fixed paths the mockup markup
+        // references, so the real files are always in the ZIP.
         $this->embedThemeAssets($bundle, $themeFiles, $themeRoot);
 
         // Render pages inside the same approved mockup shell and stylesheet.
         // Keep the markup in post_content as a core HTML block so it remains
         // available in the Block Editor while its frontend output stays exact.
-        $this->enforceMockupTheme($bundle, $themeFiles, $themeRoot);
-
+        // The block holds the page only: the navigation bar and the footer come
+        // from header.php/footer.php above, and their link list comes from the
+        // WordPress menu the importer creates.
         // Deterministic (non-AI) page + photo importer, appended straight
         // into functions.php — see injectPageImporterIntoTheme()'s
         // docblock for why this lives in the theme instead of a plugin.
@@ -129,31 +72,155 @@ class BundleExporterService
 
         $this->bustThemeStyleVersion($themeFiles, $themeRoot);
 
+        // Inside the theme folder, so the install guide arrives with the one
+        // file the team actually uploads.
+        $themeFiles[$themeRoot.'/README.md'] = $this->buildReadme($themeRoot);
+
         return $themeFiles;
     }
 
     /**
-     * WordPress reads a theme's identity from a `Theme Name:` header inside
-     * the first ~8KB of style.css (get_file_data(), the same mechanism a
-     * plugin's `Plugin Name:` header uses) — install fails with a generic
-     * "invalid header"-style error if it's missing. Checked with the same
-     * regex WordPress itself uses; if genuinely absent, a valid header is
-     * prepended without touching whatever CSS rules the AI already wrote.
+     * Every file of the shipped theme except the photos and the importer.
+     *
+     * There used to be a second shell here: GPT generated style.css,
+     * header.php and footer.php, and the exporter then overwrote the parts of
+     * it that had to match the approved mockup. Anything the model emitted
+     * that this code did not think to replace stayed in the client's ZIP,
+     * including PHP nobody had read. The mockup's own Blade views now render
+     * the PNG, the live demo and the theme, so the shell is a fixed list of
+     * files rather than a variable one.
      */
-    private function ensureThemeHeader(array &$themeFiles, string $themeRoot, array $bundle): void
+    private function themeShell(array $bundle, string $themeRoot): array
     {
-        $styleKey = $themeRoot.'/style.css';
-        $existing = is_string($themeFiles[$styleKey] ?? null) ? $themeFiles[$styleKey] : '';
-
-        if (preg_match('/^[ \t\/*#@]*Theme Name:(.*)$/mi', substr($existing, 0, 8192))) {
-            return;
+        $css = trim((string) data_get($bundle, 'mockup_rendering.css', ''));
+        if ($css === '') {
+            // A theme with an empty stylesheet installs cleanly and renders an
+            // unstyled site, which is the failure the client notices weeks
+            // later. Name the stage that produced it instead.
+            throw new \RuntimeException('Stylesheet mockup tidak ada di hasil build. Buat ulang WordPress dari opsi yang disetujui.');
         }
 
-        $name = (string) data_get($bundle, 'brand.company_name', '');
-        $name = str_replace('*/', '', trim($name));
+        $fontsUrl = (string) data_get($bundle, 'mockup_rendering.fonts_url', '');
+        $language = data_get($bundle, 'mockup_rendering.lang') === 'en' ? 'en' : 'id';
+        $cta = (string) data_get($bundle, 'mockup_rendering.cta', '');
+        $chrome = data_get($bundle, 'mockup_rendering.chrome');
+        if (! is_array($chrome) || ! isset($chrome['wrapper'], $chrome['header'], $chrome['footer'])) {
+            // Without the chrome the installed site has no navigation bar and
+            // no footer at all, which is the same class of silent failure as an
+            // empty stylesheet — it installs cleanly and the client finds it.
+            throw new \RuntimeException('Chrome mockup tidak ada di hasil build. Buat ulang WordPress dari opsi yang disetujui.');
+        }
+
+        // header.php and footer.php print this markup, so the navigation and the
+        // footer belong to the theme instead of being repeated inside every
+        // page's content. The link list itself is WordPress's own menu — the
+        // importer creates it from the approved mockup (see
+        // injectPageImporterIntoTheme) and the client edits it once under
+        // Appearance > Menus. Same classes as the mockup's stylesheet expects.
+        $navHelpers = <<<'PHP'
+function exito_client_nav_menu(string $class = 'links'): void {
+    wp_nav_menu([
+        'theme_location' => 'primary',
+        'container' => false,
+        'menu_class' => $class,
+        'items_wrap' => '<ul'.($class !== '' ? ' class="'.esc_attr($class).'"' : '').'>%3$s</ul>',
+        'depth' => 1,
+        'fallback_cb' => 'exito_client_pages_menu',
+    ]);
+}
+
+// Before the import has run, or after someone deletes the menu, every
+// published page is still a working link instead of an empty navigation bar.
+function exito_client_pages_menu(array $args = []): void {
+    $class = (string) ($args['menu_class'] ?? 'links');
+    $items = wp_list_pages(['title_li' => '', 'depth' => 1, 'echo' => false]);
+
+    echo '<ul'.($class !== '' ? ' class="'.esc_attr($class).'"' : '').'>'.$items.'</ul>';
+}
+
+// The mockup's call-to-action is a label with nowhere to go until the site has
+// a contact page; then it points there.
+function exito_client_cta_href(): string {
+    foreach (['contact', 'kontak'] as $slug) {
+        $page = get_page_by_path($slug);
+        if ($page instanceof WP_Post && $page->post_status === 'publish') {
+            return esc_url(get_permalink($page));
+        }
+    }
+
+    return '#';
+}
+
+add_filter('wp_nav_menu_items', function ($items, $args) {
+    $label = trim((string) $GLOBALS['exito_client_cta']);
+    if ($label === '' || ($args->menu_class ?? '') !== 'links') {
+        return $items;
+    }
+
+    return $items.'<li class="links-cta-item"><a class="links-cta" href="'.exito_client_cta_href().'">'.esc_html($label).'</a></li>';
+}, 10, 2);
+
+// WordPress marks the current page on the list item; this stylesheet marks the
+// link, exactly as the approved mockup renders it.
+add_filter('nav_menu_link_attributes', function ($atts, $item) {
+    if (!empty($item->current)) {
+        $atts['class'] = trim(($atts['class'] ?? '').' is-active');
+    }
+
+    return $atts;
+}, 10, 2);
+PHP;
+
+        $template = <<<'PHP'
+<?php get_header(); ?>
+<?php while (have_posts()) : the_post(); the_content(); endwhile; ?>
+<?php get_footer(); ?>
+PHP;
+
+        return [
+            // WordPress reads a theme's identity from a `Theme Name:` header
+            // inside the first ~8KB of style.css (get_file_data()) — install
+            // fails with a generic "invalid header" error without it.
+            $themeRoot.'/style.css' => $this->themeHeader($themeRoot, $bundle)."\n\n".$css,
+            $themeRoot.'/functions.php' => "<?php\nadd_action('after_setup_theme', function () { add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('editor-styles'); add_editor_style('style.css'); register_nav_menus(['primary' => 'Menu utama']); });\n"
+                // WordPress never loads style.css by itself. Without this the
+                // theme installs, the pages exist, and the live site renders
+                // them with no stylesheet at all. The version comes from the
+                // header above, which bustThemeStyleVersion rewrites on every
+                // build, so a rebuilt theme cannot serve a cached stylesheet.
+                ."\nadd_action('wp_enqueue_scripts', function () { wp_enqueue_style('exito-client-theme', get_stylesheet_uri(), [], wp_get_theme()->get('Version')); });\n"
+                ."\n\$GLOBALS['exito_mockup_fonts_url'] = ".var_export($fontsUrl, true).";\n"
+                ."\n\$GLOBALS['exito_client_cta'] = ".var_export($cta, true).";\n"
+                ."\n".$navHelpers."\n",
+            $themeRoot.'/header.php' => str_replace(['__EXITO_LANGUAGE__', '__EXITO_CHROME__'], [$language, $chrome['wrapper']."\n".$chrome['header']], <<<'PHP'
+<!doctype html>
+<html lang="__EXITO_LANGUAGE__">
+<head>
+<meta charset="<?php bloginfo('charset'); ?>">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<?php if (!empty($GLOBALS['exito_mockup_fonts_url'])): ?><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="<?php echo esc_url($GLOBALS['exito_mockup_fonts_url']); ?>"><?php endif; ?>
+<?php wp_head(); ?>
+</head>
+<body <?php body_class('is-fluid'); ?>>
+<?php wp_body_open(); ?>
+__EXITO_CHROME__
+PHP),
+            $themeRoot.'/footer.php' => $chrome['footer']."\n</div>\n<?php wp_footer(); ?>\n</body>\n</html>\n",
+            // The navigation and the footer come from the theme (above), so a
+            // page the client creates later in WordPress gets the same chrome as
+            // the approved pages; its content is only what the page itself adds.
+            $themeRoot.'/page.php' => $template,
+            $themeRoot.'/front-page.php' => $template,
+            $themeRoot.'/index.php' => $template,
+        ];
+    }
+
+    private function themeHeader(string $themeRoot, array $bundle): string
+    {
+        $name = str_replace('*/', '', trim((string) data_get($bundle, 'brand.company_name', '')));
         $name = $name !== '' ? $name.' — Exito Client Theme' : ucwords(str_replace('-', ' ', $themeRoot));
 
-        $header = <<<CSS
+        return <<<CSS
 /*
 Theme Name: {$name}
 Description: Approved client website, generated by Exito.
@@ -161,10 +228,7 @@ Version: 1.0.0
 Requires at least: 5.9
 Requires PHP: 7.4
 */
-
 CSS;
-
-        $themeFiles[$styleKey] = $header.$existing;
     }
 
     private function themeScreenshot(array $bundle): string
@@ -214,146 +278,100 @@ CSS;
         return (string) $png;
     }
 
-    /** Replace the separately generated AI shell with the approved mockup shell. */
-    private function enforceMockupTheme(array $bundle, array &$themeFiles, string $themeRoot): void
-    {
-        $styleKey = $themeRoot.'/style.css';
-        $header = '';
-        if (isset($themeFiles[$styleKey]) && preg_match('/\A.*?(?=\n\s*\*\/)/s', $themeFiles[$styleKey], $match)) {
-            $header = rtrim($match[0])."\n */\n\n";
-        }
-        if ($header === '') {
-            $this->ensureThemeHeader($themeFiles, $themeRoot, $bundle);
-            $existing = $themeFiles[$styleKey] ?? '';
-            preg_match('/\A\/\*.*?\*\/\s*/s', $existing, $match);
-            $header = $match[0] ?? '';
-        }
-
-        $css = (string) data_get($bundle, 'mockup_rendering.css', '');
-        if ($css !== '') {
-            $themeFiles[$styleKey] = $header.$css;
-        }
-
-        $themeFiles[$themeRoot.'/functions.php'] = "<?php\nadd_action('after_setup_theme', function () { add_theme_support('title-tag'); add_theme_support('post-thumbnails'); add_theme_support('editor-styles'); add_editor_style('style.css'); });\n";
-        $themeFiles[$themeRoot.'/header.php'] = <<<'PHP'
-<!doctype html>
-<html lang="__EXITO_LANGUAGE__">
-<head>
-<meta charset="<?php bloginfo('charset'); ?>">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<?php if (!empty($GLOBALS['exito_mockup_fonts_url'])): ?><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="<?php echo esc_url($GLOBALS['exito_mockup_fonts_url']); ?>"><?php endif; ?>
-<?php wp_head(); ?>
-</head>
-<body <?php body_class('is-fluid'); ?>>
-<?php wp_body_open(); ?>
-PHP;
-        $fontsUrl = (string) data_get($bundle, 'mockup_rendering.fonts_url', '');
-        $language = data_get($bundle, 'mockup_rendering.lang') === 'en' ? 'en' : 'id';
-        $themeFiles[$themeRoot.'/header.php'] = str_replace('__EXITO_LANGUAGE__', $language, $themeFiles[$themeRoot.'/header.php']);
-        $themeFiles[$themeRoot.'/functions.php'] .= "\n\$GLOBALS['exito_mockup_fonts_url'] = ".var_export($fontsUrl, true).";\n";
-        $themeFiles[$themeRoot.'/footer.php'] = "<?php wp_footer(); ?>\n</body>\n</html>\n";
-        $template = <<<'PHP'
-<?php get_header(); ?>
-<?php while (have_posts()) : the_post(); the_content(); endwhile; ?>
-<?php get_footer(); ?>
-PHP;
-        $themeFiles[$themeRoot.'/page.php'] = $template;
-        $themeFiles[$themeRoot.'/front-page.php'] = $template;
-        $themeFiles[$themeRoot.'/index.php'] = $template;
-    }
-
     /**
      * Step-by-step install guide in Bahasa Indonesia, written for someone
-     * installing this for the first time — a single theme upload, nothing
-     * else. There used to be a second "install & activate the plugin" step
-     * here; that logic now lives inside the theme itself (see
-     * injectPageImporterIntoTheme()), so there's one fewer upload for the
-     * client to get right, and one fewer thing that can fail with a
-     * misleading "invalid header" error from a separate plugin zip.
+     * installing this for the first time. It ships inside the theme folder of
+     * the ZIP the team downloads, so the guide travels with the one file that
+     * actually gets uploaded. There used to be a second "install & activate the
+     * plugin" step here; that logic now lives inside the theme itself (see
+     * injectPageImporterIntoTheme()). The old wrapper archive also carried
+     * reference copies of the content and the client's assets, and this guide
+     * described extracting it first; that archive is gone, so the install is
+     * one upload with no extract step.
+     *
+     * Plain hyphens and ASCII punctuation only, on purpose: this text lands in
+     * a ZIP that people open in editors and terminals with every kind of
+     * encoding, and the previous copy arrived as mojibake.
      */
     private function buildReadme(string $themeRoot): string
     {
-        $themeZip = $themeRoot.'.zip';
-
         return <<<MD
 # Cara Install Website WordPress Ini
 
-Cuma ada **1 file** yang perlu kamu upload ke WordPress: file theme di dalam
-folder `01-theme/`. Folder `02-content/` dan `03-assets/` isinya cuma salinan
-teks/aset untuk referensi — tidak perlu diupload kemana pun.
+Cuma ada **1 file** yang perlu diupload ke WordPress: ZIP yang kamu download
+dari dashboard (namanya `project-<id>-wordpress-theme.zip`). Isinya sudah
+folder theme ini, jadi tidak perlu di-extract dulu.
 
-```
-bundle-export.zip           <- ZIP besar yang kamu download, extract dulu
-Ã¢â€Å“Ã¢â€â‚¬ 01-theme/
-Ã¢â€â€š  Ã¢â€â€Ã¢â€â‚¬ {$themeZip}       <- SATU-SATUNYA file yang diupload ke WordPress
-Ã¢â€Å“Ã¢â€â‚¬ 02-content/                <- referensi teks isi web (tidak perlu diupload)
-Ã¢â€Å“Ã¢â€â‚¬ 03-assets/                 <- referensi aset client (tidak perlu diupload)
-Ã¢â€â€Ã¢â€â‚¬ README.md                  <- file ini
-```
-
-## Langkah 1 — Extract dulu
-Klik kanan `bundle-export.zip` (atau file `project-...-wordpress-theme.zip`
-yang kamu download dari dashboard) Ã¢â€ â€™ **Extract Here / Extract All**.
-
-## Langkah 2 — Pasang Theme (satu-satunya langkah install)
+## Langkah 1 - Pasang theme (satu-satunya langkah install)
 1. Login ke **WordPress Admin** (`namadomain.com/wp-admin`).
 2. Buka menu **Appearance > Themes**.
-3. Klik **Add New Theme** (di bagian atas halaman) Ã¢â€ â€™ **Upload Theme**.
-4. Klik **Choose File**, cari folder hasil extract tadi, masuk ke folder
-   `01-theme/`, pilih file **`{$themeZip}`**.
+3. Klik **Add New Theme** (di bagian atas halaman), lalu **Upload Theme**.
+4. Klik **Choose File**, pilih ZIP yang kamu download tadi.
 5. Klik **Install Now**, tunggu sampai selesai, lalu klik **Activate**.
 
 Tidak ada langkah plugin. Tidak ada langkah lain.
 
-## Langkah 3 — Selesai, halaman sudah otomatis jadi
+## Langkah 2 - Selesai, halaman sudah otomatis jadi
 Begitu theme aktif, semua halaman (Home, About, Services, Contact, dst)
-otomatis dibuat lengkap dengan isi teks & foto, dan Home otomatis dijadikan
+otomatis dibuat lengkap dengan isi teks dan foto, dan Home otomatis dijadikan
 halaman depan website. Tidak ada langkah import manual, tidak perlu plugin
 tambahan apa pun (termasuk tidak perlu Elementor).
 
 Untuk memastikan:
-- Buka menu **Pages** di WordPress Admin — harus muncul halaman Home,
+- Buka menu **Pages** di WordPress Admin. Harus muncul halaman Home,
   About, Services, Contact (atau sesuai isi proposal), semuanya berstatus
   **Published**.
-- Buka **Settings > Reading** — pastikan "Your homepage displays" sudah
-  otomatis terset ke **A static page**, dengan Homepage = **Home**.
+- Buka **Settings > Reading**. Pastikan "Your homepage displays" sudah otomatis
+  terset ke **A static page**, dengan Homepage = **Home**.
+- Buka menu **Appearance > Menus**. Menu bernama "Menu Utama" sudah dibuat dan
+  sudah dipasang di lokasi "Menu utama" - isinya persis navigasi pada mockup.
 - Kunjungi alamat website-nya langsung untuk lihat hasilnya.
 
 Kalau setelah theme aktif halaman-halaman itu belum muncul, buka sembarang
 halaman lain di WordPress Admin (misalnya klik menu Dashboard) lalu cek lagi
-menu Pages — proses pembuatan halaman jalan otomatis begitu ada admin yang
+menu Pages - proses pembuatan halaman jalan otomatis begitu ada admin yang
 membuka wp-admin setelah theme aktif. Ada juga notifikasi kuning di atas
 wp-admin dengan tombol "Buat/perbarui halaman sekarang" kalau perlu dipicu
 manual.
 
-## Langkah 4 — Edit isi halaman
+## Langkah 3 - Edit isi halaman
 Untuk mengubah teks, foto, atau urutan section:
 1. Buka menu **Pages**, klik halaman yang mau diedit (misalnya "Home").
-2. Klik **Edit** — akan terbuka **Block Editor** bawaan WordPress.
+2. Klik **Edit** - akan terbuka **Block Editor** bawaan WordPress.
 3. Klik blok HTML untuk mengubah isi halaman. Markup di dalamnya mengikuti
-   mockup yang dipilih. Perubahan urutan section atau tampilannya perlu
+   mockup yang dipilih klien. Perubahan urutan section atau tampilannya perlu
    dilakukan pada markup tersebut.
 4. Setelah selesai, klik **Update** (atau **Publish**) di kanan atas.
 
-Tidak perlu plugin tambahan. Susunan visual halaman mengikuti mockup yang
-dipilih. Ubah markup pada blok HTML di Block Editor untuk menyesuaikan halaman.
+Susunan visual halaman mengikuti mockup yang dipilih klien. Tidak perlu plugin
+tambahan untuk mengubah isinya.
 
-## Referensi tambahan
-- `02-content/` — salinan teks isi website dalam format JSON/teks, buat
-  referensi kalau butuh copy-paste ulang.
-- `03-assets/` — catatan aset milik client (logo, dll).
+## Langkah 4 - Menambah halaman atau mengubah menu
+Menu atas dan daftar tautan di footer bukan tulisan tempelan di dalam halaman,
+melainkan **Menu Utama** biasa milik WordPress. Jadi:
+
+1. Buat halamannya lebih dulu (menu **Pages > Add New**), lalu Publish.
+2. Buka **Appearance > Menus**, pilih "Menu Utama", centang halaman baru di
+   kolom kiri, atur urutannya dengan drag, klik **Save Menu**.
+3. Semua halaman langsung ikut menampilkan menu yang baru - tidak perlu
+   menyunting satu per satu.
+
+Navigasi dan footer juga otomatis menempel pada halaman baru itu, karena mereka
+dipasang oleh theme, bukan disimpan di dalam tiap halaman.
 
 ## Kalau ada masalah
-- **Upload theme gagal "The uploaded file exceeds..."** — biasanya batas
-  ukuran upload hosting terlalu kecil; hubungi provider hosting untuk
-  menaikkan `upload_max_filesize`/`post_max_size`, atau upload manual lewat
-  FTP/File Manager: extract `{$themeZip}` di komputer, lalu upload folder
-  hasil extract-nya langsung ke `wp-content/themes/` di server, baru
-  aktifkan lewat menu **Appearance > Themes** seperti biasa.
-- **Halaman kosong / foto tidak muncul** — buka halamannya di Block Editor,
-  foto biasanya butuh beberapa detik untuk ter-upload otomatis saat theme
-  pertama kali aktif; refresh halaman **Pages** sekali lagi, atau pakai
-  tombol "Buat/perbarui halaman sekarang" di notifikasi admin.
+- **Upload theme gagal "The uploaded file exceeds..."** - biasanya batas ukuran
+  upload hosting terlalu kecil. Hubungi provider hosting untuk menaikkan
+  `upload_max_filesize` dan `post_max_size`, atau upload manual lewat
+  FTP/File Manager: extract ZIP-nya, upload folder `{$themeRoot}` hasil extract
+  ke `wp-content/themes/` di server, lalu aktifkan lewat menu
+  **Appearance > Themes** seperti biasa.
+- **Halaman kosong atau foto tidak muncul** - buka halamannya di Block Editor.
+  Foto biasanya butuh beberapa detik untuk ter-upload otomatis saat theme
+  pertama kali aktif; refresh halaman **Pages** sekali lagi, atau pakai tombol
+  "Buat/perbarui halaman sekarang" di notifikasi admin.
+- **Tampilan website beda dari mockup** - pastikan theme yang aktif adalah
+  `{$themeRoot}`, bukan theme bawaan WordPress.
 MD;
     }
 
@@ -376,6 +394,23 @@ MD;
      */
     private function injectPageImporterIntoTheme(array $bundle, array &$themeFiles, string $themeRoot): void
     {
+        // The client's real logo ships inside the theme and the theme's own
+        // header points at it, so the brand mark is there the moment the theme
+        // is active — this does not wait on the page import below.
+        $imagesForExport = [];
+        $logo = $bundle['assets']['logo'] ?? null;
+        if (is_array($logo) && ! empty($logo['filename']) && is_string($logo['bytes'] ?? null) && $logo['bytes'] !== '') {
+            $safeFilename = preg_replace('/[^A-Za-z0-9._-]/', '-', $logo['filename']) ?: 'client-logo.png';
+            $themeFiles[$themeRoot.'/assets/'.$safeFilename] = $logo['bytes'];
+            $imagesForExport[$safeFilename] = 'assets/'.$safeFilename;
+
+            $logoMarkup = "<?php echo esc_url(get_stylesheet_directory_uri().'/assets/{$safeFilename}'); ?>";
+            foreach (['header.php', 'footer.php'] as $chromeFile) {
+                $key = $themeRoot.'/'.$chromeFile;
+                $themeFiles[$key] = str_replace('__EXITO_THEME_ASSET__', $logoMarkup, $themeFiles[$key]);
+            }
+        }
+
         $pages = $bundle['elementor_pages'] ?? [];
         if (! $pages || ! is_array($pages)) {
             return;
@@ -405,7 +440,6 @@ MD;
         // verbatim as real binary files in the theme and uploaded to the Media
         // Library at import time — see exito_client_import_images() below.
         $images = $bundle['section_images'] ?? [];
-        $imagesForExport = [];
         if (is_array($images)) {
             foreach ($images as $filename => $bytes) {
                 if (! is_string($filename) || ! is_string($bytes) || $bytes === '') {
@@ -417,22 +451,16 @@ MD;
             }
         }
 
-        $logo = $bundle['assets']['logo'] ?? null;
-        if (is_array($logo) && ! empty($logo['filename']) && is_string($logo['bytes'] ?? null) && $logo['bytes'] !== '') {
-            $safeFilename = preg_replace('/[^A-Za-z0-9._-]/', '-', $logo['filename']) ?: 'client-logo.png';
-            $themeFiles[$themeRoot.'/assets/'.$safeFilename] = $logo['bytes'];
-            $imagesForExport[$safeFilename] = 'assets/'.$safeFilename;
-        }
-
         $exportedPages = var_export($pagesForExport, true);
         $exportedImages = var_export($imagesForExport, true);
+        $exportedNav = var_export(array_values((array) data_get($bundle, 'mockup_rendering.nav', [])), true);
         // Identifies THIS build's content — changes any time the approved
         // mockup/photos are rebuilt. Lets the importer below tell "never
         // imported yet" apart from "imported an OLDER version of this
         // content", so re-uploading a rebuilt theme (e.g. a fixed layout)
         // actually refreshes the live pages instead of leaving whatever an
         // earlier build already created untouched forever.
-        $contentVersion = var_export(md5($exportedPages.$exportedImages), true);
+        $contentVersion = var_export(md5($exportedPages.$exportedImages.$exportedNav), true);
         $importOwner = var_export('exito:'.($bundle['project_id'] ?? $themeRoot), true);
 
         // A trailing PHP closing tag in whatever functions.php content
@@ -461,6 +489,13 @@ function exito_client_images() {
 
 function exito_client_content_version() {
     return {$contentVersion};
+}
+
+// The navigation the client approved: label + the page slug it points at. The
+// page ids only exist once the pages have been created, so this becomes the
+// menu's items inside exito_client_import_menu().
+function exito_client_nav_items() {
+    return {$exportedNav};
 }
 
 function exito_client_page_key(\$slug) {
@@ -643,11 +678,66 @@ function exito_client_import_pages() {
         update_option('page_on_front', \$home_id);
     }
 
+    exito_client_import_menu(\$page_ids);
+
     if (\$created > 0) {
         update_option('exito_client_pages_imported', exito_client_content_version());
     }
 
     return \$created;
+}
+
+// The approved navigation becomes a real WordPress menu: the client adds a page
+// or renames a link once under Appearance > Menus and every page follows,
+// instead of editing the HTML of each page. Re-running the import replaces this
+// theme's menu items rather than stacking up duplicates.
+function exito_client_import_menu(array \$page_ids): void {
+    \$items = exito_client_nav_items();
+    if (!\$items || !\$page_ids) {
+        return;
+    }
+
+    if (!function_exists('wp_create_nav_menu')) {
+        require_once ABSPATH . 'wp-admin/includes/nav-menu.php';
+    }
+    if (!function_exists('wp_create_nav_menu')) {
+        return;
+    }
+
+    \$name = 'Menu Utama';
+    \$menu_id = (int) get_option('exito_client_nav_menu_id');
+    if (!\$menu_id || !wp_get_nav_menu_object(\$menu_id)) {
+        \$existing = wp_get_nav_menu_object(\$name);
+        \$menu_id = \$existing ? (int) \$existing->term_id : (int) wp_create_nav_menu(\$name);
+        if (!\$menu_id || is_wp_error(\$menu_id)) {
+            return;
+        }
+    } else {
+        foreach ((array) wp_get_nav_menu_items(\$menu_id) as \$stale) {
+            wp_delete_post((int) \$stale->ID, true);
+        }
+    }
+
+    update_option('exito_client_nav_menu_id', \$menu_id);
+
+    foreach (\$items as \$item) {
+        \$page_id = (int) (\$page_ids[\$item['slug']] ?? 0);
+        if (!\$page_id) {
+            continue;
+        }
+
+        wp_update_nav_menu_item(\$menu_id, 0, [
+            'menu-item-title' => (string) \$item['label'],
+            'menu-item-type' => 'post_type',
+            'menu-item-object' => 'page',
+            'menu-item-object-id' => \$page_id,
+            'menu-item-status' => 'publish',
+        ]);
+    }
+
+    \$locations = get_theme_mod('nav_menu_locations', []);
+    \$locations['primary'] = \$menu_id;
+    set_theme_mod('nav_menu_locations', \$locations);
 }
 
 // Runs automatically the first time an admin opens wp-admin after this
@@ -711,22 +801,13 @@ PHP;
     }
 
     /**
-     * Writes the client's real logo/photos (BundleBuilderService::
-     * collectAssets()) into the theme at `assets/<filename>` — the exact
-     * paths OpenAiWordPressBuilderService tells the AI to reference. Doing
-     * this ourselves, deterministically, means
-     * the real files exist in the shipped theme no matter what the AI
-     * actually did with them.
-     */
-    /**
      * Rewrites style.css's `Version:` header to a fresh timestamp on every
      * build. functions.php enqueues style.css with
      * `wp_get_theme()->get('Version')` as its cache-busting query string
-     * (`style.css?ver=...`) — the AI always writes a static "1.0.0" there,
-     * so re-uploading a rebuilt theme with real CSS changes can still show
-     * a browser/proxy-cached copy of an EARLIER build's stylesheet, since
-     * the URL never changes. This makes it change every time regardless of
-     * what the AI wrote.
+     * (`style.css?ver=...`), and the header themeShell() writes always says
+     * "1.0.0" — without this, re-uploading a rebuilt theme with real CSS
+     * changes could still show a browser or proxy cached copy of an EARLIER
+     * build's stylesheet, since the URL never changes.
      */
     private function bustThemeStyleVersion(array &$themeFiles, string $themeRoot): void
     {
@@ -743,6 +824,12 @@ PHP;
         }
     }
 
+    /**
+     * Writes the client's real logo/photos (BundleBuilderService::
+     * collectAssets()) into the theme at `assets/<filename>` — the same
+     * filenames the mockup rendering was given as image tokens, so the bytes
+     * and the markup that points at them are written by this one build.
+     */
     private function embedThemeAssets(array $bundle, array &$themeFiles, string $themeRoot): void
     {
         $assets = $bundle['assets'] ?? [];
@@ -760,69 +847,5 @@ PHP;
                 $themeFiles[$themeRoot.'/assets/'.$image['filename']] = $image['bytes'];
             }
         }
-    }
-
-    private function blockContentCss(array $brand): string
-    {
-        $primary = $this->safeHexColor($brand['primary_color'] ?? null, '#1F2937');
-        $accent = $this->safeHexColor($brand['accent_color'] ?? null, '#2563EB');
-
-        return <<<CSS
-.wp-block-heading { color: {$primary}; }
-.wp-block-button__link, .wp-element-button { background-color: {$accent}; color: #fff; border-radius: 8px; padding: 12px 22px; font-weight: 600; text-decoration: none; display: inline-block; }
-.wp-block-columns { gap: 24px; margin: 24px 0; }
-.wp-block-column { padding: 8px; }
-.wp-block-separator { border-color: #e5e7eb; margin: 40px auto; max-width: 1100px; }
-.wp-block-image img { border-radius: 12px; object-fit: cover; width: 100%; height: auto; }
-.wp-block-column .wp-block-image { margin-bottom: 12px; }
-.wp-block-group.has-border-color { overflow: hidden; }
-.entry-content, .site-content, main { max-width: 1100px; margin-left: auto; margin-right: auto; padding: 0 24px; }
-
-/* Full-page sections (design renderer v2) — the finishing the approved live demo shows. */
-.exito-section { margin: 0; padding-left: 24px; padding-right: 24px; }
-.entry-content > .exito-section, main > .exito-section { max-width: none; margin-left: calc(50% - 50vw); margin-right: calc(50% - 50vw); padding-left: max(24px, calc(50vw - 550px)); padding-right: max(24px, calc(50vw - 550px)); }
-.exito-eyebrow { font-size: 12px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
-.exito-num { font-weight: 700; letter-spacing: 1px; margin-bottom: 6px; }
-.exito-feature-grid .wp-block-column { border-top: 2px solid {$primary}; padding-top: 18px; }
-.exito-lead { font-size: 1.2em; line-height: 1.7; }
-.exito-editorial-list { padding-left: 1.2em; }
-.exito-editorial-list li { padding: 8px 0; border-top: 1px solid #e5e7eb; }
-.exito-stat-value { font-size: clamp(34px, 4.4vw, 56px); line-height: 1; margin: 0; }
-.exito-stat-label { opacity: .85; margin-top: 8px; }
-.exito-stats-grid .wp-block-column { border-left: 1px solid currentColor; padding-left: 18px; }
-.exito-quote-lead p { font-size: clamp(22px, 2.4vw, 32px); line-height: 1.35; }
-.exito-quote-small { border-left: 3px solid {$accent}; padding-left: 18px; }
-.exito-gallery img { aspect-ratio: 1 / 1; object-fit: cover; }
-.exito-tiles .wp-block-group { min-height: 180px; display: flex; align-items: flex-end; border-radius: 8px; }
-.exito-logos .exito-logo { font-weight: 700; font-size: 18px; opacity: .7; margin: 0 20px; }
-.wp-block-details { border-bottom: 1px solid #e5e7eb; padding: 18px 0; }
-.wp-block-details summary { font-weight: 700; cursor: pointer; }
-.exito-monogram { display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; background: #F6F4F0; font-size: 42px; font-weight: 700; border-radius: 8px; }
-.exito-role { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
-.exito-price { font-size: 1.6em; font-weight: 700; }
-.exito-panel-number { font-size: 64px; }
-.exito-listing-grid .wp-block-group.has-border-color { display: flex; flex-direction: column; height: 100%; border-radius: 16px !important; }
-.exito-listing-grid .wp-block-image img { border-radius: 10px; }
-.exito-listing-meta { font-size: 13px; opacity: .75; margin: 4px 0 6px; }
-.exito-listing-grid h3 { font-size: 20px; margin: 0 0 8px; }
-.exito-listing-text { font-size: 14px; opacity: .8; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-.exito-listing-grid .exito-price { font-size: 1.25em; margin: auto 0 10px; padding-top: 12px; }
-.exito-listing-grid .wp-block-button__link { background: transparent; color: inherit; box-shadow: inset 0 0 0 1.5px currentColor; }
-@media (max-width: 781px) {
-  .exito-alt-row { flex-direction: column; }
-  .exito-stats-grid { flex-wrap: wrap !important; }
-  .exito-stats-grid .wp-block-column { flex-basis: 45% !important; }
-}
-CSS;
-    }
-
-    private function safeHexColor(?string $color, string $fallback): string
-    {
-        $color = ltrim((string) $color, '#');
-        if (strlen($color) === 6 && ctype_xdigit($color)) {
-            return '#'.$color;
-        }
-
-        return $fallback;
     }
 }

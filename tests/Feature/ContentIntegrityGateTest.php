@@ -2,12 +2,11 @@
 
 use App\Models\Client;
 use App\Models\Project;
-use App\Services\AnalisisGeminiService;
 use App\Services\ContentIntegrityService;
 use App\Services\ElementorPageBuilderService;
+use App\Services\GenerateMockupGptService;
 use App\Support\MockupSite;
-use Gemini\Laravel\Facades\Gemini;
-use Gemini\Responses\GenerativeModel\GenerateContentResponse;
+use Illuminate\Support\Facades\Http;
 
 /**
  * Nothing the client did not supply — testimonials, figures, prices, pricing
@@ -29,7 +28,7 @@ function integrityProject(array $attributes = [], array $client = []): Project
     ], $attributes))->load('client');
 }
 
-/** A Gemini sitemap written the way a model left to itself writes one. */
+/** A sitemap written the way a model left to itself writes one. */
 function slopAnalysis(array $homeSections = []): array
 {
     return [
@@ -220,17 +219,22 @@ it('never turns competitor or reference facts into client facts', function () {
         ->and(collect(homeSections($clean))->firstWhere('type', 'about')['description'])->toBe('We plan every day around you.');
 });
 
-it('runs on every live Gemini response before the sitemap is final', function () {
-    $json = json_encode(slopAnalysis([
+it('runs on every live GPT content response before the sitemap is final', function () {
+    config(['services.openai.key' => 'test-key']);
+
+    $analysis = slopAnalysis([
         ['type' => 'testimonial', 'name' => 'Testimonials', 'headline' => 'What guests say', 'items' => [['quote' => 'Fantastic!', 'author' => 'Rina']]],
-    ]));
-    Gemini::fake([GenerateContentResponse::fake(['candidates' => [['content' => ['parts' => [['text' => $json]], 'role' => 'model']]]])]);
+    ]);
+    Http::fake(['api.openai.com/v1/responses' => openAiStreamResponse(json_encode($analysis))]);
 
     $project = integrityProject();
-    $analysis = app(AnalisisGeminiService::class)->analyzeProject($project, $project->client);
+    $clean = app(GenerateMockupGptService::class)->writeWebsiteContent(
+        $project, $project->client,
+        ['target_market' => 'International tourists in Bali', 'from_team' => true, 'business_type' => 'Travel', 'topics' => []]
+    );
 
-    expect($analysis['content_integrity']['checked'])->toBeTrue()
-        ->and(json_encode($analysis['sitemap']))->not->toContain('Rina')->not->toContain('12,000');
+    expect($clean['content_integrity']['checked'])->toBeTrue()
+        ->and(json_encode($clean['sitemap']))->not->toContain('Rina')->not->toContain('12,000');
 });
 
 it('does not treat "Curated" as the unsupported claim "rated"', function () {

@@ -173,9 +173,19 @@ it('photographs every photo-led V2 section and ships each photo under its own na
             ->toContain('__EXITO_IMAGE:home-section-6-item-3.jpg__')
         ->and($bundle['mockup_rendering']['pages']['home']['html'])
             ->toContain('<!-- wp:html -->')
-            ->toContain('class="site full-page"')
+            // The page's own content and nothing else: the navigation bar and
+            // the footer belong to the theme, so a page the client adds later
+            // in WordPress gets the same chrome as the approved pages.
+            ->not->toContain('class="site full-page"')
+            ->not->toContain('<footer class="footer')
             ->toContain('__EXITO_IMAGE:home-hero.jpg__')
             ->toContain('__EXITO_IMAGE:home-section-6-item-3.jpg__')
+        ->and($bundle['mockup_rendering']['chrome']['wrapper'])
+            ->toContain('class="site full-page"')
+        ->and($bundle['mockup_rendering']['chrome']['header'])
+            ->toContain("<?php exito_client_nav_menu('links'); ?>")
+        ->and($bundle['mockup_rendering']['nav'][0]['slug'])
+            ->toBe('home')
         ->and($bundle['mockup_rendering']['css'])
             ->toContain('.hero--split')
             ->not->toContain('<style');

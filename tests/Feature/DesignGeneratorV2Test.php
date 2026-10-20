@@ -163,6 +163,38 @@ it('produces three candidates with genuinely different layouts', function () {
         ->and(count(explode('|', $fingerprints[0])))->toBe(9);
 });
 
+it('briefs the designer with a nav and a footer to choose between', function () {
+    $prompts = [];
+    fakeV2Designer([[]], $prompts);
+
+    app(GenerateMockupGptService::class)->generateMockup(v2Project(), v2Analysis());
+    $prompt = $prompts[0][0]['text'];
+
+    foreach (array_merge(CompositionSpec::HEADER_LAYOUTS, CompositionSpec::FOOTER_LAYOUTS) as $layout) {
+        expect($prompt)->toContain($layout);
+    }
+
+    expect($prompt)->toContain('"header_layout"')->toContain('"footer_layout"')
+        ->toContain('the nav is the first thing a visitor reads');
+});
+
+it('gives the three options different chrome when all three designers omit it', function () {
+    $prompts = [];
+    // fakeV2Designer answers without a header_layout or footer_layout at all.
+    fakeV2Designer([
+        [['page' => 0, 'index' => 0, 'composition' => 'background_image']],
+        [['page' => 0, 'index' => 0, 'composition' => 'asymmetric_split']],
+        [['page' => 0, 'index' => 0, 'composition' => 'editorial', 'image_required' => false]],
+    ], $prompts);
+
+    $candidates = app(GenerateMockupGptService::class)->generateMockupCandidates(v2Project(), v2Analysis());
+
+    expect(array_map(fn (array $c) => $c['design']['header_layout'], $candidates))
+        ->toBe(array_slice(CompositionSpec::HEADER_LAYOUTS, 0, 3))
+        ->and(array_map(fn (array $c) => $c['design']['footer_layout'], $candidates))
+        ->toBe(CompositionSpec::FOOTER_LAYOUTS);
+});
+
 it('designs from scratch when the project has no reference', function () {
     $prompts = [];
     fakeV2Designer([[]], $prompts);

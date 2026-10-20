@@ -3,7 +3,6 @@
 use App\Models\Project;
 use App\Services\BlueprintManifestService;
 use App\Services\BundleBuilderService;
-use App\Services\OpenAiWordPressBuilderService;
 use App\Services\ElementorPageBuilderService;
 use App\Support\MockupDesignSpec;
 use App\Services\MockupAssetService;
@@ -167,7 +166,6 @@ it('survives a blueprint with no pages at all', function () {
 
 it('describes the project type instead of labelling every build a restaurant', function () {
     $builder = new class (
-        app(OpenAiWordPressBuilderService::class),
         new ElementorPageBuilderService(),
         app(MockupAssetService::class),
     ) extends BundleBuilderService {
@@ -186,7 +184,6 @@ it('describes the project type instead of labelling every build a restaurant', f
 
 it('claims no category at all when the project states no type', function () {
     $builder = new class (
-        app(OpenAiWordPressBuilderService::class),
         new ElementorPageBuilderService(),
         app(MockupAssetService::class),
     ) extends BundleBuilderService {

@@ -1,8 +1,10 @@
 <?php
 
+use App\Models\PipelineCheckpoint;
 use App\Models\Project;
 use App\Models\Proposal;
 use App\Models\User;
+use App\Services\PipelineCheckpointService;
 
 /**
  * Approving a mockup used to call GPT vision on the approved PNG to produce
@@ -113,4 +115,66 @@ it('still refuses to approve a project that has no proposal yet', function () {
     $this->actingAs(User::factory()->create())
         ->post(route('pages.projects.proposal.approve', $project))
         ->assertSessionHas('error');
+});
+
+it('records the option the button was pressed on in the same action as the approval', function () {
+    config(['services.openai.key' => null]);
+
+    $project = approvableProject();
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('pages.projects.proposal.approve', $project), ['mockup_index' => 0])
+        ->assertRedirect()
+        ->assertSessionHas('success', 'Pilihan klien tercatat pada Opsi 1. WordPress siap dibuat.');
+
+    $proposal = $project->fresh()->latestProposal;
+    $data = json_decode((string) $proposal->ai_reasoning, true);
+
+    expect($proposal->status)->toBe('approved')
+        ->and($data['selected_mockup_index'])->toBe(0)
+        ->and($data['mockup']['design']['primary_color'])->toBe('#111111')
+        ->and($data['implementation_manifest']['design_system']['colors']['primary'])->toBe('#111111');
+});
+
+it('refuses to record an option this proposal does not hold', function () {
+    config(['services.openai.key' => null]);
+
+    $project = approvableProject();
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('pages.projects.proposal.approve', $project), ['mockup_index' => 2])
+        ->assertSessionHas('error', 'Opsi mockup yang dipilih tidak ditemukan. Generate proposal ulang.');
+
+    expect($project->fresh()->latestProposal->status)->toBe('pending')
+        ->and($project->fresh()->status)->toBe('request');
+});
+
+it('records that the client accepted none of the options', function () {
+    config(['services.openai.key' => null]);
+
+    $project = approvableProject();
+    $checkpoints = app(PipelineCheckpointService::class);
+    $checkpoints->recordSuccess($project, 'target_market', ['target_market' => 'Pecinta kopi specialty']);
+    $checkpoints->recordSuccess($project, 'competitor_research', []);
+    $checkpoints->recordSuccess($project, 'website_content', ['sitemap' => ['pages' => []]]);
+    $checkpoints->recordSuccess($project, 'design_blueprint', [['design' => []]]);
+
+    $this->actingAs(User::factory()->create())
+        ->post(route('pages.projects.proposal.revise', $project))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    $proposal = $project->fresh()->latestProposal;
+    $data = json_decode((string) $proposal->ai_reasoning, true);
+
+    expect($proposal->status)->toBe('rejected')
+        ->and($data['selected_mockup_index'])->toBeNull()
+        // The round the client rejected stays readable...
+        ->and($data['mockup_candidates'])->toHaveCount(2);
+
+    // ...but the next run does not replay it: the audience came from the brief,
+    // the words and the designs came from the options the client said no to.
+    expect($checkpoints->nextStage($project))->toBe('website_content')
+        ->and(PipelineCheckpoint::where('project_id', $project->id)->pluck('stage')->sort()->values()->all())
+        ->toBe(['competitor_research', 'target_market']);
 });

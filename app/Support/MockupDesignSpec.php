@@ -6,22 +6,23 @@ namespace App\Support;
  * The one place the approved mockup's visual measurements live.
  *
  * These numbers used to exist in three hand-synced copies: the CSS in
- * resources/views/pdf/mockup-render.blade.php (what the client actually sees
- * and approves), the Gutenberg block attributes in ElementorPageBuilderService
- * (what ships as the page body), and the prose measurements in
- * OpenAiWordPressBuilderService::chromeDesignSpec() (what GPT is told to
- * build header.php/footer.php/style.css from). Three copies of the same number
- * is three chances to drift, and the chrome copy in particular was already a
- * paraphrase ("~94px", "~32px gap") rather than the value itself.
+ * resources/views/mockup/styles.blade.php (what the client sees in the PNG and
+ * the live demo), the Gutenberg block attributes in ElementorPageBuilderService
+ * (what ships as the page body), and prose measurements handed to GPT as the
+ * brief for building header.php/footer.php/style.css. Three copies of the same
+ * number is three chances to drift, and the chrome copy in particular was
+ * already a paraphrase ("~94px", "~32px gap") rather than the value itself.
+ * That third copy is gone: the theme's stylesheet is rendered from
+ * styles.blade.php, the same file the approved PNG came from.
  *
  * This is deliberately a flat bag of measurements, not a design system: it
- * holds only values that more than one of those three consumers needs. Brand
- * choices that vary per project — colors, fonts — are NOT here; they come from
- * the blueprint's own design tokens. The only colors here are the fixed chrome
+ * holds only values that more than one of those consumers needs. Brand choices
+ * that vary per project — colors, fonts — are NOT here; they come from the
+ * blueprint's own design tokens. The only colors here are the fixed chrome
  * neutrals that are the same on every project regardless of palette.
  *
- * Changing a value here changes the mockup, the built page, and Claude's brief
- * together, which is the entire point.
+ * Changing a value here changes the mockup the client approves and the built
+ * page together, which is the entire point.
  */
 final class MockupDesignSpec
 {
@@ -45,6 +46,12 @@ final class MockupDesignSpec
             'nav_button_padding_y' => 13,
             'nav_button_padding_x' => 22,
             'nav_button_font_size' => 14,
+            // header_layout 'center_brand': brand on the first row, links beneath.
+            'nav_center_row_gap' => 10,
+            'nav_center_padding_y' => 16,
+            // header_layout 'overlay_hero': how far the darkening gradient above
+            // the hero reaches past the nav row.
+            'nav_overlay_scrim_extra' => 28,
 
             // ---- hero ----
             'hero_min_height' => 480,
@@ -94,6 +101,12 @@ final class MockupDesignSpec
             'footer_heading_color' => '#c9c2b8',
             'footer_bottom_text_color' => '#8f887d',
             'footer_columns' => '2fr 1fr 1fr',
+            // footer_layout 'asymmetric': a wide brand block beside the links.
+            'footer_columns_asymmetric' => '1.6fr 1fr',
+            // footer_layout 'minimal': one row, brand left, links right.
+            'footer_columns_minimal' => 'auto 1fr',
+            'footer_minimal_padding_y' => 28,
+            'footer_link_gap' => 26,
             'footer_gap' => 36,
             'footer_padding_top' => 44,
             'footer_padding_bottom' => 36,

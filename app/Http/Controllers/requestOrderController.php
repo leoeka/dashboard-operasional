@@ -23,7 +23,7 @@ class requestOrderController extends Controller
         // FIX: service_type[] sekarang divalidasi & dibaca — sebelumnya
         // checkbox ini cuma dipakai buat show/hide section di JS, nilainya
         // tidak pernah divalidasi atau disimpan sama sekali.
-        $serviceTypes = $request->input('service_type', []);
+        $serviceTypes = (array) $request->input('service_type', []);
         $wantsWebsite = in_array('website', $serviceTypes);
         $wantsSeo = in_array('seo', $serviceTypes);
         $wantsBacklink = in_array('backlink', $serviceTypes);
@@ -37,21 +37,32 @@ class requestOrderController extends Controller
             'company_name' => [Rule::requiredIf(!$existingClient), 'nullable', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
-            'address' => ['nullable', 'string'],
+            'address' => ['nullable', 'string', 'max:2000'],
             'client_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
 
             'service_type' => ['required', 'array', 'min:1'],
             'service_type.*' => ['in:website,seo,backlink'],
+
+            'project_name' => ['required', 'string', 'max:255'],
 
             // FIX: field Website sebelumnya SELALU required di server,
             // walau JS menandainya opsional saat checkbox "website" tidak
             // dicentang — bikin submit gagal untuk client yang cuma mau
             // SEO/Backlink saja. Sekarang wajib CUMA kalau service_type
             // mengandung 'website'.
-            'website_name' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string', 'max:255'],
             'user_story' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
-            'target_market' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
+            // Isi/fitur yang diminta: ini yang menentukan daftar halaman di
+            // proposal, jadi wajib kalau website dipilih.
+            'website_features' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
+            // Cukup jawaban Ya/Tidak; aset-asetnya menyusul, tidak di-upload di sini.
+            'has_client_assets' => [Rule::requiredIf($wantsWebsite), 'nullable', 'boolean'],
+            // Type ditulis bebas oleh tim (dulu dropdown 4 pilihan, terlalu sempit
+            // untuk bahasa klien seperti "web katalog + booking").
             'website_type' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string', 'max:255'],
+            // Never required: Gemini reads the audience out of the user story
+            // when the team did not type it separately. Filling this in is still
+            // the better option — a stated audience beats an inferred one.
+            'target_market' => ['nullable', 'string'],
             'design_reference_type' => ['nullable', Rule::in(['none', 'image', 'zip', 'url'])],
             'design_reference_url' => ['nullable', 'url', 'max:2048'],
             'design_reference_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,zip', 'max:10240'],
@@ -74,10 +85,6 @@ class requestOrderController extends Controller
             'backlink_anchor_type' => ['nullable', 'array'],
             'backlink_anchor_type.*' => ['in:exact_match,partial_match,branding,generic'],
             'backlink_priority' => ['nullable', 'in:quality,quantity'],
-
-            // Data Assets
-            'assets' => ['nullable', 'array'],
-            'assets.*' => ['file', 'mimes:jpg,jpeg,png,pdf,docx,zip', 'max:10240'],
         ]);
 
         // 2. Transaksi Database
@@ -98,14 +105,13 @@ class requestOrderController extends Controller
                 ]);
 
             // B. Simpan Project
-            // FIX: nama project sebelumnya selalu "Website {company_name}",
-            // tidak masuk akal untuk client yang cuma minta SEO/Backlink
-            // tanpa website baru. Sekarang, kalau tim sudah isi Website Name
-            // (dipakai juga untuk menentukan domain), itu yang dipakai jadi
-            // nama project.
-            $projectName = $wantsWebsite
-                ? ($validated['website_name'] ?? "Website {$client->company_name}")
-                : $client->company_name . ' - ' . implode(' & ', array_map('ucfirst', $serviceTypes));
+            // Nama project diketik tim di form. Kalau kosong (jalur lama/API),
+            // diturunkan dari nama client + jenis layanan.
+            $serviceLabels = ['website' => 'Website', 'seo' => 'SEO', 'backlink' => 'Backlink'];
+            $projectName = trim((string) $validated['project_name']);
+            if ($projectName === '') {
+                $projectName = $client->company_name . ' - ' . implode(' & ', array_map(fn ($type) => $serviceLabels[$type] ?? ucfirst($type), $serviceTypes));
+            }
 
             $project = $client->projects()->create([
                 'name' => $projectName,
@@ -123,17 +129,26 @@ class requestOrderController extends Controller
             // diam-diam dan tidak pernah sampai ke prompt AI. Sekarang disimpan
             // sebagai kolom sendiri supaya bisa dipakai GenerateMockupGptService.
             if ($wantsWebsite) {
+                $referenceType = $validated['design_reference_type'] ?? 'none';
                 $referencePath = null;
-                if ($request->hasFile('design_reference_file')) {
+                // Hanya disimpan kalau tipenya memang "upload": tanpa ini, file
+                // yang masih tertinggal di input (type = none/url) ikut disimpan
+                // dan jadi file yatim di storage.
+                if (in_array($referenceType, ['image', 'zip'], true) && $request->hasFile('design_reference_file')) {
                     $referencePath = $request->file('design_reference_file')->store('design-references', 'public');
                 }
 
                 $project->update([
-                    'website_name' => $validated['website_name'],
-                    'target_market' => $validated['target_market'],
+                    // Kolom nama website masih dibaca usulan domain, judul
+                    // bundle, dan prompt AI. Field-nya sudah tidak ada di form,
+                    // jadi diisi dari nama project yang diketik tim.
+                    'website_name' => $projectName,
+                    'target_market' => $validated['target_market'] ?? '',
                     'description' => $validated['user_story'],
-                    'design_reference_type' => $validated['design_reference_type'] ?? 'none',
-                    'design_reference_url' => ($validated['design_reference_type'] ?? null) === 'url'
+                    'website_features' => $validated['website_features'],
+                    'has_client_assets' => $request->boolean('has_client_assets'),
+                    'design_reference_type' => $referenceType,
+                    'design_reference_url' => $referenceType === 'url'
                         ? ($validated['design_reference_url'] ?? null)
                         : null,
                     'design_reference_path' => $referencePath,
@@ -176,29 +191,6 @@ class requestOrderController extends Controller
                 ]);
             }
 
-            // F. Simpan Assets (Jika ada lampiran file)
-            if ($wantsWebsite && $request->hasFile('assets')) {
-                $logoPath = null;
-
-                foreach ($request->file('assets') as $file) {
-                    $path = $file->store('project-files', 'public');
-
-                    $project->files()->create([
-                        'original_name' => $file->getClientOriginalName(),
-                        'file_path' => $path,
-                        'category' => 'pendukung',
-                    ]);
-
-                    if (!$logoPath && str_starts_with($file->getClientMimeType(), 'image/')) {
-                        $logoPath = $path;
-                    }
-                }
-
-                if ($logoPath) {
-                    $client->update(['logo_path' => $logoPath]);
-                }
-            }
-
             DB::commit();
 
             // FIX (fitur SEO & Backlink otomatis): kalau tim sudah klik
@@ -208,7 +200,7 @@ class requestOrderController extends Controller
             $analysisToken = $request->input('analysis_token');
             $previewApplied = false;
 
-            if (!empty($analysisToken)) {
+            if ($wantsSeo && !empty($analysisToken)) {
                 $preview = Cache::get(\App\Jobs\RunKeywordPreviewAnalysisJob::cacheKey($analysisToken));
 
                 if (($preview['status'] ?? null) === 'done') {

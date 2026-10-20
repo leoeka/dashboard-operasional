@@ -3,15 +3,42 @@
 
 @section('content')
 
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between mb-6 gap-4">
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
         <div>
             <h1 class="text-2xl font-bold text-slate-800">Daftar Client</h1>
-            <p class="text-sm text-slate-600">Kelola data client dan project terkait.</p>
         </div>
-        <a href="{{ route('pages.request') }}"
-            class="bg-brand-600 text-white text-sm font-semibold px-4 py-3 rounded-md flex items-center gap-2 hover:bg-brand-700 transition w-fit">
-            <i class='bx bx-plus' aria-hidden="true"></i> Client Baru
-        </a>
+
+        <div class="flex flex-col sm:flex-row sm:items-center gap-3 w-full lg:w-auto">
+            <form action="{{ route('pages.crm') }}" method="GET" role="search"
+                class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                <div class="relative flex-1 lg:w-80">
+                    <label class="sr-only" for="crm-search">Cari client</label>
+                    <i class='bx bx-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg pointer-events-none'
+                        aria-hidden="true"></i>
+                    <input id="crm-search" type="search" name="search" value="{{ request('search') }}"
+                        placeholder="Cari perusahaan, kontak, email, telepon..."
+                        class="min-h-11 w-full border border-slate-200 bg-slate-50 rounded-md pl-10 pr-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
+                </div>
+
+                <div class="flex gap-2">
+                    <button type="submit"
+                        class="min-h-11 bg-slate-800 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-slate-900 transition">
+                        Cari
+                    </button>
+                    @if (request('search'))
+                        <a href="{{ route('pages.crm') }}"
+                            class="min-h-11 inline-flex items-center bg-slate-100 text-slate-600 px-4 py-2 rounded-md text-sm font-semibold hover:bg-slate-200 transition">
+                            Bersihkan
+                        </a>
+                    @endif
+                </div>
+            </form>
+
+            <a href="{{ route('pages.request') }}"
+                class="min-h-11 bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-md inline-flex items-center justify-center gap-2 hover:bg-brand-700 transition whitespace-nowrap">
+                <i class='bx bx-plus' aria-hidden="true"></i> Tambah Client
+            </a>
+        </div>
     </div>
 
     @if (session('success'))
@@ -19,27 +46,6 @@
             {{ session('success') }}
         </div>
     @endif
-
-    <x-card>
-        <form action="{{ route('pages.crm') }}" method="GET" class="flex flex-col sm:flex-row gap-2">
-            <label class="sr-only" for="crm-search">Cari client</label>
-            <input id="crm-search" type="text" name="search" value="{{ request('search') }}"
-                placeholder="Cari nama perusahaan, kontak, email, atau telepon..."
-                class="min-h-11 w-full sm:w-1/3 border border-slate-200 bg-slate-50 rounded-md px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-500">
-            <div class="flex gap-2">
-                <button type="submit"
-                    class="min-h-11 bg-slate-800 text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-slate-900 transition">
-                    Cari
-                </button>
-                @if (request('search'))
-                    <a href="{{ route('pages.crm') }}"
-                        class="min-h-11 bg-slate-100 text-slate-600 px-4 py-2 rounded-md text-sm font-semibold hover:bg-slate-200 transition">
-                        Bersihkan
-                    </a>
-                @endif
-            </div>
-        </form>
-    </x-card>
 
     <x-card padding="" class="overflow-hidden mt-4">
         <div class="overflow-x-auto">
@@ -100,11 +106,13 @@
                                     <p class="text-sm text-slate-700">Tidak ada client yang cocok dengan
                                         "{{ request('search') }}".</p>
                                     <a href="{{ route('pages.crm') }}"
-                                        class="inline-block mt-3 text-sm text-brand-600 hover:underline">Hapus kata kunci</a>
+                                        class="inline-block mt-3 text-sm text-brand-600 hover:underline">Hapus kata
+                                        kunci</a>
                                 @else
                                     <p class="text-sm text-slate-700">Belum ada client terdaftar.</p>
                                     <a href="{{ route('pages.request') }}"
-                                        class="inline-block mt-3 text-sm text-brand-600 hover:underline">Tambah client pertama</a>
+                                        class="inline-block mt-3 text-sm text-brand-600 hover:underline">Tambah client
+                                        pertama</a>
                                 @endif
                             </td>
                         </tr>

@@ -1,6 +1,7 @@
 <?php
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 /*
@@ -47,4 +48,25 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * A streamed /v1/responses body carrying one text answer, so a test can hand
+ * GPT a reply the same way the real API delivers it — in deltas, closed by
+ * response.completed. Every service that calls the trait
+ * CallsOpenAiResponsesApi needs this shape; faking a plain JSON body instead
+ * would test a transport the app never uses.
+ *
+ * @return \GuzzleHttp\Promise\FulfilledPromise  What Http::fake() expects as a mapped response.
+ */
+function openAiStreamResponse(string $text)
+{
+    return Http::response(
+        "event: response.output_text.delta\n"
+        .'data: '.json_encode(['type' => 'response.output_text.delta', 'delta' => $text])."\n\n"
+        ."event: response.completed\n"
+        .'data: '.json_encode(['type' => 'response.completed'])."\n\n",
+        200,
+        ['Content-Type' => 'text/event-stream']
+    );
 }

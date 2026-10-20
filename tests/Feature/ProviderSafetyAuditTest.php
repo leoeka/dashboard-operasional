@@ -70,13 +70,13 @@ it('sanitises directly constructed provider exceptions without losing classifica
 
 it('reruns a failed checkpoint even if a stale payload exists and then reuses only completed results', function () {
     $project = Project::create(['name' => 'Audit', 'client_name' => 'Audit', 'type' => 'Company Profile', 'code' => 'AUDIT-1', 'status' => 'request']);
-    PipelineCheckpoint::create(['project_id' => $project->id, 'stage' => 'gemini_analysis', 'status' => PipelineCheckpoint::FAILED, 'payload' => ['stale' => true]]);
+    PipelineCheckpoint::create(['project_id' => $project->id, 'stage' => 'website_content', 'status' => PipelineCheckpoint::FAILED, 'payload' => ['stale' => true]]);
     $checkpoints = app(PipelineCheckpointService::class);
-    expect($checkpoints->completed($project, 'gemini_analysis'))->toBeNull();
+    expect($checkpoints->completed($project, 'website_content'))->toBeNull();
     $calls = 0;
     $work = function () use (&$calls) { $calls++; return ['real' => true]; };
-    expect($checkpoints->remember($project, 'gemini_analysis', $work))->toBe(['real' => true])
-        ->and($checkpoints->remember($project, 'gemini_analysis', $work))->toBe(['real' => true])
+    expect($checkpoints->remember($project, 'website_content', $work))->toBe(['real' => true])
+        ->and($checkpoints->remember($project, 'website_content', $work))->toBe(['real' => true])
         ->and($calls)->toBe(1);
 });
 
@@ -86,19 +86,19 @@ it('propagates a safe checkpoint failure with its stage and provider classificat
     $checkpoints = app(PipelineCheckpointService::class);
     $original = new ProviderException('gemini', ProviderException::RATE_LIMITED, '', 'token=hidden-value', 429);
     try {
-        $checkpoints->remember($project, 'gemini_analysis', fn () => throw $original);
+        $checkpoints->remember($project, 'target_market', fn () => throw $original);
         $this->fail('Expected provider failure');
     } catch (ProviderException $e) {
         expect($e)->toBe($original);
     }
     Log::shouldHaveReceived('error')->withArgs(fn ($message, $context) =>
-        $context['stage'] === 'gemini_analysis' && $context['provider'] === 'gemini'
+        $context['stage'] === 'target_market' && $context['provider'] === 'gemini'
         && $context['http_status'] === 429 && $context['retryable'] === true
         && $context['error_code'] === ProviderException::RATE_LIMITED
         && !str_contains(json_encode($context), 'hidden-value')
     )->once();
     try {
-        $checkpoints->remember($project, 'gemini_analysis', fn () => throw new RuntimeException('Unauthorized api_key=raw-secret'));
+        $checkpoints->remember($project, 'target_market', fn () => throw new RuntimeException('Unauthorized api_key=raw-secret'));
         $this->fail('Expected safe provider failure');
     } catch (ProviderException $e) {
         expect($e->detail)->not->toContain('raw-secret')
@@ -152,21 +152,25 @@ it('sanitises Gemini helper and GPT reference exceptions', function (string $pro
     )->once();
 })->with(['gemini', 'openai']);
 
-it('does not log malformed Gemini payloads', function () {
+it('does not log malformed content-stage payloads', function () {
     $logs = [];
     foreach (['warning', 'error'] as $level) {
         Log::shouldReceive($level)->zeroOrMoreTimes()->andReturnUsing(function (...$args) use (&$logs) { $logs[] = $args; });
     }
-    $gemini = Mockery::mock();
-    Gemini::swap($gemini);
-    $model = Mockery::mock();
-    $gemini->shouldReceive('generativeModel')->once()->andReturn($model);
-    $model->shouldReceive('withGenerationConfig')->once()->andReturnSelf();
-    $response = Mockery::mock();
-    $response->shouldReceive('text')->once()->andReturn('invalid response containing unlabelled-private-value');
-    $model->shouldReceive('generateContent')->once()->andReturn($response);
-    expect(fn () => app(AnalisisGeminiService::class)->analyzeProject(new Project(['name' => 'Audit']), new Client()))
-        ->toThrow(ProviderException::class);
+    config(['services.openai.key' => 'test-key']);
+    Http::fake([
+        'api.openai.com/v1/responses' => openAiStreamResponse('invalid response containing unlabelled-private-value'),
+    ]);
+
+    $project = Project::create(['name' => 'Audit', 'client_name' => 'Audit', 'type' => 'Company Profile', 'code' => 'AUDIT-9', 'status' => 'request']);
+
+    // The stage says what broke without repeating what the model said, and the
+    // checkpoint record is the copy of that which lands in the log.
+    expect(fn () => app(PipelineCheckpointService::class)->remember(
+        $project, 'website_content',
+        fn () => app(GenerateMockupGptService::class)->writeWebsiteContent($project, new Client(), ['target_market' => '', 'from_team' => false])
+    ))->toThrow(ProviderException::class);
+
     expect($logs)->not->toBeEmpty()
         ->and(json_encode($logs))->not->toContain('unlabelled-private-value', 'raw_response');
 });

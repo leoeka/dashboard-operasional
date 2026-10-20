@@ -6,9 +6,34 @@
     <x-page-header :title="'Invoice ' . $invoice->invoice_number">
         <x-slot:actions>
             <div class="flex flex-wrap items-center gap-2">
-                {{-- Read-only by design. Payment is settled outside this system, so
-                     there is nothing to mark and no manual reminder to send — the
-                     renewal schedule is the only thing that messages a client. --}}
+                {{-- Payment itself stays off-system: this records that a bill was
+                     settled and when, nothing about the money. The button is blue,
+                     not green, because bagian 4 DESIGN.md keeps status colours out
+                     of actions. --}}
+                @if ($invoice->status === 'paid')
+                    <form method="POST" action="{{ route('pages.finance.invoices.unpaid', $invoice) }}"
+                        onsubmit="return confirm('Batalkan penandaan lunas invoice ini?')">
+                        @csrf @method('PATCH')
+                        <button type="submit"
+                            class="min-h-11 border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 text-sm font-semibold px-4 py-2 rounded-md transition inline-flex items-center gap-2">
+                            <i class='bx bx-undo'></i> Batalkan lunas
+                        </button>
+                    </form>
+                @elseif ($invoice->status !== 'cancelled')
+                    <form method="POST" action="{{ route('pages.finance.invoices.paid', $invoice) }}"
+                        class="flex flex-wrap items-center gap-2">
+                        @csrf @method('PATCH')
+                        <label for="paid_on" class="text-sm text-slate-600">Dibayar tanggal</label>
+                        <input type="date" id="paid_on" name="paid_on"
+                            value="{{ old('paid_on', $billingToday->format('Y-m-d')) }}"
+                            max="{{ $billingToday->format('Y-m-d') }}" required
+                            class="min-h-11 rounded-md border border-slate-500 bg-white text-sm text-slate-800 font-mono px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        <button type="submit"
+                            class="min-h-11 bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-md hover:bg-brand-700 transition inline-flex items-center gap-2">
+                            <i class='bx bx-check'></i> Tandai lunas
+                        </button>
+                    </form>
+                @endif
                 <a href="{{ route('pages.finance', ['tab' => 'invoices']) }}"
                     class="min-h-11 bg-slate-100 text-slate-600 text-sm px-4 py-2 rounded-md hover:bg-slate-200 transition inline-flex items-center gap-2">
                     <i class='bx bx-arrow-back'></i> Kembali
@@ -16,6 +41,12 @@
             </div>
         </x-slot:actions>
     </x-page-header>
+
+    @if ($errors->any())
+        <div class="mb-6 px-4 py-3 rounded-md bg-red-50 text-red-700 text-sm border-l-4 border-l-red-700">
+            {{ $errors->first() }}
+        </div>
+    @endif
 
     @if (session('success'))
         <div class="mb-6 px-4 py-3 rounded-md bg-emerald-50 text-emerald-700 text-sm">{{ session('success') }}</div>

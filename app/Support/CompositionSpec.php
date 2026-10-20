@@ -147,6 +147,20 @@ final class CompositionSpec
     private const LISTING_WORDS = ['tour', 'trip', 'wisata', 'itinerary', 'activities', 'aktivitas', 'destinasi', 'destination', 'excursion', 'villa', 'kamar', 'rental', 'sewa', 'katalog', 'catalog'];
 
     public const CONTAINERS = ['narrow', 'standard', 'wide', 'full'];
+
+    /**
+     * The header arrangements a designer may choose between.
+     *
+     * These exist because the nav is the one part of a page every option used to
+     * share: one template, so three "different" designs opened with the same bar
+     * and clients read the options as one template in three paint jobs. Like the
+     * section compositions, each name resolves to bounded rendering decisions in
+     * the Blade partial and the stylesheet — the model still never writes HTML.
+     */
+    public const HEADER_LAYOUTS = ['floating_pill', 'bar', 'center_brand', 'overlay_hero'];
+
+    /** The footer arrangements, for the same reason one row up. */
+    public const FOOTER_LAYOUTS = ['columns', 'asymmetric', 'minimal'];
     public const HEADING_SCALES = ['display-xl', 'display-lg', 'h1', 'h2', 'h3'];
     public const SPACING = ['compact', 'normal', 'generous', 'editorial'];
     public const RADIUS = ['none', 'small', 'medium', 'large', 'pill'];
@@ -509,9 +523,21 @@ final class CompositionSpec
         $spacing = self::oneOf($design['section_spacing'] ?? null, self::SPACING, 'normal');
         $radius = self::oneOf($design['radius'] ?? null, self::RADIUS, 'medium');
 
+        // The two chrome layouts that need the hero to make room for them — the
+        // pill and the overlay both ride in the strip the full-page renderer
+        // clears with --navh/--navgap — resolve to the plain bar on a legacy
+        // page, where that clearance does not exist and the nav would paint over
+        // content it was never given room for.
+        $headerLayout = self::oneOf($design['header_layout'] ?? null, self::HEADER_LAYOUTS, self::isFullPage($design) ? 'floating_pill' : 'bar');
+        if (!self::isFullPage($design) && in_array($headerLayout, ['floating_pill', 'overlay_hero'], true)) {
+            $headerLayout = 'bar';
+        }
+
         return [
             'visual_direction' => is_string($design['visual_direction'] ?? null) ? $design['visual_direction'] : '',
             'density' => self::oneOf($design['density'] ?? null, self::SPACING, 'normal'),
+            'header_layout' => $headerLayout,
+            'footer_layout' => self::oneOf($design['footer_layout'] ?? null, self::FOOTER_LAYOUTS, 'columns'),
             'container' => $container,
             'container_width' => self::CONTAINER_WIDTHS[$container],
             'section_spacing' => $spacing,

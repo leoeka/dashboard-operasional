@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Client;
 use App\Models\Project;
 use App\Models\ProjectFile;
 use Illuminate\Http\Request;
@@ -39,11 +38,8 @@ class ProjectController extends Controller
 
     public function edit(Project $project)
     {
-        $clients = Client::orderBy('company_name')->get();
-
         return view('projects.form', [
             'project' => $project,
-            'clients' => $clients,
             'clientWebsiteUrls' => $this->buildClientWebsiteUrlMap(),
         ]);
     }
@@ -66,7 +62,8 @@ class ProjectController extends Controller
 
     public function update(Request $request, Project $project)
     {
-        $serviceTypes = $request->input('service_type', []);
+        $serviceTypes = (array) $request->input('service_type', []);
+        $wantsWebsite = in_array('website', $serviceTypes);
         $wantsSeo = in_array('seo', $serviceTypes);
         $wantsBacklink = in_array('backlink', $serviceTypes);
 
@@ -80,8 +77,16 @@ class ProjectController extends Controller
             'client_id' => 'nullable|exists:clients,id',
             'name' => 'required|string|max:255',
             'client_name' => 'required|string|max:255',
-            'type' => 'nullable|string|max:255',
             'status' => 'required|in:request,in_progress,completed',
+
+            // Bagian website meniru aturan form Request: wajib cuma kalau
+            // tile "Create Website" dicentang.
+            'type' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string', 'max:255'],
+            'user_story' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
+            'target_market' => ['nullable', 'string'],
+            'website_features' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
+            'has_client_assets' => [Rule::requiredIf($wantsWebsite), 'nullable', 'boolean'],
+
             'client_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
             'design_reference_type' => ['nullable', Rule::in(['none', 'image', 'zip', 'url'])],
             'design_reference_url' => ['nullable', 'url', 'max:2048'],
@@ -108,16 +113,40 @@ class ProjectController extends Controller
         $data['wants_backlink'] = $wantsBacklink;
         unset($data['service_type']);
 
+        // User story bukan nama kolom; kolomnya 'description'. Jawaban aset
+        // ('1'/'0' dari radio) dinormalkan di bawah jadi boolean.
+        $userStory = $data['user_story'] ?? null;
+        unset($data['user_story'], $data['has_client_assets']);
+
         $statusChanged = $project->status !== $data['status'];
 
         if (($data['design_reference_type'] ?? null) !== 'url') {
             $data['design_reference_url'] = null;
         }
+
+        // Generator mockup membaca design_reference_path untuk menyebut file
+        // acuan di prompt, tanpa memedulikan type. Maka path lama harus ikut
+        // hilang begitu type berpindah ke "tidak ada file".
+        if (in_array($data['design_reference_type'] ?? null, ['none', 'url'], true)) {
+            $data['design_reference_path'] = null;
+        }
+
         unset($data['client_logo'], $data['design_reference_file']);
 
         $project->update($data);
 
-        if ($request->hasFile('design_reference_file')) {
+        // Bagian website ditulis sama seperti di form Request: user story masuk
+        // kolom description, dan nama website ikut nama project yang baru supaya
+        // usulan domain dan judul bundle tidak tertinggal satu edit.
+        if ($wantsWebsite) {
+            $project->update([
+                'description' => $userStory,
+                'website_name' => $data['name'],
+                'has_client_assets' => $request->boolean('has_client_assets'),
+            ]);
+        }
+
+        if ($request->hasFile('design_reference_file') && in_array($project->design_reference_type, ['image', 'zip'], true)) {
             $project->update([
                 'design_reference_path' => $request->file('design_reference_file')->store('design-references', 'public'),
             ]);
@@ -131,26 +160,26 @@ class ProjectController extends Controller
 
         if ($wantsSeo) {
             $project->update([
-                'seo_requirements' => [
-                    'target_url' => $request->input('seo_target_url'),
-                    'keywords' => $request->input('seo_keywords'),
-                    'location' => $request->input('seo_location'),
-                    'competitors' => $request->input('seo_competitors'),
-                    'cms_platform' => $request->input('seo_cms_platform'),
-                ],
+                'seo_requirements' => array_merge($project->seo_requirements ?? [], $this->requirementsFromRequest($request, [
+                    'target_url' => 'seo_target_url',
+                    'keywords' => 'seo_keywords',
+                    'location' => 'seo_location',
+                    'competitors' => 'seo_competitors',
+                    'cms_platform' => 'seo_cms_platform',
+                ])),
             ]);
         }
 
         if ($wantsBacklink) {
             $project->update([
-                'backlink_requirements' => [
-                    'target_url' => $request->input('backlink_target_url'),
-                    'quantity' => $request->input('backlink_quantity'),
-                    'anchor_text' => $request->input('backlink_anchor_text'),
-                    'niche' => $request->input('backlink_niche'),
-                    'anchor_type' => $request->input('backlink_anchor_type', []),
-                    'priority' => $request->input('backlink_priority'),
-                ],
+                'backlink_requirements' => array_merge($project->backlink_requirements ?? [], $this->requirementsFromRequest($request, [
+                    'target_url' => 'backlink_target_url',
+                    'quantity' => 'backlink_quantity',
+                    'anchor_text' => 'backlink_anchor_text',
+                    'niche' => 'backlink_niche',
+                    'anchor_type' => 'backlink_anchor_type',
+                    'priority' => 'backlink_priority',
+                ])),
             ]);
         }
 
@@ -204,6 +233,24 @@ class ProjectController extends Controller
         return redirect()->route('pages.projects.show', $project)->with('success', 'Project updated successfully.');
     }
 
+
+    // Hanya field yang benar-benar ada di request yang ikut ditulis. Blob
+    // requirements ini juga ditulisi job SEO (pagespeed, ai_recommendations,
+    // manual_screenshots) yang tidak muncul di form ini, dan middleware sudah
+    // mengubah string kosong jadi null, jadi kehadiran key satu-satunya
+    // pembeda antara "dikosongkan" dan "tidak ditampilkan".
+    private function requirementsFromRequest(Request $request, array $map): array
+    {
+        $values = [];
+
+        foreach ($map as $stored => $field) {
+            if ($request->has($field)) {
+                $values[$stored] = $request->input($field);
+            }
+        }
+
+        return $values;
+    }
 
     public function destroy(Project $project)
     {

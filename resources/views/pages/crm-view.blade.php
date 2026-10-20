@@ -3,13 +3,10 @@
 
 @section('content')
 
-    <a href="{{ route('pages.crm') }}" class="min-h-11 text-sm text-slate-600 flex items-center gap-1 mb-4">
-        <i class='bx bx-arrow-back'></i> Back to Clients
-    </a>
-
     <x-card class="mb-6">
         <div class="flex items-center gap-4 mb-4">
-            <div class="w-14 h-14 rounded-lg bg-brand-600 flex items-center justify-center text-white font-bold text-base flex-shrink-0">
+            <div
+                class="w-14 h-14 rounded-lg bg-brand-600 flex items-center justify-center text-white font-bold text-base flex-shrink-0">
                 {{ strtoupper(substr($client->company_name, 0, 2)) }}
             </div>
             <div class="min-w-0">
@@ -39,7 +36,7 @@
         <div class="divide-y divide-slate-100">
             @forelse ($client->projects as $project)
                 <a href="{{ route('pages.projects.show', $project) }}"
-                   class="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 hover:bg-slate-50 -mx-2 px-2 rounded-md">
+                    class="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 hover:bg-slate-50 -mx-2 px-2 rounded-md">
                     <div class="min-w-0">
                         <p class="text-sm font-semibold text-slate-700 truncate">{{ $project->name }}</p>
                         <p class="text-xs text-slate-600">{{ $project->type }}</p>

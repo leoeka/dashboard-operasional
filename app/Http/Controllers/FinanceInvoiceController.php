@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
+use App\Services\Billing\BillingClock;
 use App\Services\Billing\ReminderTimeline;
 
 /**
@@ -14,7 +15,7 @@ use App\Services\Billing\ReminderTimeline;
  */
 class FinanceInvoiceController extends Controller
 {
-    public function show(Invoice $invoice, ReminderTimeline $timeline)
+    public function show(Invoice $invoice, ReminderTimeline $timeline, BillingClock $clock)
     {
         // Everything the page reads, in one pass. Without this the items table,
         // the payment list and the timeline would each trigger their own
@@ -33,6 +34,9 @@ class FinanceInvoiceController extends Controller
             // Empty for a project invoice, which has no schedule to plot.
             'timeline' => $timeline->for($invoice),
             'billingClient' => $invoice->billableClient(),
+            // Default and ceiling for the settlement date, in the zone the
+            // business runs on rather than the UTC the app stores.
+            'billingToday' => $clock->today(),
         ]);
     }
 }

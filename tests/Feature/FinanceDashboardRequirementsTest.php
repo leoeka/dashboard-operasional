@@ -84,8 +84,10 @@ it('creates the client and project through the CRM request workflow', function (
             'email' => 'rina@sql.test',
             'phone' => '0812345678',
             'service_type' => ['website'],
-            'website_name' => 'Website PT Klien SQL',
+            'project_name' => 'Kopi Nusantara Store',
             'user_story' => 'Profil perusahaan.',
+            'website_features' => 'Beranda, produk, kontak.',
+            'has_client_assets' => '1',
             'target_market' => 'Perusahaan lokal.',
             'website_type' => 'Company Profile',
         ])
@@ -96,7 +98,10 @@ it('creates the client and project through the CRM request workflow', function (
 
     expect(DB::table('clients')->where('id', $client->id)->value('email'))->toBe('rina@sql.test')
         ->and(DB::table('projects')->where('id', $project->id)->value('client_id'))->toBe($client->id)
-        ->and($project->name)->toBe('Website PT Klien SQL');
+        ->and($project->name)->toBe('Kopi Nusantara Store')
+        ->and($project->website_name)->toBe('Kopi Nusantara Store')
+        ->and($project->website_features)->toBe('Beranda, produk, kontak.')
+        ->and($project->has_client_assets)->toBeTrue();
 });
 
 it('hides payment and manual invoice entry points from finance', function () {

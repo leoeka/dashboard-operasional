@@ -34,11 +34,20 @@ h1,h2,h3,h4{font-family:'{{ $fh }}',Georgia,serif;line-height:1.15;margin:0}
 .nav{min-height:{{ $s['nav_height'] }}px;padding:0 {{ $s['gutter'] }}px;display:flex;align-items:center;justify-content:space-between;gap:24px;background:#fff;border-bottom:1px solid {{ $s['nav_border'] }};position:relative;z-index:20}
 .brand{display:flex;align-items:center;gap:12px;font-size:{{ $s['brand_font_size'] }}px;font-weight:700;letter-spacing:.3px;font-family:'{{ $fh }}',Georgia,serif;text-decoration:none}
 .brand img{height:40px;width:auto;display:block}
-.links{display:flex;gap:{{ $s['nav_link_gap'] }}px;font-size:{{ $s['nav_link_font_size'] }}px}
-.links a{color:var(--ink);text-decoration:none;opacity:.8}
+.links{display:flex;gap:{{ $s['nav_link_gap'] }}px;font-size:{{ $s['nav_link_font_size'] }}px;list-style:none;margin:0;padding:0}
+.links a{display:block;color:var(--ink);text-decoration:none;opacity:.8}
 .links a.is-active{opacity:1;font-weight:700;box-shadow:inset 0 -2px 0 var(--accent)}
 .nav .button{background:var(--accent);color:var(--on-accent);padding:{{ $s['nav_button_padding_y'] }}px {{ $s['nav_button_padding_x'] }}px;border-radius:{{ $btnRadius }}px;font-weight:700;font-size:{{ $s['nav_button_font_size'] }}px;white-space:nowrap;text-decoration:none}
-.nav-toggle,.nav-burger,.links-cta{display:none}
+.nav-toggle,.nav-burger,.links-cta,.links-cta-item{display:none}
+
+/* ---- header_layout variants (CompositionSpec::HEADER_LAYOUTS). Same DOM in
+       every option — only where the brand, the links and the CTA sit differs.
+       'floating_pill' and 'overlay_hero' float over the hero, so they live in
+       the full-page block below, where the hero has already made room for them. ---- */
+.nav--center_brand{display:grid;grid-template-columns:1fr auto 1fr;align-content:center;gap:{{ $s['nav_center_row_gap'] }}px 0;padding-top:{{ $s['nav_center_padding_y'] }}px;padding-bottom:{{ $s['nav_center_padding_y'] }}px}
+.nav--center_brand .brand{grid-column:2;grid-row:1;justify-self:center}
+.nav--center_brand .button{grid-column:3;grid-row:1;justify-self:end}
+.nav--center_brand .links{grid-column:1 / -1;grid-row:2;justify-self:center}
 
 /* ---- buttons ---- */
 .btn{display:inline-block;margin-top:24px;padding:15px 26px;border-radius:{{ $btnRadius }}px;font-weight:700;font-size:15px;text-decoration:none;background:var(--accent);color:var(--on-accent)}
@@ -293,7 +302,14 @@ h1,h2,h3,h4{font-family:'{{ $fh }}',Georgia,serif;line-height:1.15;margin:0}
        no orb behind the hero, no tinted block offset behind photos, shadows
        only where something actually sits above the page. ---- */
 .full-page{--navh:{{ $s['nav_height'] }}px;--navgap:14px;position:relative}
-.full-page .nav{position:sticky;top:var(--navgap);margin:var(--navgap) var(--g) 0;padding:0 14px 0 24px;border:1px solid rgba(15,23,42,.08);border-radius:18px;background:rgba(255,255,255,.9);-webkit-backdrop-filter:saturate(1.4) blur(14px);backdrop-filter:saturate(1.4) blur(14px);box-shadow:0 10px 30px rgba(15,23,42,.08)}
+.full-page .nav--floating_pill{position:sticky;top:var(--navgap);margin:var(--navgap) var(--g) 0;padding:0 14px 0 24px;border:1px solid rgba(15,23,42,.08);border-radius:18px;background:rgba(255,255,255,.9);-webkit-backdrop-filter:saturate(1.4) blur(14px);backdrop-filter:saturate(1.4) blur(14px);box-shadow:0 10px 30px rgba(15,23,42,.08)}
+/* header_layout 'overlay_hero': the nav has no surface of its own and sits in
+       the room the hero already made, so it scrolls away with the hero instead of
+       sticking over content it can no longer read against. */
+.full-page .nav--overlay_hero{margin:var(--navgap) 0 0;padding:0 {{ $s['gutter'] }}px;border:none;background:transparent;box-shadow:none;color:var(--on-primary)}
+.full-page .nav--overlay_hero:before{content:'';position:absolute;top:calc(-1 * var(--navgap));left:0;right:0;height:calc(var(--navh) + {{ $s['nav_overlay_scrim_extra'] }}px);z-index:-1;background:linear-gradient(180deg,rgba(8,12,20,.5),rgba(8,12,20,0))}
+.full-page .nav--overlay_hero .brand,.full-page .nav--overlay_hero .links a,.full-page .nav--overlay_hero .links a.is-active{color:var(--on-primary)}
+.full-page .nav--overlay_hero .nav-burger span{background:var(--on-primary)}
 .full-page .links a{padding:8px 2px}
 .full-page .links a.is-active{box-shadow:none;color:var(--primary)}
 .full-page .links a.is-active:after{content:'';display:block;height:2px;margin-top:4px;border-radius:2px;background:var(--accent)}
@@ -320,6 +336,19 @@ h1,h2,h3,h4{font-family:'{{ $fh }}',Georgia,serif;line-height:1.15;margin:0}
 .footer ul{list-style:none;margin:0;padding:0}
 .footer a{text-decoration:none}
 .footer-bottom{padding:{{ $s['footer_bottom_padding_y'] }}px {{ $s['gutter'] }}px;background:{{ $s['footer_bottom_bg'] }};color:{{ $s['footer_bottom_text_color'] }};font-size:{{ $s['footer_bottom_font_size'] }}px;text-align:center}
+
+/* ---- footer_layout variants (CompositionSpec::FOOTER_LAYOUTS): a wide brand
+       block beside the link columns, or one quiet row. ---- */
+.footer--asymmetric{grid-template-columns:{{ $s['footer_columns_asymmetric'] }};align-items:start}
+.footer--asymmetric .footer-cols{display:grid;grid-template-columns:1fr 1fr;gap:{{ $s['footer_gap'] }}px}
+.footer-brand{font-family:'{{ $fh }}',Georgia,serif;font-size:{{ $s['brand_font_size'] }}px;font-weight:700;line-height:1.2;color:#fff}
+.footer--asymmetric .footer-brand{display:block;margin-bottom:14px}
+.footer .button{display:inline-block;margin-top:18px;background:var(--accent);color:var(--on-accent);padding:{{ $s['nav_button_padding_y'] }}px {{ $s['nav_button_padding_x'] }}px;border-radius:{{ $btnRadius }}px;font-weight:700;font-size:{{ $s['nav_button_font_size'] }}px;text-decoration:none}
+.footer--minimal{grid-template-columns:{{ $s['footer_columns_minimal'] }};align-items:center;padding-top:{{ $s['footer_minimal_padding_y'] }}px;padding-bottom:{{ $s['footer_minimal_padding_y'] }}px}
+.footer--minimal .footer-brand{text-decoration:none}
+.footer-links{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:{{ $s['footer_link_gap'] }}px;font-size:{{ $s['footer_text_size'] }}px}
+.footer-links a{color:{{ $s['footer_text_color'] }};text-decoration:none}
+.footer-bottom--split{display:flex;justify-content:space-between;gap:{{ $s['footer_link_gap'] }}px;text-align:left}
 
 @if (!$site['fixed'])
 /* ================= responsive — live demo only ================= */
@@ -350,16 +379,22 @@ h1,h2,h3,h4{font-family:'{{ $fh }}',Georgia,serif;line-height:1.15;margin:0}
 }
 @media (max-width:860px){
   .nav{min-height:68px}
+  /* Every layout collapses to the one-line burger bar: below that the menu is a
+     dropdown, and a centred brand row would only waste the height. */
+  .nav--center_brand{display:flex;padding-top:0;padding-bottom:0}
   .links,.nav>.button{display:none}
   .nav-burger{display:flex;flex-direction:column;justify-content:center;gap:5px;width:44px;height:44px;cursor:pointer;margin-left:auto}
   .nav-burger span{display:block;height:2px;width:24px;background:var(--ink);margin:0 auto}
   .nav-toggle:checked ~ .links{display:flex;position:absolute;top:100%;left:0;right:0;flex-direction:column;gap:0;background:#fff;border-bottom:1px solid var(--line);padding:8px var(--g) 16px}
-  .nav-toggle:checked ~ .links a{padding:12px 0;border-bottom:1px solid var(--line)}
+  /* The opened panel is always a light surface, so a nav whose own links are
+     light — overlay_hero — has to hand them back the ink colour here. */
+  .nav-toggle:checked ~ .links a{padding:12px 0;border-bottom:1px solid var(--line);color:var(--ink);opacity:1}
+  .nav-toggle:checked ~ .links .links-cta-item{display:block}
   .nav-toggle:checked ~ .links .links-cta{display:block;margin-top:12px;text-align:center;background:var(--accent);color:var(--on-accent);border-radius:{{ $btnRadius }}px;border:none;font-weight:700}
 
   .hero{min-height:0;padding-top:56px !important;padding-bottom:56px !important}
   .full-page{--navgap:10px}
-  .full-page .nav{margin-left:12px;margin-right:12px;padding:0 8px 0 16px;border-radius:14px}
+  .full-page .nav--floating_pill{margin-left:12px;margin-right:12px;padding:0 8px 0 16px;border-radius:14px}
   .full-page .nav-toggle:checked ~ .links{border-radius:0 0 14px 14px;border:1px solid var(--line);border-top:none}
   .full-page main>.hero:first-child{padding-top:calc(56px + var(--navh) + var(--navgap)) !important}
   .full-page main>.hero--c-contained:first-child{padding-top:56px !important}
@@ -388,6 +423,9 @@ h1,h2,h3,h4{font-family:'{{ $fh }}',Georgia,serif;line-height:1.15;margin:0}
   .cta--center{align-items:center}
   .footer{grid-template-columns:1fr 1fr;gap:28px}
   .footer>div:first-child{grid-column:1 / -1}
+  .footer--asymmetric,.footer--minimal{grid-template-columns:1fr}
+  .footer--minimal .footer-links{justify-content:flex-start}
+  .footer-bottom--split{flex-direction:column;align-items:flex-start;gap:8px}
 }
 @media (max-width:560px){
   :root{--g:20px;--gap:16px}

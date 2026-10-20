@@ -76,8 +76,22 @@ class MockupAssetService
      *         degraded: the approved composition needs a photo this candidate
      *         could not get. The candidate must not be shown to a client as a
      *         finished design — see GenerateMockupGptService.
+     *
+     * $heroOnly is what keeps three options affordable: a draft pays for the
+     * one photograph the client actually judges the design on, not the nine
+     * section photographs that two of the three candidates will throw away.
+     * The sections a draft leaves unphotographed are simply not slots, so the
+     * candidate is not "degraded" for missing them and the renderer draws
+     * their photo-free form (monograms, colour tiles, typographic editorial)
+     * - the same thing the demo page and the WordPress ZIP draw, because all
+     * three read this one manifest.
+     *
+     * Approving a draft calls GenerateMockupGptService::completeCandidate(),
+     * which runs this again with $heroOnly = false for that one candidate —
+     * the only candidate whose delivered site has to carry section photos.
+     * reusePersisted() means the hero paid for here is never paid for twice.
      */
-    public function generateForCandidate(Project $project, array $mockup, int $candidateNumber, string $visualDirection = ''): array
+    public function generateForCandidate(Project $project, array $mockup, int $candidateNumber, string $visualDirection = '', bool $heroOnly = false): array
     {
         $design = is_array($mockup['design'] ?? null) ? $mockup['design'] : [];
         $home = $this->homePage($mockup);
@@ -117,8 +131,8 @@ class MockupAssetService
         }
 
         $slots += CompositionSpec::isFullPage($design)
-            ? $this->fullPageSectionSlots($sections, $plan)
-            : $this->legacySectionSlots($sections, $plan, $design);
+            ? ($heroOnly ? [] : $this->fullPageSectionSlots($sections, $plan))
+            : ($heroOnly ? [] : $this->legacySectionSlots($sections, $plan, $design));
 
         if (!$slots) {
             return $this->empty();

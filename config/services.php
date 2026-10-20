@@ -48,9 +48,16 @@ return [
         // Seconds one proposal run may spend on photos; the rest are filled on retry.
         'image_time_budget' => env('OPENAI_IMAGE_TIME_BUDGET', 300),
         'mockup_candidate_count' => env('OPENAI_MOCKUP_CANDIDATE_COUNT', 3),
-        'wordpress_builder_model' => env('OPENAI_WORDPRESS_BUILDER_MODEL', 'gpt-5.6'),
-        'wordpress_build_timeout' => env('OPENAI_WORDPRESS_BUILD_TIMEOUT', 600),
-        'wordpress_max_output_tokens' => env('OPENAI_WORDPRESS_MAX_OUTPUT_TOKENS', 50000),
+        // Website author: sitemap + real copy for the proposal. Streaming is
+        // what keeps a long JSON answer alive, so the timeout is generous.
+        'website_content_model' => env('OPENAI_WEBSITE_CONTENT_MODEL', 'gpt-5.6'),
+        'website_content_timeout' => env('OPENAI_WEBSITE_CONTENT_TIMEOUT', 300),
+        // One call's ceiling, and gpt-5.6 bills by it: 32.768 output tokens is
+        // ~$0,98 for a single content call at the official $30/M. No proposal
+        // can afford that happening on every stage retry, so the ceiling is
+        // cut in half. 8.192 would be cheaper still, but nothing has measured
+        // this stage's real answer length yet - the usage recorder will.
+        'website_content_max_output_tokens' => env('OPENAI_WEBSITE_CONTENT_MAX_OUTPUT_TOKENS', 16384),
     ],
     'fonnte' => [
         'token' => env('FONNTE_TOKEN'),

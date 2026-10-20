@@ -20,9 +20,38 @@ use Illuminate\Support\Facades\Storage;
 final class MockupSite
 {
     /**
+     * The blueprint stored at one client-choice index, or null when the
+     * proposal does not hold that option.
+     *
+     * Proposals generated before the three-option flow carry a single
+     * `mockup` and no candidate list, so index 0 reads from there. Callers
+     * that must tell "the client has not chosen yet" apart from "the client
+     * chose option 1" pass a null index and get null back.
+     *
+     * @param array $proposalData  the decoded proposals.ai_reasoning payload
+     */
+    public static function candidateAt(array $proposalData, ?int $index): ?array
+    {
+        if ($index === null) {
+            return null;
+        }
+
+        $candidates = $proposalData['mockup_candidates'] ?? null;
+        if (is_array($candidates) && $candidates !== []) {
+            $candidate = $candidates[$index] ?? null;
+        } else {
+            $candidate = $index === 0 ? ($proposalData['mockup'] ?? null) : null;
+        }
+
+        return is_array($candidate) ? $candidate : null;
+    }
+
+    /**
      * @param array $mockup  a candidate blueprint: pages, design, website_concept, global_cta
      * @param array $options brand:string, logo:?string, page:?string (slug), fixed:bool (1440px PNG canvas),
      *                       webfonts:bool, link:?callable(string $slug): string,
+     *                       chrome:array replacing any of the chrome slots below with markup of the
+     *                       caller's own (the WordPress theme swaps in calls to its menu),
      *                       images: [slug => ['hero' => url, 'items' => [i => url], 'sections' => [s => [i => url]]]]
      */
     public static function build(array $mockup, array $options = []): array
@@ -48,9 +77,27 @@ final class MockupSite
 
         $globalCta = SectionContent::text($mockup['global_cta'] ?? '');
 
+        // The parts of the page that are the same on every page: the navigation
+        // bar and the footer. The approved PNG and the live demo fill these with
+        // the real page links, because a static page has nothing else to ask.
+        // The WordPress theme overwrites them with PHP that asks WordPress for
+        // its own menu at view time, so the client edits the navigation once
+        // under Appearance > Menus instead of editing the markup of every page.
+        // The defaults are escaped here because the theme's replacements are
+        // echoed raw, and only this class and the exporter ever set them.
+        $chrome = array_merge([
+            'render' => true,
+            'menu' => null,
+            'footer_menu' => null,
+            'home' => e((string) ($nav[0]['href'] ?? '#')),
+            'logo' => isset($options['logo']) ? e((string) $options['logo']) : null,
+            'cta_href' => '#',
+            'year' => (string) date('Y'),
+        ], is_array($options['chrome'] ?? null) ? $options['chrome'] : []);
+
         return [
             'brand' => (string) ($options['brand'] ?? 'Website'),
-            'logo' => $options['logo'] ?? null,
+            'chrome' => $chrome,
             'fixed' => (bool) ($options['fixed'] ?? false),
             'fonts_url' => ($options['webfonts'] ?? false) ? self::fontsUrl([$fontHeading, $fontBody]) : null,
             'lang' => ($mockup['language'] ?? 'id') === 'en' ? 'en' : 'id',

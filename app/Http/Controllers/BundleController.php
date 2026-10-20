@@ -2,15 +2,10 @@
 
 namespace App\Http\Controllers;
 
-use App\Exceptions\ProviderException;
+use App\Jobs\BuildProjectBundleJob;
 use App\Models\Project;
-use App\Models\ProjectBundle;
-use App\Services\BlueprintManifestService;
-use App\Services\BundleBuilderService;
-use App\Services\BundleExporterService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 
 class BundleController extends Controller
 {
@@ -19,125 +14,85 @@ class BundleController extends Controller
         return view('bundles.index', compact('project'));
     }
 
-    public function build(
-        Project $project,
-        Request $request,
-        BlueprintManifestService $manifestService,
-        BundleBuilderService $builder,
-        BundleExporterService $exporter
-    ) {
-        $lockSeconds = max(
-            900,
-            (int) config('services.openai.wordpress_build_timeout', 600) + 300
+    public function build(Request $request, Project $project)
+    {
+        // The client's recorded answer is the only thing that can start a
+        // build. Reading the option from the proposal instead of the form means
+        // the site that gets built is the option that was approved; a request
+        // naming a different card cannot slip past it.
+        $gate = $project->approvedBuildOption();
+        if ($gate['mockup'] === null) {
+            return $this->refuseBuild($request, $project, $gate['message']);
+        }
+
+        $progress = Cache::get(BuildProjectBundleJob::cacheKey($project->id), []);
+        if (in_array($progress['status'] ?? null, ['queued', 'processing'], true)) {
+            return $this->refuseBuild($request, $project, 'Build WordPress untuk proyek ini sedang berlangsung. Tunggu hingga selesai sebelum mencoba lagi.');
+        }
+
+        // The row goes to "building" before the job is queued: it is what the
+        // step rail, the panel and the download guard all read, and a click
+        // that never reached a worker must still be visible as unfinished
+        // work rather than disappear.
+        $bundle = $project->bundles()
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->first();
+        if ($bundle) {
+            $bundle->update(['status' => 'building', 'exported_at' => null]);
+        }
+
+        // Rebuilding reopens the work: a project whose ZIP was already done can
+        // end up here again, and a failed replacement must not leave it looking
+        // finished while its newest build is broken.
+        $project->update(['status' => 'in_progress']);
+
+        $this->reportProgress($project, 'queued', 0, 'Build masuk antrean...');
+
+        BuildProjectBundleJob::dispatch($project);
+
+        // The workspace button keeps the page and follows the queue through
+        // /bundle/status, so it gets JSON and no reload. The plain form post is
+        // the no-JS path and still lands back on the page with a flash message.
+        if ($request->expectsJson()) {
+            return response()->json(['started' => true]);
+        }
+
+        return redirect()
+            ->route('pages.projects.bundle', $project)
+            ->with('success', 'Build WordPress dimulai. ZIP siap diunduh setelah selesai.');
+    }
+
+    /**
+     * A build that never started, answered the way the caller asked: the
+     * progress popup reads the message off a 422, a form post sees it as a
+     * flash error. Refusing quietly is not an option, because the click looked
+     * like it did something either way.
+     */
+    private function refuseBuild(Request $request, Project $project, string $message)
+    {
+        if ($request->expectsJson()) {
+            return response()->json(['error' => $message], 422);
+        }
+
+        return redirect()->route('pages.projects.bundle', $project)->with('error', $message);
+    }
+
+    public function status(Project $project)
+    {
+        return response()->json(Cache::get(
+            BuildProjectBundleJob::cacheKey($project->id),
+            ['status' => 'idle', 'progress' => 0, 'message' => '']
+        ));
+    }
+
+    private function reportProgress(Project $project, string $status, int $progress, string $message): void
+    {
+        Cache::put(
+            BuildProjectBundleJob::cacheKey($project->id),
+            ['status' => $status, 'progress' => $progress, 'message' => $message],
+            now()->addMinutes(20)
         );
-        $lock = Cache::lock('wordpress-bundle-build:'.$project->getKey(), $lockSeconds);
-
-        if (! $lock->get()) {
-            return redirect()
-                ->route('pages.projects.bundle', $project)
-                ->with('error', 'Build WordPress untuk proyek ini sedang berlangsung. Tunggu hingga selesai sebelum mencoba lagi.');
-        }
-
-        $currentBundle = null;
-        $buildStarted = false;
-
-        try {
-            try {
-                $proposal = $project->latestProposal;
-                if (! $proposal) {
-                    throw new \RuntimeException('Generate proposal dan mockup terlebih dahulu.');
-                }
-
-                $proposalData = json_decode((string) $proposal->ai_reasoning, true) ?: [];
-                $candidates = $proposalData['mockup_candidates'] ?? [];
-                $validated = $request->validate([
-                    'mockup_index' => ['nullable', 'integer', 'min:0', 'max:2'],
-                ]);
-                $selectedIndex = (int) ($validated['mockup_index'] ?? $proposalData['selected_mockup_index'] ?? 0);
-
-                $selectedMockup = is_array($candidates) && $candidates !== []
-                    ? ($candidates[$selectedIndex] ?? null)
-                    : ($selectedIndex === 0 ? ($proposalData['mockup'] ?? null) : null);
-                if (! is_array($selectedMockup)) {
-                    throw new \RuntimeException('Opsi mockup yang dipilih tidak ditemukan.');
-                }
-
-                $currentBundle = $project->bundles()
-                    ->orderByDesc('updated_at')
-                    ->orderByDesc('id')
-                    ->first();
-                if ($currentBundle) {
-                    $currentBundle->update([
-                        'status' => 'building',
-                        'exported_at' => null,
-                    ]);
-                }
-                $buildStarted = true;
-
-                $proposalData['selected_mockup_index'] = $selectedIndex;
-                $proposalData['mockup'] = $selectedMockup;
-                $proposalData['implementation_manifest'] = $manifestService->build($selectedMockup);
-                $proposal->update([
-                    'ai_reasoning' => json_encode($proposalData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
-                ]);
-
-                $bundle = $builder->build($project);
-            } catch (ProviderException $e) {
-                // Classification and a scrubbed detail only — never a key.
-                Log::error('WordPress build gagal di provider.', array_merge(['project_id' => $project->id], $e->context()));
-                $this->markPreviousBundleFailed($currentBundle, $buildStarted);
-
-                return redirect()
-                    ->route('pages.projects.bundle', $project)
-                    ->with('error', $e->getMessage());
-            } catch (\Throwable $e) {
-                $this->markPreviousBundleFailed($currentBundle, $buildStarted);
-
-                return redirect()
-                    ->route('pages.projects.bundle', $project)
-                    ->with('error', ProviderException::sanitise($e->getMessage()));
-            }
-
-            $bundleDir = storage_path('app/bundles/'.$project->id);
-            try {
-                $zipPath = $exporter->export($bundle, $bundleDir);
-            } catch (\Throwable $e) {
-                $this->markPreviousBundleFailed($currentBundle, $buildStarted);
-
-                Log::error('WordPress bundle export gagal.', [
-                    'project_id' => $project->id,
-                    'error' => ProviderException::sanitise($e->getMessage()),
-                ]);
-
-                return redirect()
-                    ->route('pages.projects.bundle', $project)
-                    ->with('error', 'ZIP WordPress gagal dibuat. Perbaiki hasil build GPT lalu coba lagi. ('.ProviderException::sanitise($e->getMessage()).')');
-            }
-
-            $exportedAt = now();
-            $bundleAttributes = [
-                'bundle_path' => $bundleDir,
-                'zip_path' => $zipPath,
-                'status' => 'exported',
-                'built_at' => $exportedAt,
-                'exported_at' => $exportedAt,
-            ];
-            if ($currentBundle) {
-                $currentBundle->update($bundleAttributes);
-            } else {
-                $project->bundles()->create($bundleAttributes);
-            }
-
-            $project->update([
-                'status' => 'in_progress',
-            ]);
-
-            return redirect()
-                ->route('pages.projects.bundle', $project)
-                ->with('success', 'WordPress berhasil dibuat. ZIP siap di-download.');
-        } finally {
-            $lock->release();
-        }
     }
 
     public function download(Project $project)
@@ -170,15 +125,5 @@ class BundleController extends Controller
         }
 
         return response()->download($zipFile, 'project-'.$project->id.'-wordpress-theme.zip');
-    }
-
-    private function markPreviousBundleFailed(?ProjectBundle $bundle, bool $buildStarted): void
-    {
-        if ($bundle && $buildStarted) {
-            $bundle->update([
-                'status' => 'failed',
-                'exported_at' => null,
-            ]);
-        }
     }
 }

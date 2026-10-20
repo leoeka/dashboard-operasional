@@ -125,16 +125,20 @@ Route::middleware(['auth'])->group(function () {
 
     // 7. Finance
     // A reminder workspace, not a cash book: payments are settled outside this
-    // system. The page reads; the only writes are the renewal engine's own
-    // reminder retry and the invoice actions that still belong here.
+    // system. The page reads; the writes are the renewal engine's own reminder
+    // retry, the settlement marker below, and the invoice actions.
     Route::get('/finance', [FinanceController::class, 'index'])->name('pages.finance');
 
-    // Read-only invoice detail; every action on it posts to the routes above.
+    // Invoice detail. The one thing an operator records here is that a bill
+    // chased off-system was paid: a status and a date, never an amount.
     Route::get('/finance/invoices/{invoice}', [\App\Http\Controllers\FinanceInvoiceController::class, 'show'])->name('pages.finance.invoices.show');
+    Route::patch('/finance/{invoice}/paid', [InvoiceController::class, 'markPaid'])->name('pages.finance.invoices.paid');
+    Route::patch('/finance/{invoice}/unpaid', [InvoiceController::class, 'markUnpaid'])->name('pages.finance.invoices.unpaid');
 
-    // Recurring subscriptions. Status changes only — a subscription is never
-    // deleted, because billed invoices point at it. The renewal date is moved
-    // forward here, by hand, once a period has been paid off-system.
+    // Recurring subscriptions. Status changes only, because a subscription is
+    // deleted, because billed invoices point at it. The renewal date is no
+    // longer an operator's job: the billing engine rolls it forward on the
+    // calendar, whether or not the money has arrived.
     Route::get('/finance/subscriptions/create', [BillingSubscriptionController::class, 'create'])->name('pages.finance.subscriptions.create');
     Route::post('/finance/subscriptions', [BillingSubscriptionController::class, 'store'])->name('pages.finance.subscriptions.store');
     Route::get('/finance/subscriptions/{subscription}/edit', [BillingSubscriptionController::class, 'edit'])->name('pages.finance.subscriptions.edit');
@@ -160,10 +164,12 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/proposal/generate', [WebsiteBuilderController::class, 'generateProposal'])->name('pages.projects.proposal.generate');
     Route::get('/projects/{project}/proposal/status', [WebsiteBuilderController::class, 'proposalStatus'])
         ->name('pages.projects.proposal.status');
+    // One press on a mockup card records both the client's choice and the
+    // approval; /revise records "none of these" and locks the build again.
     Route::post('/projects/{project}/proposal/approve', [WebsiteBuilderController::class, 'approveProposal'])
         ->name('pages.projects.proposal.approve');
-    Route::post('/projects/{project}/proposal/mockup/select', [WebsiteBuilderController::class, 'selectMockup'])
-        ->name('pages.projects.proposal.mockup.select');
+    Route::post('/projects/{project}/proposal/revise', [WebsiteBuilderController::class, 'reviseProposal'])
+        ->name('pages.projects.proposal.revise');
 
     // Live website demo of a mockup candidate (0-based index into
     // mockup_candidates) — rendered from the same blueprint as the PNG and
@@ -179,6 +185,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/projects/{project}/bundle', [\App\Http\Controllers\BundleController::class, 'index'])->name('pages.projects.bundle');
     Route::post('/projects/{project}/bundle/build', [\App\Http\Controllers\BundleController::class, 'build'])->name('pages.projects.bundle.build');
     Route::get('/projects/{project}/bundle/download', [\App\Http\Controllers\BundleController::class, 'download'])->name('pages.projects.bundle.download');
+    Route::get('/projects/{project}/bundle/status', [\App\Http\Controllers\BundleController::class, 'status'])->name('pages.projects.bundle.status');
 
     Route::resource('service-packages', \App\Http\Controllers\ServicePackageController::class)->except(['show']);
 

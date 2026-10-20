@@ -3,14 +3,15 @@
 
 @section('content')
 
-    <x-page-header title="Projects">
-        <x-slot:actions>
-            <a href="{{ route('pages.request') }}"
-                class="bg-brand-600 text-white text-sm font-semibold px-4 py-3 rounded-md flex items-center gap-2 hover:bg-brand-700 transition">
-                <i class='bx bx-plus'></i> Request Project
-            </a>
-        </x-slot:actions>
-    </x-page-header>
+    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-6 gap-4">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">Daftar Projects</h1>
+        </div>
+        <a href="{{ route('pages.request') }}"
+            class="bg-brand-600 text-white text-sm font-semibold px-4 py-3 rounded-md flex items-center gap-2 hover:bg-brand-700 transition">
+            <i class='bx bx-plus'></i> Tambah Project
+        </a>
+    </div>
 
     @if (session('success'))
         <div class="mb-6 px-4 py-3 rounded-md bg-emerald-50 text-emerald-700 text-sm">{{ session('success') }}</div>
@@ -49,18 +50,25 @@
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     @forelse ($projects as $project)
-                        <tr class="hover:bg-slate-50">
-                            <td class="px-6 py-4 font-semibold text-slate-700">{{ $project->name }}</td>
+                        <tr class="group relative hover:bg-slate-50 cursor-pointer transition">
+                            <td class="px-6 py-4 font-semibold text-slate-700">
+                                {{-- Link utama: "after:absolute after:inset-0" membuat seluruh baris bisa diklik --}}
+                                <a href="{{ route('pages.projects.show', $project) }}"
+                                    class="group-hover:text-brand-600 after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-brand-500">
+                                    {{ $project->name }}
+                                </a>
+                            </td>
                             <td class="px-6 py-4 text-slate-600">{{ $project->client_name }}</td>
-                            <td class="px-6 py-4"><x-badge
-                                    :color="$project->statusColor()">{{ $project->statusLabel() }}</x-badge></td>
-                            <td class="px-6 py-4 text-slate-500">{{ $project->serviceTypeLabel() }}</td>
-                            <td class="px-6 py-4 text-slate-500 font-mono text-right">{{ $project->created_at->translatedFormat('d M Y') }}</td>
                             <td class="px-6 py-4">
-                                <div class="flex items-center justify-end gap-3 text-slate-600">
-                                    <a href="{{ route('pages.projects.show', $project) }}"
-                                        class="inline-flex items-center justify-center min-h-11 min-w-11 hover:text-brand-600"
-                                        title="Detail" aria-label="Detail project"><i class='bx bx-show text-lg'></i></a>
+                                <x-badge :color="$project->statusColor()">{{ $project->statusLabel() }}</x-badge>
+                            </td>
+                            <td class="px-6 py-4 text-slate-500">{{ $project->serviceTypeLabel() }}</td>
+                            <td class="px-6 py-4 text-slate-500 font-mono text-right">
+                                {{ $project->created_at->translatedFormat('d M Y') }}
+                            </td>
+                            <td class="px-6 py-4">
+                                {{-- "relative z-10" supaya tombol Edit/Delete berada di atas overlay link baris --}}
+                                <div class="relative z-10 flex items-center justify-end gap-3 text-slate-600">
                                     <a href="{{ route('pages.projects.edit', $project) }}"
                                         class="inline-flex items-center justify-center min-h-11 min-w-11 hover:text-brand-600"
                                         title="Edit" aria-label="Edit project"><i class='bx bx-edit text-lg'></i></a>

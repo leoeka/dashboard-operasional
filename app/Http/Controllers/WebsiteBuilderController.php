@@ -15,7 +15,6 @@ use App\Services\PipelineCheckpointService;
 use App\Services\ScreenshotService;
 use App\Support\MockupSite;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -23,14 +22,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-/**
- * The AI proposal/mockup/build pipeline: split out of ProjectController
- * (which had grown to cover project CRUD, this pipeline, AND SEO/backlink
- * tooling all in one class) so each concern has its own file. See also
- * SeoBacklinkController (SEO/backlink/PageSpeed/Search Console/GA4) and
- * BundleController (the GPT WordPress build step after a mockup is
- * approved here).
- */
 class WebsiteBuilderController extends Controller
 {
     private const PROPOSAL_PROGRESS_TTL_MINUTES = 20;
@@ -72,7 +63,7 @@ class WebsiteBuilderController extends Controller
         return response()->json($progress);
     }
 
-    public function approveProposal(Project $project, BlueprintManifestService $manifestService): RedirectResponse
+    public function approveProposal(Project $project, Request $request, BlueprintManifestService $manifestService, GenerateMockupGptService $mockups): RedirectResponse
     {
         $proposal = $project->latestProposal;
 
@@ -81,16 +72,38 @@ class WebsiteBuilderController extends Controller
         }
 
         $proposalData = json_decode((string) $proposal->ai_reasoning, true) ?: [];
-        $selectedIndex = (int) ($proposalData['selected_mockup_index'] ?? 0);
-        $selectedMockup = $proposalData['mockup_candidates'][$selectedIndex] ?? ($proposalData['mockup'] ?? []);
+
+        // The button on a mockup card sends that card's index, so recording
+        // the client's choice and recording the approval are one action. They
+        // used to be two endpoints, and only the approval one had a UI.
+        $validated = $request->validate(['mockup_index' => 'nullable|integer|min:0|max:2']);
+        $selectedIndex = isset($validated['mockup_index'])
+            ? (int) $validated['mockup_index']
+            : ($proposalData['selected_mockup_index'] ?? null);
+
+        $selectedMockup = MockupSite::candidateAt($proposalData, is_int($selectedIndex) ? $selectedIndex : null);
+
+        if (! $selectedMockup) {
+            return back()->with('error', 'Opsi mockup yang dipilih tidak ditemukan. Generate proposal ulang.');
+        }
+
+        // Drafts are photographed hero-only (three heroes per proposal, not
+        // 27 photos). The section photographs the chosen design really wants
+        // are bought here, and its PNG is re-rendered from them, so the picture
+        // that gets approved is the picture that gets delivered. When they
+        // cannot be bought, the draft is approved as it stands.
+        $selectedMockup = $mockups->completeCandidate($project, $selectedMockup, ((int) $selectedIndex) + 1);
+
+        $proposalData['selected_mockup_index'] = $selectedIndex;
+        $proposalData['mockup'] = $selectedMockup;
+        if (isset($proposalData['mockup_candidates'][$selectedIndex])) {
+            $proposalData['mockup_candidates'][$selectedIndex] = $selectedMockup;
+        }
         // Derived straight from the blueprint the client approved. This used
         // to round-trip through GPT vision — send the mockup PNG back and ask
         // it to describe the design in the picture — which could only lose or
         // invent detail, and made approval fail whenever OpenAI was down.
-        $manifest = $manifestService->build($selectedMockup);
-
-        $proposalData['mockup'] = $selectedMockup;
-        $proposalData['implementation_manifest'] = $manifest;
+        $proposalData['implementation_manifest'] = $manifestService->build($selectedMockup);
         $proposal->update([
             'status' => 'approved',
             'ai_reasoning' => json_encode($proposalData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
@@ -100,37 +113,37 @@ class WebsiteBuilderController extends Controller
         // — 'mockup' is not a valid enum value.
         $project->update(['status' => 'in_progress']);
 
-        return back()->with('success', 'Approval klien tercatat. Mockup terpilih siap dibuat menjadi WordPress siap install.');
+        return back()->with('success', 'Pilihan klien tercatat pada Opsi '.($selectedIndex + 1).'. WordPress siap dibuat.');
     }
 
-    public function selectMockup(Project $project, Request $request): RedirectResponse|JsonResponse
+    public function reviseProposal(Project $project, PipelineCheckpointService $checkpoints): RedirectResponse
     {
         $proposal = $project->latestProposal;
-        $proposalData = json_decode((string) ($proposal?->ai_reasoning ?? ''), true) ?: [];
-        $selectedIndex = (int) $request->validate(['mockup_index' => 'required|integer|min:0|max:2'])['mockup_index'];
 
-        // Dipanggil lewat fetch() dari kartu pilihan mockup (lihat
-        // seo-backlink.blade.php) supaya milih opsi tidak me-reload seluruh
-        // halaman lagi — form biasa (tanpa JS) tetap jalan via redirect di
-        // bawah, ini cuma jalur cepatnya.
-        $wantsJson = $request->ajax() || $request->wantsJson();
-
-        if (! $proposal || ! isset($proposalData['mockup_candidates'][$selectedIndex])) {
-            $message = 'Pilihan mockup tidak ditemukan. Generate proposal ulang.';
-
-            return $wantsJson
-                ? response()->json(['success' => false, 'message' => $message], 422)
-                : back()->with('error', $message);
+        if (! $proposal) {
+            return back()->with('error', 'Proposal belum dibuat.');
         }
 
-        $proposalData['selected_mockup_index'] = $selectedIndex;
-        $proposal->update(['ai_reasoning' => json_encode($proposalData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE)]);
+        $proposalData = json_decode((string) $proposal->ai_reasoning, true) ?: [];
 
-        $message = 'Mockup pilihan '.($selectedIndex + 1).' tersimpan. Setelah approval klien dari proposal diterima, catat approval di workspace untuk mulai build.';
+        // "Belum ada yang cocok" is an answer from the client, so it is recorded
+        // rather than thrown away: only the selection is cleared, which is what
+        // locks the WordPress build again, and the round the client answered
+        // stays in the proposal until a new one replaces it.
+        $proposalData['selected_mockup_index'] = null;
+        $proposal->update([
+            'status' => 'rejected',
+            'ai_reasoning' => json_encode($proposalData, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE),
+        ]);
 
-        return $wantsJson
-            ? response()->json(['success' => true, 'message' => $message, 'selected_index' => $selectedIndex])
-            : back()->with('success', $message);
+        // And the answer has to lead somewhere. Replaying the frozen content
+        // and blueprints would hand back the same three options the client
+        // just rejected, so the stages that decide how the site looks and reads
+        // are dropped. The audience and the competitor research stay: they come
+        // from the brief, not from the client's taste.
+        $checkpoints->forget($project, ['website_content', 'design_blueprint', 'mockup_assets', 'proposal_document']);
+
+        return back()->with('success', 'Dicatat: belum ada opsi yang dipilih klien. Buat opsi baru untuk mengirim desain yang berbeda.');
     }
 
     /**
@@ -193,10 +206,30 @@ class WebsiteBuilderController extends Controller
             throw new \Exception('Project is not linked to client data.');
         }
 
+        // 2. TARGET MARKET: the one thing Gemini still does.
+        //
+        // The team usually already wrote the audience into the User Story; this
+        // pulls it out into one field so the SEO side has it and the content
+        // writer has something to build on. It fails soft inside
+        // deriveTargetMarket(), so a Gemini outage costs a weaker brief, never
+        // the whole proposal.
+        $market = $checkpoints->remember($project, 'target_market', function () use ($project, $client, $geminiService) {
+            $this->reportProgress($project, 'processing', 15, 'Reading the target market out of the user story...');
+
+            return $geminiService->deriveTargetMarket($project, $client);
+        });
+
+        // A project requested without the target-market field still gets it
+        // recorded, so the Workspace and the SEO feature can see what was read
+        // out of the story instead of re-deriving it next run.
+        if (trim((string) $project->target_market) === '' && trim((string) $market['target_market']) !== '') {
+            $project->update(['target_market' => $market['target_market']]);
+        }
+
         // Competitor research is genuinely optional — it enriches the brief but
         // the pipeline works without it, so a failure here stays a warning.
-        $competitorContents = $checkpoints->remember($project, 'competitor_research', function () use ($project, $geminiService, $competitorDiscovery, $contentFetcher) {
-            if (empty(trim((string) $project->target_market))) {
+        $competitorContents = $checkpoints->remember($project, 'competitor_research', function () use ($project, $market, $competitorDiscovery, $contentFetcher) {
+            if (empty(trim((string) $market['target_market']))) {
                 return [];
             }
 
@@ -204,12 +237,11 @@ class WebsiteBuilderController extends Controller
             $found = [];
 
             try {
-                $searchContext = $geminiService->extractCompetitorSearchContext($project);
                 $competitorUrls = $competitorDiscovery->findCompetitors(
-                    $searchContext['business_type'] ?? ($project->type ?? ''),
-                    $searchContext['topics'] ?? [],
+                    $market['business_type'] ?: ($project->type ?? ''),
+                    $market['topics'] ?? [],
                     '',
-                    $project->target_market
+                    $market['target_market']
                 );
 
                 foreach (array_slice($competitorUrls, 0, 3) as $url) {
@@ -227,10 +259,13 @@ class WebsiteBuilderController extends Controller
             return $found;
         });
 
-        $analysis = $checkpoints->remember($project, 'gemini_analysis', function () use ($project, $client, $competitorContents, $geminiService) {
-            $this->reportProgress($project, 'processing', 35, 'Analyzing business requirements with AI...');
+        // 3. CONTENT: one GPT call writes the analysis, the sitemap and the
+        // actual copy. Everything after this stage treats the result as final —
+        // the designer adds paint on top of these words and never rewrites them.
+        $analysis = $checkpoints->remember($project, 'website_content', function () use ($project, $client, $market, $competitorContents, $aiService) {
+            $this->reportProgress($project, 'processing', 35, 'GPT is writing the website content...');
 
-            return $geminiService->analyzeProject($project, $client, $competitorContents);
+            return $aiService->writeWebsiteContent($project, $client, $market, $competitorContents);
         });
 
         // Frozen designs, checkpointed BEFORE any photo is paid for. An image
@@ -315,7 +350,7 @@ class WebsiteBuilderController extends Controller
 
         if (! $proposal) {
             return redirect()
-                ->route('pages.projects.show', $project)
+                ->route('pages.project-workspace', ['project' => $project->id])
                 ->with('error', 'Proposal has not been created yet.');
         }
 
@@ -348,14 +383,12 @@ class WebsiteBuilderController extends Controller
 
     public function aiWorkspace(Request $request)
     {
-        $projects = Project::orderBy('name')->get();
-
         $project = null;
         if ($request->project) {
             $project = Project::with(['latestProposal'])->find($request->project);
         }
 
-        return view('pages.project-workspace', compact('projects', 'project'));
+        return view('pages.project-workspace', compact('project'));
     }
 
     public function proposalWorkshop(Request $request)

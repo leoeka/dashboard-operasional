@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\Log;
  * Lets the AI pipeline stop safely and pick up where it left off.
  *
  * A provider failing used to lose the whole run: the job threw, and the next
- * attempt restarted at the business analysis — paying Gemini and the designer
- * again to get back to the same failed step, and burning image credits on
- * candidates that had already been produced once.
+ * attempt restarted at the first stage — paying Gemini, the content writer and
+ * the designer again to get back to the same failed step, and burning image
+ * credits on candidates that had already been produced once.
  *
  * Each stage now records its result the moment it succeeds. A retry replays the
  * completed stages from that record and only re-runs the one that failed. That
@@ -25,8 +25,9 @@ class PipelineCheckpointService
 {
     /** Ordered — each stage consumes what the stage before it stored. */
     public const STAGES = [
+        'target_market',
         'competitor_research',
-        'gemini_analysis',
+        'website_content',
         'design_blueprint',
         'mockup_assets',
         'proposal_document',
@@ -133,21 +134,27 @@ class PipelineCheckpointService
     }
 
     /**
-     * Clears the record so the next run starts from scratch. Only for a
-     * deliberate "generate again from the beginning" — an ordinary retry must
-     * NOT call this, or it would pay for every stage a second time.
+     * Drops the record for the listed stages so the next run recomputes them.
+     *
+     * Only for a deliberate new round of work: an ordinary retry must keep the
+     * checkpoints, or it pays for every completed stage a second time.
+     *
+     * @param  list<string>  $stages
      */
-    public function reset(Project $project): void
+    public function forget(Project $project, array $stages): void
     {
-        PipelineCheckpoint::where('project_id', $project->id)->delete();
+        PipelineCheckpoint::where('project_id', $project->id)
+            ->whereIn('stage', $stages)
+            ->delete();
     }
 
     /** Which provider a stage talks to, for classifying an unclassified throwable. */
     private function providerFor(string $stage): string
     {
         return match ($stage) {
-            'gemini_analysis', 'competitor_research' => 'gemini',
-            'design_blueprint', 'mockup_assets' => 'openai',
+            'target_market' => 'gemini',
+            'competitor_research' => 'places',
+            'website_content', 'design_blueprint', 'mockup_assets' => 'openai',
             default => 'pipeline',
         };
     }
