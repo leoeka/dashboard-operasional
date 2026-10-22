@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use App\Models\ActivityLog;
 use App\Models\Invoice;
-use App\Support\MockupSite;
 
 class Project extends Model
 {
@@ -66,14 +65,24 @@ class Project extends Model
         return $this->hasMany(ProjectFile::class)->latest();
     }
 
-    public function proposals()
-    {
-        return $this->hasMany(Proposal::class);
-    }
-
     public function activityLogs()
     {
         return $this->hasMany(ActivityLog::class)->latest();
+    }
+
+    public function mockupCandidates()
+    {
+        return $this->hasMany(MockupCandidate::class)->orderBy('candidate_number');
+    }
+
+    public function clientProposals()
+    {
+        return $this->hasMany(ClientProposal::class)->latest();
+    }
+
+    public function wpBuild()
+    {
+        return $this->hasOne(WpBuild::class)->latestOfMany();
     }
 
     public function statusColor(): string
@@ -126,49 +135,5 @@ class Project extends Model
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
-    }
-
-    public function latestProposal()
-    {
-        return $this->hasOne(Proposal::class)->latestOfMany();
-    }
-
-    public function bundles()
-    {
-        return $this->hasMany(ProjectBundle::class);
-    }
-
-    /**
-     * Whether a WordPress build may run, and which option it runs on.
-     *
-     * Both the click (BundleController::build) and the worker
-     * (BuildProjectBundleJob) ask this, and they must get the same answer: the
-     * recorded client choice is the only thing allowed to pick an option, so a
-     * second copy of the rule would be a second place to leak it.
-     *
-     * @return array{mockup: ?array, message: string, data: array}
-     */
-    public function approvedBuildOption(): array
-    {
-        $proposal = $this->latestProposal;
-
-        if (! $proposal) {
-            return ['mockup' => null, 'message' => 'Generate proposal dan mockup terlebih dahulu.', 'data' => []];
-        }
-
-        $data = json_decode((string) $proposal->ai_reasoning, true) ?: [];
-        $selectedIndex = $data['selected_mockup_index'] ?? null;
-
-        if ($proposal->status !== 'approved' || ! is_int($selectedIndex)) {
-            return ['mockup' => null, 'message' => 'Build WordPress terkunci sampai pilihan klien dicatat. Tekan "Klien pilih opsi ini" pada mockup yang dipilih klien.', 'data' => $data];
-        }
-
-        $mockup = MockupSite::candidateAt($data, $selectedIndex);
-
-        if (! $mockup) {
-            return ['mockup' => null, 'message' => 'Opsi yang disetujui tidak ada di proposal versi ini. Generate proposal ulang.', 'data' => $data];
-        }
-
-        return ['mockup' => $mockup, 'message' => '', 'data' => $data];
     }
 }

@@ -2,7 +2,7 @@
 <div class="content-page">
     <div class="header-band">
         <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
-        <span class="date">{{ now()->format('n/j/Y') }}</span>
+        <span class="date">{{ $date }}</span>
     </div>
 
     <h2 class="section-title">Website Development Services COST</h2>
@@ -42,14 +42,14 @@
             </tr>
         </tbody>
     </table>
-    <span class="page-number">3</span>
+    <span class="page-number">5</span>
 </div>
 
 {{-- Page 5: First other-services page --}}
 <div class="content-page">
     <div class="header-band">
         <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
-        <span class="date">{{ now()->format('n/j/Y') }}</span>
+        <span class="date">{{ $date }}</span>
     </div>
 
     <table class="cost-table">
@@ -93,14 +93,14 @@
             </tr>
         </tbody>
     </table>
-    <span class="page-number">4</span>
+    <span class="page-number">6</span>
 </div>
 
 {{-- Page 6: Second other-services page --}}
 <div class="content-page">
     <div class="header-band">
         <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
-        <span class="date">{{ now()->format('n/j/Y') }}</span>
+        <span class="date">{{ $date }}</span>
     </div>
 
     <table class="cost-table">
@@ -150,14 +150,14 @@
             </tr>
         </tbody>
     </table>
-    <span class="page-number">5</span>
+    <span class="page-number">7</span>
 </div>
 
 {{-- Page 7: Terms, portfolio and closing --}}
 <div class="content-page">
     <div class="header-band">
         <img src="{{ public_path('images/logo-transparent.png') }}" class="logo">
-        <span class="date">{{ now()->format('n/j/Y') }}</span>
+        <span class="date">{{ $date }}</span>
     </div>
 
     <table class="cost-table">
@@ -204,5 +204,5 @@
     </div>
 
     <div class="thank-you">Thank you for your interest</div>
-    <span class="page-number">6</span>
+    <span class="page-number">8</span>
 </div>

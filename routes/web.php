@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
-use App\Http\Controllers\WebsiteBuilderController;
+use App\Http\Controllers\AiWorkspaceController;
 use App\Http\Controllers\SeoBacklinkController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\requestOrderController;
@@ -11,6 +11,9 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\BillingSubscriptionController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\MockupCandidateController;
+use App\Http\Controllers\ClientProposalController;
+use App\Http\Controllers\WpBuildController;
 use App\Http\Controllers\ReportController;
 
 /*
@@ -46,22 +49,9 @@ Route::middleware(['auth'])->group(function () {
     // before this route split — pre-existing, not caused by it).
     Route::delete('/projects/{project}/files/{file}', [ProjectController::class, 'destroyFile'])->name('pages.projects.files.destroy');
 
-    Route::get(
-        '/projects/{project}/proposal/preview',
-        [WebsiteBuilderController::class, 'previewProposal']
-    )->name('pages.projects.proposal.preview');
-
-    Route::get(
-        '/projects/{project}/proposal/download',
-        [WebsiteBuilderController::class, 'downloadProposal']
-    )->name('pages.projects.proposal.download');
-
     // 5. AI Workspace
-    Route::get('/project-workspace', [WebsiteBuilderController::class, 'aiWorkspace'])->name('pages.project-workspace');
-    Route::get('/workshop', [WebsiteBuilderController::class, 'proposalWorkshop'])->name('pages.workshop');
-    // NOTE: generateAiContent has no controller method yet (already
-    // missing before this route split — pre-existing, not caused by it).
-    Route::post('/seo-backlink/{project}/generate', [WebsiteBuilderController::class, 'generateAiContent'])->name('pages.seo-backlink.generate');
+    Route::get('/project-workspace', [AiWorkspaceController::class, 'aiWorkspace'])->name('pages.project-workspace');
+    Route::get('/workshop', [AiWorkspaceController::class, 'proposalWorkshop'])->name('pages.workshop');
     Route::post('/projects/{project}/analyze-seo-backlink', [SeoBacklinkController::class, 'analyzeSeoBacklink'])
         ->name('pages.projects.seo-backlink.analyze');
     Route::get('/projects/{project}/analyze-seo-backlink/status', [SeoBacklinkController::class, 'seoBacklinkStatus'])
@@ -123,6 +113,30 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/keywords/select', [SeoBacklinkController::class, 'selectKeywords'])
         ->name('pages.projects.keywords.select');
 
+    // Mockup pipeline — gerbang tim di Workspace. Generate berat lewat antrean.
+    Route::post('/projects/{project}/mockup-candidates', [MockupCandidateController::class, 'store'])
+        ->name('pages.projects.mockup.store');
+    Route::post('/projects/{project}/mockup-candidates/{candidate}/regenerate', [MockupCandidateController::class, 'regenerate'])
+        ->name('pages.projects.mockup.regenerate');
+    Route::post('/projects/{project}/mockup-candidates/approve', [MockupCandidateController::class, 'approve'])
+        ->name('pages.projects.mockup.approve');
+    Route::get('/mockup-candidates/{candidate}/preview.png', [MockupCandidateController::class, 'preview'])
+        ->name('pages.projects.mockup.preview');
+
+    // Proposal PDF untuk klien — dirakit dari tiga kandidat yang disetujui tim.
+    Route::post('/projects/{project}/proposals', [ClientProposalController::class, 'store'])
+        ->name('pages.projects.proposals.store');
+    Route::get('/projects/{project}/proposals/{proposal}/download', [ClientProposalController::class, 'download'])
+        ->name('pages.projects.proposals.download');
+
+    // Pilihan klien (tim mencatat dari PDF yang dikembalikan) + kunci build.
+    Route::post('/projects/{project}/proposals/{proposal}/chosen-candidate/{candidate}', [ClientProposalController::class, 'choose'])
+        ->name('pages.projects.proposals.choose');
+    Route::post('/projects/{project}/builds', [WpBuildController::class, 'store'])
+        ->name('pages.projects.builds.store');
+    Route::get('/projects/{project}/builds/{build}/download', [WpBuildController::class, 'download'])
+        ->name('pages.projects.builds.download');
+
     // 7. Finance
     // A reminder workspace, not a cash book: payments are settled outside this
     // system. The page reads; the writes are the renewal engine's own reminder
@@ -158,34 +172,6 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::post('/logout', [ProfileController::class, 'logout'])->name('logout');
-
-    // 10. Proposal
-
-    Route::post('/projects/{project}/proposal/generate', [WebsiteBuilderController::class, 'generateProposal'])->name('pages.projects.proposal.generate');
-    Route::get('/projects/{project}/proposal/status', [WebsiteBuilderController::class, 'proposalStatus'])
-        ->name('pages.projects.proposal.status');
-    // One press on a mockup card records both the client's choice and the
-    // approval; /revise records "none of these" and locks the build again.
-    Route::post('/projects/{project}/proposal/approve', [WebsiteBuilderController::class, 'approveProposal'])
-        ->name('pages.projects.proposal.approve');
-    Route::post('/projects/{project}/proposal/revise', [WebsiteBuilderController::class, 'reviseProposal'])
-        ->name('pages.projects.proposal.revise');
-
-    // Live website demo of a mockup candidate (0-based index into
-    // mockup_candidates) — rendered from the same blueprint as the PNG and
-    // the WordPress build. See MockupPreviewController.
-    Route::get('/projects/{project}/mockup/{candidate}/preview', [\App\Http\Controllers\MockupPreviewController::class, 'show'])
-        ->whereNumber('candidate')
-        ->name('pages.projects.mockup.preview');
-    Route::get('/projects/{project}/mockup/{candidate}/demo', [\App\Http\Controllers\MockupPreviewController::class, 'demo'])
-        ->whereNumber('candidate')
-        ->name('pages.projects.mockup.demo');
-
-    // WordPress bundle workflow
-    Route::get('/projects/{project}/bundle', [\App\Http\Controllers\BundleController::class, 'index'])->name('pages.projects.bundle');
-    Route::post('/projects/{project}/bundle/build', [\App\Http\Controllers\BundleController::class, 'build'])->name('pages.projects.bundle.build');
-    Route::get('/projects/{project}/bundle/download', [\App\Http\Controllers\BundleController::class, 'download'])->name('pages.projects.bundle.download');
-    Route::get('/projects/{project}/bundle/status', [\App\Http\Controllers\BundleController::class, 'status'])->name('pages.projects.bundle.status');
 
     Route::resource('service-packages', \App\Http\Controllers\ServicePackageController::class)->except(['show']);
 

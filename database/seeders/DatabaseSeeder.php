@@ -4,7 +4,6 @@ namespace Database\Seeders;
 
 use App\Models\ActivityLog;
 use App\Models\Project;
-use App\Models\Proposal;
 use Illuminate\Database\Seeder;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;

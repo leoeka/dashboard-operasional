@@ -47,36 +47,11 @@
         </a>
     @else
         {{-- Satu layar, satu jalur kerja. Kolom kiri: identitas project lalu daftar
-        tahap yang bisa ditekan; kolom kanan: isi tahap yang dipilih. Jalur Backlink
-        belum dibuat sebagai jalur sendiri karena publishing-nya belum ada, jadi hanya
-        kebutuhan backlink yang ikut muncul di kartu Kebutuhan jalur SEO. --}}
+        tahap yang bisa ditekan; kolom kanan: isi tahap yang dipilih. Jalur Mockup
+        memimpin untuk project website (produk utama); jalur Backlink belum dibuat
+        sebagai jalur sendiri karena publishing-nya belum ada, jadi hanya kebutuhan
+        backlink yang ikut muncul di kartu Kebutuhan jalur SEO. --}}
         @php
-            $proposal = $project->latestProposal;
-            $proposalData = json_decode((string) ($proposal->ai_reasoning ?? ''), true) ?: [];
-            $mockupCandidates = $proposalData['mockup_candidates'] ?? [];
-            if (!is_array($mockupCandidates) || $mockupCandidates === []) {
-                $mockupCandidates = isset($proposalData['mockup']) ? [$proposalData['mockup']] : [];
-            }
-
-            // Jawaban klien atas tiga opsi mockup: pilihan + approval dicatat
-            // dalam satu aksi di kartu (lihat workspace.web-mockup). Build
-            // WordPress membaca kedua state ini, tidak pernah menerima index
-            // dari form, jadi ZIP tidak bisa dibuat dari opsi lain.
-            $selectedMockupIndex = is_int($proposalData['selected_mockup_index'] ?? null)
-                ? $proposalData['selected_mockup_index']
-                : null;
-            $mockupChoice = $proposal?->status ?? 'pending';
-            $clientChose = $mockupChoice === 'approved' && $selectedMockupIndex !== null;
-
-            // Tahap "Mockup & build" belum selesai hanya karena klien sudah
-            // memilih: hasilnya adalah ZIP, jadi titik di rel baru muncul
-            // setelah build terakhir berhasil di-export.
-            $latestBundle = $project->bundles()
-                ->orderByDesc('updated_at')
-                ->orderByDesc('id')
-                ->first();
-            $wordpressReady = $latestBundle?->status === 'exported';
-
             $seo = $project->seo_requirements ?? [];
             $backlink = $project->backlink_requirements ?? [];
             $cmsPlatform = $seo['cms_platform'] ?? null;
@@ -103,25 +78,29 @@
             $searchConsole = $seo['search_console'] ?? null;
             $ga4 = $seo['google_analytics'] ?? null;
 
-            $tracks = [
-                'web' => [
-                    'label' => 'Pembuatan Web',
+            $tracks = [];
+
+            if (in_array('website', $project->serviceTypes())) {
+                $tracks['mockup'] = [
+                    'label' => 'Mockup',
+                    'icon' => 'bx-palette',
                     'steps' => [
                         [
-                            'key' => 'proposal',
-                            'label' => 'Proposal',
-                            'done' => (bool) $proposal,
-                            'views' => ['workspace.web-proposal'],
-                        ],
-                        [
-                            'key' => 'mockup',
-                            'label' => 'Mockup & build',
-                            'done' => $wordpressReady,
-                            'views' => ['workspace.web-mockup'],
+                            'key' => 'tinjau',
+                            'label' => 'Tinjau mockup',
+                            'done' => $mockupSet->count() === 3 && $mockupSet->every(
+                                fn ($candidate) => in_array($candidate->status, [
+                                    \App\Models\MockupCandidate::STATUS_TEAM_APPROVED,
+                                    \App\Models\MockupCandidate::STATUS_SENT,
+                                    \App\Models\MockupCandidate::STATUS_CHOSEN,
+                                    \App\Models\MockupCandidate::STATUS_REJECTED,
+                                ], true)
+                            ),
+                            'views' => ['workspace.mockup-gate'],
                         ],
                     ],
-                ],
-            ];
+                ];
+            }
 
             if ($project->wants_seo || $project->wants_backlink) {
                 $seoTrackLabel = match (true) {
@@ -162,8 +141,6 @@
 
             // Tahap yang dibuka lebih dulu: tahap nyata pertama yang belum selesai.
             $initialStep = [];
-            $webAllDone = false;
-            $seoHasOpen = false;
             foreach ($tracks as $trackKey => $track) {
                 $open = $track['steps'][0]['key'];
                 foreach ($track['steps'] as $stage) {
@@ -173,19 +150,21 @@
                     }
                 }
                 $initialStep[$trackKey] = $open;
-                $unfinished = collect($track['steps'])->contains(fn($s) => !$s['done']);
-                if ($trackKey === 'web') {
-                    $webAllDone = !$unfinished;
-                } else {
-                    $seoHasOpen = $unfinished;
-                }
             }
-            $initialTrack = ($webAllDone && $seoHasOpen) ? 'seo' : 'web';
+            $initialTrack = array_key_first($tracks);
             $stageKeys = collect($tracks)
                 ->map(fn($track) => collect($track['steps'])->pluck('key')->all())
                 ->all();
         @endphp
 
+        @if (empty($tracks))
+            {{-- Project murni SEO/Backlink tanpa jalur yang cocok, atau data yang
+            belum lengkap: jangan tinggalkan rel dan panel kosong. --}}
+            <x-card>
+                <x-empty-state icon="bx-inbox" title="Belum ada jalur kerja untuk project ini"
+                    description="Jalur kerja muncul otomatis mengikuti layanan yang dicentang pada project." />
+            </x-card>
+        @else
         <script>
             function workspaceRail(stageKeys, initial) {
                 return {
@@ -232,7 +211,7 @@
                                     'text-slate-700 hover:bg-slate-50'"
                                 :aria-current="track === '{{ $trackKey }}' ? 'true' : null"
                                 class="min-h-11 w-full inline-flex items-center gap-2 px-3 rounded-md text-sm text-left transition">
-                                <i class='bx bx-{{ $trackKey === 'web' ? 'window-alt' : 'line-chart' }} shrink-0'
+                                <i class='bx {{ $track['icon'] ?? 'bx-line-chart' }} shrink-0'
                                     aria-hidden="true"></i>
                                 <span>{{ $track['label'] }}</span>
                             </button>
@@ -279,194 +258,7 @@
                 @endforeach
             </div>
         </div>
-
-        <x-progress-bar name="mockup-progress-modal" title="Generate" />
-        <x-progress-bar name="bundle-progress-modal" title="Build WordPress" />
-
-        <script>
-            function startGenerateProposal(projectId) {
-                const btn = document.getElementById('generate-proposal-btn');
-                const idleWarning = document.getElementById('mockup-idle-warning');
-
-                if (btn) {
-                    btn.disabled = true;
-                    btn.querySelector('span').innerText = 'Processing...';
-                }
-                idleWarning?.classList.add('hidden');
-
-                ProgressModal.open('mockup-progress-modal');
-                ProgressModal.update('mockup-progress-modal', {
-                    percent: 0,
-                    message: 'Starting process...',
-                    status: 'processing',
-                });
-
-                fetch(`/projects/${projectId}/proposal/generate`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'Accept': 'application/json',
-                    },
-                }).then(response => {
-                    if (!response.ok) {
-                        throw new Error(`Generate failed (${response.status})`);
-                    }
-
-                    pollProposalStatus(projectId);
-                }).catch(error => {
-                    ProgressModal.update('mockup-progress-modal', {
-                        percent: 0,
-                        message: error.message || 'Failed to start proposal generation.',
-                        status: 'failed',
-                    });
-                    if (btn) {
-                        btn.disabled = false;
-                        btn.querySelector('span').innerText = 'Generate Proposal';
-                    }
-                    idleWarning?.classList.remove('hidden');
-                });
-
-                function pollProposalStatus(projectId) {
-                    fetch(`/projects/${projectId}/proposal/status`, {
-                            headers: {
-                                'Accept': 'application/json'
-                            },
-                        })
-                        .then(res => {
-                            if (!res.ok) {
-                                throw new Error(`Failed to get proposal status (${res.status})`);
-                            }
-                            return res.json();
-                        })
-                        .then(data => {
-                            const pct = data.progress ?? 0;
-                            const status = ['done', 'completed'].includes(data.status) ? 'done' : data.status === 'failed' ?
-                                'failed' :
-                                'processing';
-
-                            ProgressModal.update('mockup-progress-modal', {
-                                percent: pct,
-                                message: data.message || '',
-                                status,
-                            });
-
-                            if (status === 'done') {
-                                setTimeout(() => window.location.reload(), 800);
-                            } else if (data.status === 'failed') {
-                                if (btn) {
-                                    btn.disabled = false;
-                                    btn.querySelector('span').innerText = 'Generate Proposal';
-                                }
-                                idleWarning?.classList.remove('hidden');
-                            } else {
-                                setTimeout(() => pollProposalStatus(projectId), 1500);
-                            }
-                        })
-                        .catch(error => {
-                            ProgressModal.update('mockup-progress-modal', {
-                                percent: 0,
-                                message: error.message || 'Failed to read proposal status.',
-                                status: 'failed',
-                            });
-                            if (btn) {
-                                btn.disabled = false;
-                                btn.querySelector('span').innerText = 'Generate Proposal';
-                            }
-                            idleWarning?.classList.remove('hidden');
-                        });
-                }
-            }
-
-            // Build sama sekali tidak menunggu di request ini: tombol hanya
-            // mengirim job ke antrean, lalu lingkaran progres di atas membaca
-            // /bundle/status tiap 1,5 detik sampai ZIP-nya jadi.
-            function startBuildWebsite(projectId) {
-                const buttons = document.querySelectorAll('[data-build-button]');
-                const setBusy = (busy) => buttons.forEach((btn) => {
-                    btn.disabled = busy;
-                    const label = btn.querySelector('[data-build-label]');
-                    if (label) {
-                        label.innerText = busy ? 'Build sedang berjalan...' : label.dataset.idleLabel;
-                    }
-                });
-
-                setBusy(true);
-                ProgressModal.open('bundle-progress-modal');
-                ProgressModal.update('bundle-progress-modal', {
-                    percent: 0,
-                    message: 'Build masuk antrean...',
-                    status: 'processing',
-                });
-
-                fetch(`/projects/${projectId}/bundle/build`, {
-                    method: 'POST',
-                    headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'Accept': 'application/json',
-                    },
-                }).then((response) => {
-                    if (!response.ok) {
-                        return response.json()
-                            .catch(() => ({}))
-                            .then((body) => {
-                                throw new Error(body.error || `Build gagal dimulai (${response.status}).`);
-                            });
-                    }
-                    pollBundleStatus(projectId);
-                }).catch((error) => {
-                    ProgressModal.update('bundle-progress-modal', {
-                        percent: 0,
-                        message: error.message || 'Build WordPress belum bisa dimulai.',
-                        status: 'failed',
-                    });
-                    setBusy(false);
-                });
-
-                function pollBundleStatus(projectId) {
-                    fetch(`/projects/${projectId}/bundle/status`, {
-                            headers: {
-                                'Accept': 'application/json'
-                            },
-                        })
-                        .then((res) => {
-                            if (!res.ok) {
-                                throw new Error(`Gagal membaca status build (${res.status})`);
-                            }
-                            return res.json();
-                        })
-                        .then((data) => {
-                            const pct = data.progress ?? 0;
-                            const status = ['done', 'completed'].includes(data.status) ? 'done' : data.status === 'failed' ?
-                                'failed' :
-                                'processing';
-
-                            ProgressModal.update('bundle-progress-modal', {
-                                percent: pct,
-                                message: data.message || '',
-                                status,
-                            });
-
-                            if (status === 'done') {
-                                setTimeout(() => window.location.reload(), 800);
-                            } else if (status === 'failed') {
-                                setBusy(false);
-                            } else {
-                                setTimeout(() => pollBundleStatus(projectId), 1500);
-                            }
-                        })
-                        .catch((error) => {
-                            ProgressModal.update('bundle-progress-modal', {
-                                percent: 0,
-                                message: error.message || 'Gagal membaca status build.',
-                                status: 'failed',
-                            });
-                            setBusy(false);
-                        });
-                }
-
-                return false;
-            }
-        </script>
+        @endif
     @endif
 
 @endsection

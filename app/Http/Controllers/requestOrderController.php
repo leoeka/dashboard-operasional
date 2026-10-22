@@ -126,8 +126,7 @@ class requestOrderController extends Controller
             // FIX: sebelumnya field ini cuma digabung ke string
             // 'requirement_notes' yang BUKAN kolom asli di tabel projects
             // (tidak ada di migration maupun $fillable) — jadi selalu hilang
-            // diam-diam dan tidak pernah sampai ke prompt AI. Sekarang disimpan
-            // sebagai kolom sendiri supaya bisa dipakai GenerateMockupGptService.
+            // diam-diam. Sekarang disimpan sebagai kolom sendiri.
             if ($wantsWebsite) {
                 $referenceType = $validated['design_reference_type'] ?? 'none';
                 $referencePath = null;

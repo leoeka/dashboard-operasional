@@ -80,6 +80,11 @@ return [
         'engine_id' => env('GOOGLE_CUSTOM_SEARCH_ENGINE_ID'),
     ],
 
+    'mockup' => [
+        // Batas pengaman ronde alat per kandidat supaya loop tidak menggantung.
+        'max_tool_rounds' => env('MOCKUP_MAX_TOOL_ROUNDS', 12),
+    ],
+
     'pagespeed' => [
         'api_key' => env('PAGESPEED_API_KEY'),
     ],

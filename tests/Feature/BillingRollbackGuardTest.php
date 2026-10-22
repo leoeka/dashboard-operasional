@@ -32,20 +32,77 @@ function billingRollbackConnection(): string
 
     Artisan::call('migrate', ['--database' => 'billing_rollback', '--force' => true]);
 
-    // This test is specifically about the billing migrations. Remove the
-    // newest one from the isolated fixture so the step count below measures
-    // only the group the guard protects.
-    Artisan::call('migrate:rollback', [
-        '--database' => 'billing_rollback',
-        '--step' => 1,
-        '--force' => true,
-    ]);
+    // A rollback walks the ledger newest-first, so anything merged after the
+    // billing group would be counted as part of it. Roll those off first.
+    $onTop = trailingMigrations();
+    if ($onTop !== []) {
+        Artisan::call('migrate:rollback', [
+            '--database' => 'billing_rollback',
+            '--step' => count($onTop),
+            '--force' => true,
+        ]);
+    }
 
     return 'billing_rollback';
 }
 
-/** The eight migrations this phase added, i.e. what a "roll back billing" means. */
-const BILLING_MIGRATION_STEPS = 8;
+/**
+ * The migrations this phase added, i.e. what "roll back billing" means.
+ * Listed by name so an unrelated migration merged later cannot move the window
+ * away from the group the guard protects.
+ */
+const BILLING_MIGRATIONS = [
+    '2026_09_18_000001_create_service_packages_table',
+    '2026_09_18_000002_create_billing_subscriptions_table',
+    '2026_09_18_000003_create_invoice_items_table',
+    '2026_09_18_000004_create_payments_table',
+    '2026_09_18_000005_create_billing_reminder_logs_table',
+    '2026_09_18_000006_extend_invoices_for_recurring_billing',
+    '2026_09_18_000007_add_billing_contact_to_clients_table',
+    '2026_10_12_063107_add_whatsapp_sent_at_to_billing_reminder_logs_table',
+    '2026_10_14_000001_add_ends_on_to_billing_subscriptions_table',
+];
+
+/** Migration files merged after the newest member of the billing group. */
+function trailingMigrations(): array
+{
+    $newestGrouped = max(BILLING_MIGRATIONS);
+
+    $files = array_map(
+        static fn (string $path): string => basename($path, '.php'),
+        glob(database_path('migrations/*.php'))
+    );
+
+    return array_values(array_filter(
+        $files,
+        static fn (string $name): bool => $name > $newestGrouped
+    ));
+}
+
+/**
+ * How many steps reach the whole group: the group itself plus anything unrelated
+ * merged inside its date range, since a rollback cannot skip a file.
+ */
+function billingRollbackSteps(string $connection): int
+{
+    $ledger = DB::connection($connection)
+        ->table('migrations')
+        ->orderByDesc('migration')
+        ->pluck('migration')
+        ->all();
+
+    $deepest = 0;
+
+    foreach (BILLING_MIGRATIONS as $name) {
+        $position = array_search($name, $ledger, true);
+        if ($position === false) {
+            throw new RuntimeException("Billing migration {$name} is not in the test ledger; update BILLING_MIGRATIONS.");
+        }
+        $deepest = max($deepest, $position);
+    }
+
+    return $deepest + 1;
+}
 
 function seedBillingData(string $connection): void
 {
@@ -130,6 +187,7 @@ it('refuses to roll back billing while billing data exists, and changes nothing'
     $connection = billingRollbackConnection();
     seedBillingData($connection);
 
+    $steps = billingRollbackSteps($connection);
     $migrationsBefore = DB::connection($connection)->table('migrations')->count();
 
     $failure = null;
@@ -137,7 +195,7 @@ it('refuses to roll back billing while billing data exists, and changes nothing'
     try {
         Artisan::call('migrate:rollback', [
             '--database' => $connection,
-            '--step' => BILLING_MIGRATION_STEPS,
+            '--step' => $steps,
             '--force' => true,
         ]);
     } catch (Throwable $e) {
@@ -193,15 +251,16 @@ it('rolls back cleanly when no billing data exists, and migrates again', functio
         'updated_at' => now(),
     ]);
 
+    $steps = billingRollbackSteps($connection);
     $migrationsBefore = $db->table('migrations')->count();
 
     Artisan::call('migrate:rollback', [
         '--database' => $connection,
-        '--step' => BILLING_MIGRATION_STEPS,
+        '--step' => $steps,
         '--force' => true,
     ]);
 
-    expect($db->table('migrations')->count())->toBe($migrationsBefore - BILLING_MIGRATION_STEPS)
+    expect($db->table('migrations')->count())->toBe($migrationsBefore - $steps)
         ->and($schema->hasTable('billing_subscriptions'))->toBeFalse()
         ->and($schema->hasTable('payments'))->toBeFalse()
         ->and($schema->hasColumn('clients', 'billing_email'))->toBeFalse()
@@ -211,9 +270,9 @@ it('rolls back cleanly when no billing data exists, and migrates again', functio
 
     Artisan::call('migrate', ['--database' => $connection, '--force' => true]);
 
-    // The newer non-billing URL migration is reapplied alongside the billing
-    // group, so the ledger gains exactly that one unrelated entry.
-    expect($db->table('migrations')->count())->toBe($migrationsBefore + 1)
+    // Migrating again reapplies the whole group plus the unrelated file that was
+    // merged inside its date range, and the ones rolled off before the test.
+    expect($db->table('migrations')->count())->toBe($migrationsBefore + count(trailingMigrations()))
         ->and($schema->hasTable('billing_subscriptions'))->toBeTrue()
         ->and($schema->hasColumn('clients', 'billing_email'))->toBeTrue()
         ->and($schema->hasColumn('invoices', 'purpose'))->toBeTrue();
@@ -236,7 +295,7 @@ it('treats a filled-in billing contact alone as data worth protecting', function
     try {
         Artisan::call('migrate:rollback', [
             '--database' => $connection,
-            '--step' => BILLING_MIGRATION_STEPS,
+            '--step' => billingRollbackSteps($connection),
             '--force' => true,
         ]);
     } catch (Throwable $e) {

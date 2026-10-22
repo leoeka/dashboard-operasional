@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Exceptions\ProviderException;
 use App\Models\Project;
-use App\Models\Client;
 use Gemini\Laravel\Facades\Gemini;
 use Illuminate\Support\Facades\Log;
 use Gemini\Data\GenerationConfig;
@@ -12,106 +11,18 @@ use Gemini\Enums\ResponseMimeType;
 use App\Support\JsonRepair;
 
 /**
- * The Gemini calls in this app.
- *
- * In the website pipeline Gemini does exactly one thing now: read the User
- * Story and state the target market the client is aiming at, which the SEO
- * side needs and the content stage builds on. Writing the website itself —
- * analysis, sitemap, copy, CTAs — used to be Gemini's job too and moved to
- * GPT (see GenerateMockupGptService::writeWebsiteContent), so one model owns
- * what the site says and how it looks.
- *
- * The keyword-research helpers at the bottom belong to the SEO feature
- * (KeywordResearchService, RunKeywordPreviewAnalysisJob), not to the website
- * pipeline, and are unchanged.
+ * The Gemini calls in this app: the SEO keyword-research helpers
+ * (identifyTopicsFromWebsite, expandSeedKeywords, selectFinalKeywords —
+ * dipakai KeywordResearchService & RunKeywordPreviewAnalysisJob) plus the
+ * shared JSON-call wrapper they all run on.
  */
 class AnalisisGeminiService
 {
     /**
-     * Reads the target market out of the User Story, plus the short search
-     * terms used to find real businesses serving that same market.
-     *
-     * The team usually already wrote the audience inside the User Story ("my
-     * market is X, Y, Z"); this puts that into one field the rest of the
-     * pipeline can use, and fills it in for the projects where the story only
-     * implies one.
-     *
-     * Fails soft on purpose: this is enrichment, and a Gemini outage must not
-     * stop a proposal that the team can still write by hand.
-     *
-     * @return array{target_market: string, business_type: string, topics: array<int,string>, from_team: bool}
-     */
-    public function deriveTargetMarket(Project $project, ?Client $client = null): array
-    {
-        $given = trim((string) ($project->target_market ?? ''));
-
-        try {
-            $result = $this->callGeminiJson('gemini-3.6-flash', $this->targetMarketPrompt($project, $client));
-        } catch (\Throwable $e) {
-            Log::warning('deriveTargetMarket: Gemini gagal, pakai isian tim apa adanya.', [
-                'project_id' => $project->id,
-                'error' => ProviderException::sanitise($e->getMessage()),
-            ]);
-
-            return [
-                'target_market' => $given,
-                'business_type' => (string) ($project->type ?? ''),
-                'topics' => [],
-                'from_team' => $given !== '',
-            ];
-        }
-
-        return [
-            // An audience the team typed is a fact from the client; a derived
-            // one is a reading of the brief. The team's words always win.
-            'target_market' => $given !== '' ? $given : trim((string) ($result['target_market'] ?? '')),
-            'business_type' => $result['business_type'] ?? ($project->type ?? ''),
-            'topics' => is_array($result['topics'] ?? null) ? $result['topics'] : [],
-            'from_team' => $given !== '',
-        ];
-    }
-
-    private function targetMarketPrompt(Project $project, ?Client $client): string
-    {
-        $location = trim((string) ($client?->address ?? data_get($project->seo_requirements, 'location') ?? ''));
-        $locationLine = $location !== '' ? "\nOperating Location/Area: {$location}" : '';
-
-        return <<<PROMPT
-You are a Market Research Assistant for a web agency serving Indonesian businesses.
-
-Read the brief below and state WHO this website is for: the audience the client
-wants to reach, in 2-4 sentences. Then give short search terms that find REAL
-competing businesses serving that same market.
-
-Rules:
-- The User Story is the only evidence about this client. If it names its target market (like "target pasarnya X, Y, Z" or "my audience is ..."), return those segments in those words and add nothing the client did not name.
-- If the story only implies an audience, infer the single most plausible one and keep it concrete for THIS business. Never generic filler like "young professionals who value quality".
-- target_market: who the site is for, or an empty string if the brief genuinely does not say.
-- business_type: 2-4 word industry category usable in a search query, e.g. 'specialty coffee shop'.
-- topics: 3-6 short keyword phrases a searcher would type to find a business like this.
-
-Website Name: {$project->name}
-Website Category: {$project->type}
-Client: {$project->client_name}{$locationLine}
-User Story (written by our team from what the client asked for): {$project->description}
-
-Return ONLY valid JSON, no markdown:
-{ "target_market": "...", "business_type": "...", "topics": ["..."] }
-PROMPT;
-    }
-
-    /**
-     * Helper generik untuk memanggil Gemini dan mem-parsing respons JSON-nya,
-     * dengan retry untuk error sementara dan auto-repair kalau JSON kepotong
-     * — dipakai oleh alur rekomendasi keyword SEO & Backlink di bawah, yang
-     * sebelumnya memanggil Gemini langsung TANPA retry sama sekali.
-     * Melempar RuntimeException kalau semua percobaan gagal.
-     */
-    /**
      * Pembungkus publik tipis untuk callGeminiJson — dipakai service lain
-     * (mis. ContentExtractabilityService) yang butuh satu panggilan Gemini
-     * "prompt masuk, JSON keluar" tanpa mengulang logika retry/repair di
-     * sini. Model mengikuti pemanggil callGeminiJson lain di kelas ini.
+     * (mis. ContentExtractabilityService) dan alur rekomendasi keyword
+     * SEO & Backlink yang butuh satu panggilan Gemini "prompt masuk, JSON
+     * keluar" tanpa mengulang logika retry/repair di sini.
      */
     public function callJson(string $prompt): array
     {

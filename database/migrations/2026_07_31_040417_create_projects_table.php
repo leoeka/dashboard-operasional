@@ -16,6 +16,7 @@ return new class extends Migration {
             $table->string('client_name');              // PT ABC
             $table->string('type')->nullable();          // Company Profile, E-commerce, dll
             $table->text('website_features')->nullable(); // isi/fitur yang diminta klien
+            $table->text('description')->nullable();      // uraian kebutuhan dari form Request
             $table->boolean('has_client_assets')->nullable(); // jawabannya cuma Ya/Tidak
             $table->enum('status', ['request', 'in_progress', 'completed'])->default('request');
             $table->decimal('value', 15, 2)->nullable();

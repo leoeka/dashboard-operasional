@@ -14,9 +14,7 @@ use Illuminate\Support\Str;
 /**
  * SEO/backlink tooling: keyword recommendations, PageSpeed, Search
  * Console, GA4, competitor comparison, manual screenshots, and the
- * SEO-only PDF reports. Split out of ProjectController (see
- * WebsiteBuilderController for the AI proposal/mockup/build pipeline,
- * which used to live in the same class).
+ * SEO-only PDF reports. Split out of ProjectController.
  */
 class SeoBacklinkController extends Controller
 {

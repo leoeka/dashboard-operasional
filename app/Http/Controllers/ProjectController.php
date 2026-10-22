@@ -9,9 +9,8 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Validation\Rule;
 
 /**
- * Project CRUD only. See WebsiteBuilderController for the AI proposal/
- * mockup/build pipeline and SeoBacklinkController for SEO/backlink
- * tooling — both used to live in this class.
+ * Project CRUD only. See SeoBacklinkController for SEO/backlink
+ * tooling — it used to live in this class.
  */
 class ProjectController extends Controller
 {
