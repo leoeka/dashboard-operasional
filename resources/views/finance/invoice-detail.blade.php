@@ -253,7 +253,7 @@
                         <dl class="mt-3 space-y-2 text-sm">
                             @if (filled($contactName))
                                 <div>
-                                    <dt class="text-xs text-slate-500">Kontak Billing</dt>
+                                    <dt class="text-xs text-slate-500">Kontak Tagihan</dt>
                                     <dd class="text-slate-600">{{ $contactName }}</dd>
                                 </div>
                             @endif

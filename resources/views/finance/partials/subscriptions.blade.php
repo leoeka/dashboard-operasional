@@ -15,7 +15,7 @@
 
         <select name="service_type" class="min-h-11 bg-slate-50 text-slate-600 rounded-md px-3 py-2 text-sm outline-none">
             <option value="">Semua jenis</option>
-            @foreach (\App\Models\BillingSubscription::SERVICE_TYPES as $type)
+            @foreach (\App\Models\FinanceSubscription::SERVICE_TYPES as $type)
                 <option value="{{ $type }}" @selected(request('service_type') === $type)>{{ ucfirst($type) }}</option>
             @endforeach
         </select>

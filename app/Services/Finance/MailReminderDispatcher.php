@@ -1,35 +1,30 @@
 <?php
 
-namespace App\Services\Billing;
+namespace App\Services\Finance;
 
-use App\Jobs\SendBillingReminderEmail;
-use App\Jobs\SendBillingReminderWhatsApp;
-use App\Models\BillingReminderLog;
+use App\Jobs\SendFinanceReminderEmail;
+use App\Jobs\SendFinanceReminderWhatsApp;
+use App\Models\FinanceReminderLog;
 use App\Models\Invoice;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class MailReminderDispatcher implements ReminderDispatcher
 {
-    /**
-     * Jeda WA menumpuk selama satu run: BillingRenewalService memakai
-     * satu instance dispatcher untuk seluruh batch, jadi tiap WA berikutnya
-     * dijadwalkan lebih lambat dari sebelumnya.
-     */
     private int $whatsappOffset = 0;
 
-    public function send(Invoice $invoice, BillingReminderLog $log, string $recipient): bool
+    public function send(Invoice $invoice, FinanceReminderLog $log, string $recipient): bool
     {
-        SendBillingReminderEmail::dispatch($log->getKey());
+        SendFinanceReminderEmail::dispatch($log->getKey());
 
-        // Masalah WA tidak boleh membuat jalur email dianggap gagal.
         try {
             if ($invoice->billableClient()?->whatsapp) {
-                SendBillingReminderWhatsApp::dispatch($log->getKey())
+                SendFinanceReminderWhatsApp::dispatch($log->getKey())
                     ->delay(now()->addSeconds($this->whatsappOffset));
 
                 $this->whatsappOffset += $this->nextGap();
             }
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             Log::warning('Gagal menjadwalkan WhatsApp reminder renewal.', [
                 'reminder_log_id' => $log->getKey(),
                 'error' => $e->getMessage(),
@@ -39,7 +34,6 @@ class MailReminderDispatcher implements ReminderDispatcher
         return false;
     }
 
-    /** Jeda acak dalam detik dari FONNTE_DELAY, mis. "60-180". */
     private function nextGap(): int
     {
         $parts = array_map('intval', explode('-', (string) config('services.fonnte.delay', '60-180')));

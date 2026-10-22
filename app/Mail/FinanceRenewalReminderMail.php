@@ -2,31 +2,19 @@
 
 namespace App\Mail;
 
-use App\Models\BillingReminderLog;
+use App\Models\FinanceReminderLog;
 use App\Models\Invoice;
-use App\Services\Billing\BillingClock;
-use App\Services\Billing\ReminderPolicy;
+use App\Services\Finance\FinanceClock;
+use App\Services\Finance\ReminderPolicy;
+use App\Services\InvoicePdfService;
 use Carbon\Carbon;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
-use App\Services\InvoicePdfService;
 
 /**
- * The renewal notice a client actually receives.
- *
- * Written around a subscription and its billing period, so it never names a
- * project or a DP/Pelunasan type — a hosting renewal has neither.
- *
- * The first threshold of a cycle (H-30 yearly, H-7 monthly) is the same message
- * that announces the invoice, so a client gets one email that day, not an
- * "invoice created" and a "reminder" arriving together.
- *
- * Wording is driven by the REAL days left until the due date (not by the
- * threshold number stored on the log), and every sentence states the actual
- * dates and amount. That way the text can never disagree with the invoice,
- * whatever the reminder schedule is configured to.
+ * Surat pengingat perpanjangan layanan yang dikirimkan ke klien.
  */
-class BillingRenewalReminderMail extends Mailable
+class FinanceRenewalReminderMail extends Mailable
 {
     use SerializesModels;
 
@@ -34,22 +22,16 @@ class BillingRenewalReminderMail extends Mailable
 
     public function __construct(
         public Invoice $invoice,
-        public BillingReminderLog $log,
-        private BillingClock $clock = new BillingClock(),
+        public FinanceReminderLog $log,
+        private FinanceClock $clock = new FinanceClock(),
         private ReminderPolicy $policy = new ReminderPolicy(),
     ) {
     }
 
-    // public function build()
-    // {
-    //     return $this->subject($this->subjectLine())
-    //         ->view('emails.billing-renewal-reminder', $this->viewData());
-    // }
-
     public function build()
     {
         return $this->subject($this->subjectLine())
-            ->view('emails.billing-renewal-reminder', $this->viewData())
+            ->view('emails.finance-renewal-reminder', $this->viewData())
             ->attachData(
                 app(InvoicePdfService::class)->render($this->invoice),
                 $this->invoice->invoice_number . '.pdf',
@@ -86,10 +68,6 @@ class BillingRenewalReminderMail extends Mailable
             : 'Pengingat Pembayaran';
     }
 
-    /**
-     * Opening paragraph. States the concrete facts (service, dates, amount) so
-     * the client does not have to hunt for them in the table below.
-     */
     private function intro(): string
     {
         $days = $this->daysRemaining();
@@ -98,9 +76,6 @@ class BillingRenewalReminderMail extends Mailable
         $amount = $this->rupiah($this->invoice->amount);
 
         if ($this->isFirstNotice()) {
-            // The renewal invoice is created with due_date = the subscription's
-            // renewal date (BillingRenewalService::createRenewalInvoice), so one
-            // date serves both; naming it twice would only read as repetition.
             return "Layanan {$service} Anda akan diperpanjang pada {$due}. "
                 . "Kami telah menerbitkan invoice perpanjangan sebesar {$amount}, "
                 . 'yang jatuh tempo pada tanggal tersebut. Email ini kami kirim lebih awal '
@@ -121,7 +96,6 @@ class BillingRenewalReminderMail extends Mailable
         };
     }
 
-    /** Short note shown next to the due date in the table. */
     private function dueNote(): string
     {
         $days = $this->daysRemaining();
@@ -134,7 +108,6 @@ class BillingRenewalReminderMail extends Mailable
         };
     }
 
-    /** Whether this threshold is the one that also introduced the invoice. */
     private function isFirstNotice(): bool
     {
         $subscription = $this->invoice->subscription;
@@ -146,8 +119,6 @@ class BillingRenewalReminderMail extends Mailable
     private function serviceName(): string
     {
         return $this->invoice->subscription?->name
-            // The subscription can be gone (deleted; the invoice survives by
-            // design) — the line item still records what was billed.
             ?? $this->invoice->items->first()?->description
             ?? 'Layanan';
     }
@@ -186,17 +157,12 @@ class BillingRenewalReminderMail extends Mailable
         return ($start && $end) ? "{$start} – {$end}" : null;
     }
 
-    /**
-     * Counted from the billing business date, so a client in the operating
-     * timezone reads the same number of days we do.
-     */
     private function daysRemaining(): int
     {
         return $this->daysLeft ??= (int) $this->clock->businessDate($this->clock->today())
             ->diffInDays($this->clock->businessDate($this->invoice->due_date), false);
     }
 
-    /** Always Indonesian ("Okt", "Januari"), regardless of APP_LOCALE on the server. */
     private function date(mixed $date): ?string
     {
         return $date
@@ -208,6 +174,5 @@ class BillingRenewalReminderMail extends Mailable
     {
         return 'Rp ' . number_format((float) $amount, 0, ',', '.');
     }
-
-
 }
+

@@ -2,20 +2,19 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * One recurring service a client pays for, with its own next renewal date.
- *
- * The renewal date lives here rather than on ServicePackage because a package
- * is a catalogue entry shared by every client, while this is one client's copy
- * of it. A subscription does not need a package at all — a custom arrangement
- * is created by filling in name and amount directly.
+ * Satu layanan berulang yang dibayarkan klien (hosting, domain, website, maintenance).
+ * Disimpan di tabel billing_subscriptions.
  */
-class BillingSubscription extends Model
+class FinanceSubscription extends Model
 {
     use HasFactory;
+
+    protected $table = 'billing_subscriptions';
 
     public const CYCLE_MONTHLY = 'monthly';
     public const CYCLE_YEARLY = 'yearly';
@@ -23,14 +22,6 @@ class BillingSubscription extends Model
     public const SERVICE_TYPES = ['hosting', 'domain', 'website', 'maintenance', 'seo', 'other'];
     public const STATUSES = ['active', 'paused', 'cancelled', 'expired'];
 
-    /**
-     * What an operator pays for decides how often they are chased, and nobody
-     * should have to remember that mapping per client: hosting and domain are
-     * bought a year at a time, everything else is a monthly retainer.
-     *
-     * This is the only place the rule lives. The form no longer asks for a
-     * cycle; it derives one from the service type chosen here.
-     */
     public const YEARLY_SERVICE_TYPES = ['hosting', 'domain'];
 
     public static function cycleForServiceType(string $serviceType): string
@@ -57,10 +48,6 @@ class BillingSubscription extends Model
         'auto_reminder',
     ];
 
-    /**
-     * Mirrors the column defaults, so a newly built model already knows what it
-     * is before it has been round-tripped through the database.
-     */
     protected $attributes = [
         'service_type' => 'other',
         'billing_cycle' => self::CYCLE_YEARLY,
@@ -94,12 +81,12 @@ class BillingSubscription extends Model
 
     public function invoices()
     {
-        return $this->hasMany(Invoice::class);
+        return $this->hasMany(Invoice::class, 'billing_subscription_id');
     }
 
     public function reminderLogs()
     {
-        return $this->hasMany(BillingReminderLog::class);
+        return $this->hasMany(FinanceReminderLog::class, 'billing_subscription_id');
     }
 
     public function isYearly(): bool
@@ -112,30 +99,17 @@ class BillingSubscription extends Model
         return $this->status === 'active';
     }
 
-    /**
-     * Whether a renewal date still falls inside what the client subscribed to.
-     *
-     * A renewal date opens the period that is about to be billed, so a date
-     * landing on or after the end of the term would bill for service nobody
-     * bought. A null ends_on means there is no term: it runs until an operator
-     * stops it, which is every subscription written before terms existed.
-     */
-    public function coversRenewalOn(\Carbon\CarbonInterface $date): bool
+    public function coversRenewalOn(CarbonInterface $date): bool
     {
         return !$this->ends_on || $date->lt($this->ends_on->copy()->startOfDay());
     }
 
-    /** Negative once the renewal date has passed. */
     public function daysUntilRenewal(): int
     {
         return (int) today()->diffInDays($this->next_renewal_date, false);
     }
 
-    /**
-     * Where the next billing period would end if this renewed today. Used to
-     * fill an invoice's billing_period_* columns; it does not move anything.
-     */
-    public function periodEndFrom(\Carbon\CarbonInterface $start): \Carbon\CarbonInterface
+    public function periodEndFrom(CarbonInterface $start): CarbonInterface
     {
         return $this->isYearly()
             ? $start->copy()->addYear()->subDay()
@@ -147,3 +121,4 @@ class BillingSubscription extends Model
         return $query->where('status', 'active');
     }
 }
+

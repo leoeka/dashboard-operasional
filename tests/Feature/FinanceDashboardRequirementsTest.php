@@ -1,11 +1,11 @@
 <?php
 
-use App\Models\BillingReminderLog;
 use App\Models\Client;
+use App\Models\FinanceReminderLog;
 use App\Models\Invoice;
 use App\Models\Project;
 use App\Models\User;
-use App\Services\Billing\BillingRenewalService;
+use App\Services\Finance\FinanceRenewalService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -117,7 +117,7 @@ it('hides payment and manual invoice entry points from finance', function () {
 
 it('shows resend only when a failed reminder remains retryable', function () {
     $client = financeRequirementClient();
-    $subscription = \App\Models\BillingSubscription::create([
+    $subscription = \App\Models\FinanceSubscription::create([
         'client_id' => $client->id,
         'name' => 'Hosting',
         'service_type' => 'hosting',
@@ -130,19 +130,19 @@ it('shows resend only when a failed reminder remains retryable', function () {
         'billing_subscription_id' => $subscription->id,
         'purpose' => Invoice::PURPOSE_RENEWAL,
     ]);
-    $log = BillingReminderLog::create([
+    $log = FinanceReminderLog::create([
         'invoice_id' => $invoice->id,
         'billing_subscription_id' => $subscription->id,
         'days_before' => 30,
         'scheduled_for' => today(),
-        'status' => BillingReminderLog::FAILED,
+        'status' => FinanceReminderLog::FAILED,
         'attempts' => 1,
         'error_message' => 'SMTP timeout',
     ]);
 
-    $service = Mockery::mock(BillingRenewalService::class);
+    $service = Mockery::mock(FinanceRenewalService::class);
     $service->shouldReceive('retryFailedDeliveries')->once()->with([$log->id])->andReturn(1);
-    $this->app->instance(BillingRenewalService::class, $service);
+    $this->app->instance(FinanceRenewalService::class, $service);
 
     $this->actingAs(User::factory()->create())
         ->get(route('pages.finance', ['tab' => 'reminders']))
@@ -153,7 +153,7 @@ it('shows resend only when a failed reminder remains retryable', function () {
         ->assertRedirect()
         ->assertSessionHas('success');
 
-    $log->update(['attempts' => BillingReminderLog::MAX_ATTEMPTS]);
+    $log->update(['attempts' => FinanceReminderLog::MAX_ATTEMPTS]);
     $this->get(route('pages.finance', ['tab' => 'reminders']))
         ->assertOk()
         ->assertSee('Batas percobaan tercapai')

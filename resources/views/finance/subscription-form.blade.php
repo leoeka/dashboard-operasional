@@ -25,7 +25,7 @@
             clientId: '{{ old('client_id', $subscription->client_id) }}',
             projectId: '{{ old('project_id', $subscription->project_id) }}',
             serviceType: '{{ old('service_type', $subscription->service_type) }}',
-            yearlyTypes: {{ Js::from(\App\Models\BillingSubscription::YEARLY_SERVICE_TYPES) }},
+            yearlyTypes: {{ Js::from(\App\Models\FinanceSubscription::YEARLY_SERVICE_TYPES) }},
             get cycleHint() {
                 return this.yearlyTypes.includes(this.serviceType)
                     ? 'Tahunan: invoice terbit H-30, reminder H-30 / H-7 / H-3.'
@@ -108,7 +108,7 @@
                                     class="text-red-700">*</span></label>
                             <select name="service_type" required x-model="serviceType"
                                 class="min-h-11 w-full bg-slate-50 text-slate-700 rounded-md px-3 py-2 text-sm outline-none">
-                                @foreach (\App\Models\BillingSubscription::SERVICE_TYPES as $type)
+                                @foreach (\App\Models\FinanceSubscription::SERVICE_TYPES as $type)
                                     <option value="{{ $type }}" @selected(old('service_type', $subscription->service_type) === $type)>
                                         {{ ucfirst($type) }}</option>
                                 @endforeach

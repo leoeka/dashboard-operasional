@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
-use App\Services\Billing\BillingClock;
+use App\Services\Finance\FinanceClock;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 
@@ -34,7 +34,7 @@ class InvoiceController extends Controller
      * Nothing here touches the subscription. Periods roll on the calendar, not
      * on settlement, because payment happens where this system cannot see it.
      */
-    public function markPaid(Request $request, Invoice $invoice, BillingClock $clock)
+    public function markPaid(Request $request, Invoice $invoice, FinanceClock $clock)
     {
         if ($invoice->status === 'cancelled') {
             return back()->with('error', 'Invoice dibatalkan tidak dapat ditandai lunas.');

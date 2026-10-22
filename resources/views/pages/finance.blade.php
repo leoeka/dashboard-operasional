@@ -1,9 +1,9 @@
 @extends('layouts.app')
-@section('title', 'Billing & Finance')
+@section('title', 'Finance')
 
 @section('content')
 
-    <x-page-header title="Billing & Finance">
+    <x-page-header title="Finance">
         <x-slot:actions>
             <a href="{{ route('pages.finance.subscriptions.create') }}"
                 class="min-h-11 bg-brand-600 text-white text-sm px-4 py-2 rounded-md hover:bg-brand-700 transition inline-flex items-center gap-2">

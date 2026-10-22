@@ -28,9 +28,19 @@ class Client extends Model
         return $this->hasMany(Project::class);
     }
 
+    public function financeSubscriptions()
+    {
+        return $this->hasMany(FinanceSubscription::class);
+    }
+
+    public function subscriptions()
+    {
+        return $this->hasMany(FinanceSubscription::class);
+    }
+
     public function billingSubscriptions()
     {
-        return $this->hasMany(BillingSubscription::class);
+        return $this->hasMany(FinanceSubscription::class);
     }
 
     public function invoices()

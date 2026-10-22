@@ -1,13 +1,13 @@
 <?php
 
-use App\Models\BillingSubscription;
 use App\Models\Client;
+use App\Models\FinanceReminderLog;
+use App\Models\FinanceSubscription;
 use App\Models\Invoice;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\ServicePackage;
 use App\Models\User;
-use App\Services\Billing\BillingPaymentService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 
@@ -43,13 +43,13 @@ function financeProject(Client $client, string $name = 'Website ABC'): Project
     ]);
 }
 
-function financeSubscription(Client $client, array $overrides = []): BillingSubscription
+function financeSubscription(Client $client, array $overrides = []): FinanceSubscription
 {
-    return BillingSubscription::create(array_merge([
+    return FinanceSubscription::create(array_merge([
         'client_id' => $client->id,
         'name' => 'Hosting + Domain',
         'service_type' => 'hosting',
-        'billing_cycle' => BillingSubscription::CYCLE_YEARLY,
+        'billing_cycle' => FinanceSubscription::CYCLE_YEARLY,
         'amount' => 2500000,
         'start_date' => '2025-10-30',
         'next_renewal_date' => '2026-10-30',
@@ -74,7 +74,7 @@ it('loads the finance workspace', function () {
     $this->actingAs(financeUser())
         ->get(route('pages.finance'))
         ->assertOk()
-        ->assertSee('Billing &amp; Finance', false)
+        ->assertSee('Finance', false)
         ->assertSee('Perpanjangan Mendatang');
 });
 
@@ -203,7 +203,7 @@ it('creates a custom subscription with no package at all', function () {
         ->assertRedirect()
         ->assertSessionHas('success');
 
-    $subscription = BillingSubscription::sole();
+    $subscription = FinanceSubscription::sole();
 
     expect($subscription->name)->toBe('Maintenance Khusus')
         ->and($subscription->service_package_id)->toBeNull()
@@ -230,7 +230,7 @@ it('has no switch that stops an active subscription from billing', function () {
         ])
         ->assertRedirect();
 
-    expect((bool) BillingSubscription::sole()->auto_invoice)->toBeTrue();
+    expect((bool) FinanceSubscription::sole()->auto_invoice)->toBeTrue();
 });
 
 it('creates a subscription from an optional service package', function () {
@@ -251,7 +251,7 @@ it('creates a subscription from an optional service package', function () {
         ])
         ->assertRedirect();
 
-    expect(BillingSubscription::sole()->servicePackage->name)->toBe('SEO Basic');
+    expect(FinanceSubscription::sole()->servicePackage->name)->toBe('SEO Basic');
 });
 
 it('rejects a subscription without the fields it cannot work without', function () {
@@ -259,7 +259,7 @@ it('rejects a subscription without the fields it cannot work without', function 
         ->post(route('pages.finance.subscriptions.store'), ['name' => 'Tanpa Client'])
         ->assertSessionHasErrors(['client_id', 'service_type', 'amount', 'start_date']);
 
-    expect(BillingSubscription::count())->toBe(0);
+    expect(FinanceSubscription::count())->toBe(0);
 });
 
 it('updates a subscription', function () {
@@ -327,7 +327,7 @@ it('pauses, resumes and cancels a subscription without deleting it', function ()
     $patch('cancelled');
     expect($subscription->fresh()->status)->toBe('cancelled')
         // still there, because invoices point at it
-        ->and(BillingSubscription::whereKey($subscription->id)->exists())->toBeTrue();
+        ->and(FinanceSubscription::whereKey($subscription->id)->exists())->toBeTrue();
 });
 
 it('refuses a status the model does not recognise', function () {
@@ -543,7 +543,7 @@ it('derives the billing cycle from the service type', function () {
         ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, ['service_type' => 'hosting']))
         ->assertSessionHasNoErrors();
 
-    expect(BillingSubscription::sole()->billing_cycle)->toBe('yearly');
+    expect(FinanceSubscription::sole()->billing_cycle)->toBe('yearly');
 
     $this->actingAs(financeUser())
         ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, [
@@ -552,7 +552,7 @@ it('derives the billing cycle from the service type', function () {
         ]))
         ->assertSessionHasNoErrors();
 
-    expect(BillingSubscription::orderBy('id')->get()->last()->billing_cycle)->toBe('monthly');
+    expect(FinanceSubscription::orderBy('id')->get()->last()->billing_cycle)->toBe('monthly');
 });
 
 it('ignores a billing cycle sent from outside the form', function () {
@@ -567,7 +567,7 @@ it('ignores a billing cycle sent from outside the form', function () {
         ]))
         ->assertSessionHasNoErrors();
 
-    expect(BillingSubscription::sole()->billing_cycle)->toBe('monthly');
+    expect(FinanceSubscription::sole()->billing_cycle)->toBe('monthly');
 });
 
 it('offers the term on the form but never the cycle or the calendar', function () {
@@ -591,15 +591,15 @@ it('stores the term the client bought and clears it again', function () {
         ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, ['ends_on' => '2033-01-15']))
         ->assertSessionHasNoErrors();
 
-    expect(BillingSubscription::sole()->ends_on?->toDateString())->toBe('2033-01-15');
+    expect(FinanceSubscription::sole()->ends_on?->toDateString())->toBe('2033-01-15');
 
     // Blank means no term: the daily run keeps rolling until an operator stops
     // the subscription itself.
     $this->actingAs(financeUser())
-        ->put(route('pages.finance.subscriptions.update', BillingSubscription::sole()), subscriptionPayload($client, ['ends_on' => '']))
+        ->put(route('pages.finance.subscriptions.update', FinanceSubscription::sole()), subscriptionPayload($client, ['ends_on' => '']))
         ->assertSessionHasNoErrors();
 
-    expect(BillingSubscription::sole()->ends_on)->toBeNull();
+    expect(FinanceSubscription::sole()->ends_on)->toBeNull();
 });
 
 it('refuses a term that ends before it begins', function () {
@@ -612,7 +612,7 @@ it('refuses a term that ends before it begins', function () {
         ]))
         ->assertSessionHasErrors('ends_on');
 
-    expect(BillingSubscription::count())->toBe(0);
+    expect(FinanceSubscription::count())->toBe(0);
 });
 
 it('opens the first period on the start date and keeps the calendar to itself', function () {
@@ -625,7 +625,7 @@ it('opens the first period on the start date and keeps the calendar to itself', 
         ]))
         ->assertSessionHasNoErrors();
 
-    $subscription = BillingSubscription::sole();
+    $subscription = FinanceSubscription::sole();
 
     // Two dates were typed and one was derived: the period that is running now
     // opened the day the client signed up.
@@ -659,7 +659,7 @@ it('accepts a project that belongs to the chosen client', function () {
         ->assertRedirect()
         ->assertSessionHasNoErrors();
 
-    expect(BillingSubscription::sole()->project_id)->toBe($project->id);
+    expect(FinanceSubscription::sole()->project_id)->toBe($project->id);
 });
 
 it('refuses a project that belongs to a different client', function () {
@@ -673,7 +673,7 @@ it('refuses a project that belongs to a different client', function () {
         ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($clientA, ['project_id' => $projectOfB->id]))
         ->assertSessionHasErrors('project_id');
 
-    expect(BillingSubscription::count())->toBe(0);
+    expect(FinanceSubscription::count())->toBe(0);
 });
 
 it('refuses to move a subscription onto another client project', function () {
@@ -701,7 +701,7 @@ it('still allows a subscription with no project at all', function () {
         ->post(route('pages.finance.subscriptions.store'), subscriptionPayload($client, ['project_id' => null]))
         ->assertSessionHasNoErrors();
 
-    expect(BillingSubscription::sole()->project_id)->toBeNull();
+    expect(FinanceSubscription::sole()->project_id)->toBeNull();
 });
 
 // ------------------------------------------------- invoice delete guard ----
@@ -778,12 +778,12 @@ it('keeps the payments, items and reminder logs of a refused delete', function (
 
     $invoice->items()->create(['description' => 'Hosting', 'quantity' => 1, 'unit_price' => 2500000, 'total' => 2500000]);
     Payment::create(['invoice_id' => $invoice->id, 'paid_on' => today(), 'amount' => 2500000]);
-    App\Models\BillingReminderLog::create([
+    FinanceReminderLog::create([
         'invoice_id' => $invoice->id,
         'billing_subscription_id' => $subscription->id,
         'days_before' => 30,
         'scheduled_for' => today(),
-        'status' => App\Models\BillingReminderLog::SENT,
+        'status' => FinanceReminderLog::SENT,
         'sent_at' => now(),
     ]);
 
@@ -793,7 +793,7 @@ it('keeps the payments, items and reminder logs of a refused delete', function (
     // refused rather than merely hidden.
     expect(App\Models\InvoiceItem::count())->toBe(1)
         ->and(Payment::count())->toBe(1)
-        ->and(App\Models\BillingReminderLog::count())->toBe(1);
+        ->and(FinanceReminderLog::count())->toBe(1);
 });
 
 it('blocks the delete even without the button', function () {

@@ -2,30 +2,25 @@
 
 namespace App\Console\Commands;
 
-use App\Services\Billing\BillingRenewalService;
+use App\Services\Finance\FinanceRenewalService;
 use Illuminate\Console\Command;
 
 /**
- * The single scheduled entry point for everything billing.
- *
- * One command, one path: the recurring renewal engine. Project invoices are not
- * reminded from here — payment for them is settled outside this system, so there
- * is nothing here to chase.
- *
- * All decisions live in the services. This only calls them and prints what
- * happened.
+ * Titik masuk scheduled command harian untuk proses perpanjangan layanan & pengingat (Finance Renewals).
  */
-class ProcessBillingRenewals extends Command
+class ProcessFinanceRenewals extends Command
 {
-    protected $signature = 'billing:process-renewals';
+    protected $signature = 'finance:process-renewals';
+
+    protected $aliases = ['billing:process-renewals'];
 
     protected $description = 'Buat invoice renewal yang jatuh tempo, antrikan reminder-nya, dan retry reminder yang gagal';
 
-    public function handle(BillingRenewalService $renewals): int
+    public function handle(FinanceRenewalService $renewals): int
     {
         $summary = $renewals->processDue();
 
-        $this->info('Billing run selesai:');
+        $this->info('Finance renewal run selesai:');
 
         foreach ([
             'subscriptions_checked' => 'subscriptions checked',
@@ -41,9 +36,7 @@ class ProcessBillingRenewals extends Command
             $this->line(sprintf('  %-32s %d', $label . ':', $summary[$key] ?? 0));
         }
 
-        // A failing subscription is reported, not fatal: the rest of the batch
-        // still ran, and a non-zero exit would make cron treat the whole run as
-        // lost.
         return self::SUCCESS;
     }
 }
+

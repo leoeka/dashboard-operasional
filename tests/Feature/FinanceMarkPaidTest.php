@@ -1,12 +1,12 @@
 <?php
 
-use App\Models\BillingReminderLog;
-use App\Models\BillingSubscription;
 use App\Models\Client;
+use App\Models\FinanceReminderLog;
+use App\Models\FinanceSubscription;
 use App\Models\Invoice;
 use App\Models\User;
-use App\Services\Billing\BillingRenewalService;
-use App\Services\Billing\ReminderDispatcher;
+use App\Services\Finance\FinanceRenewalService;
+use App\Services\Finance\ReminderDispatcher;
 use Illuminate\Support\Carbon;
 
 /**
@@ -23,7 +23,7 @@ class MarkPaidRecorder implements ReminderDispatcher
     /** @var array<int, array{invoice: int, days_before: int}> */
     public array $sent = [];
 
-    public function send(Invoice $invoice, BillingReminderLog $log, string $recipient): bool
+    public function send(Invoice $invoice, FinanceReminderLog $log, string $recipient): bool
     {
         $this->sent[] = ['invoice' => $invoice->id, 'days_before' => $log->days_before];
 
@@ -65,13 +65,13 @@ function markInvoice(Client $client, array $overrides = []): Invoice
     ], $overrides));
 }
 
-function markSubscription(Client $client): BillingSubscription
+function markSubscription(Client $client): FinanceSubscription
 {
-    return BillingSubscription::create([
+    return FinanceSubscription::create([
         'client_id' => $client->id,
         'name' => 'Hosting + Domain',
         'service_type' => 'hosting',
-        'billing_cycle' => BillingSubscription::CYCLE_YEARLY,
+        'billing_cycle' => FinanceSubscription::CYCLE_YEARLY,
         'amount' => 2500000,
         'start_date' => '2025-10-30',
         'next_renewal_date' => '2026-10-30',
@@ -225,7 +225,7 @@ it('stops the remaining thresholds of a paid invoice from sending', function () 
 
     $invoice = Invoice::where('purpose', Invoice::PURPOSE_RENEWAL)->sole();
 
-    expect(BillingReminderLog::count())->toBe(1)
+    expect(FinanceReminderLog::count())->toBe(1)
         ->and($recorder->sent)->toHaveCount(1);
 
     // The operator sees the money arrive off-system and marks it here.
@@ -237,7 +237,7 @@ it('stops the remaining thresholds of a paid invoice from sending', function () 
     Carbon::setTestNow(Carbon::parse('2026-10-27 09:00:00'));
     app(BillingRenewalService::class)->processDue();
 
-    expect(BillingReminderLog::count())->toBe(1)
+    expect(FinanceReminderLog::count())->toBe(1)
         ->and($recorder->sent)->toHaveCount(1);
 });
 

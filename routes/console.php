@@ -14,6 +14,6 @@ Artisan::command('inspire', function () {
 //
 // The timezone is stated explicitly so 09:00 means 09:00 where the business
 // actually is. The application itself stays on UTC — see config/billing.php.
-Schedule::command('billing:process-renewals')
+Schedule::command('finance:process-renewals')
     ->dailyAt('09:00')
-    ->timezone(config('billing.timezone'));
+    ->timezone(config('finance.timezone'));

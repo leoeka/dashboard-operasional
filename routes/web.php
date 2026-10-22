@@ -8,7 +8,7 @@ use App\Http\Controllers\PageController;
 use App\Http\Controllers\requestOrderController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\BillingSubscriptionController;
+use App\Http\Controllers\FinanceSubscriptionController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\MockupCandidateController;
@@ -153,11 +153,11 @@ Route::middleware(['auth'])->group(function () {
     // deleted, because billed invoices point at it. The renewal date is no
     // longer an operator's job: the billing engine rolls it forward on the
     // calendar, whether or not the money has arrived.
-    Route::get('/finance/subscriptions/create', [BillingSubscriptionController::class, 'create'])->name('pages.finance.subscriptions.create');
-    Route::post('/finance/subscriptions', [BillingSubscriptionController::class, 'store'])->name('pages.finance.subscriptions.store');
-    Route::get('/finance/subscriptions/{subscription}/edit', [BillingSubscriptionController::class, 'edit'])->name('pages.finance.subscriptions.edit');
-    Route::put('/finance/subscriptions/{subscription}', [BillingSubscriptionController::class, 'update'])->name('pages.finance.subscriptions.update');
-    Route::patch('/finance/subscriptions/{subscription}/status', [BillingSubscriptionController::class, 'updateStatus'])->name('pages.finance.subscriptions.status');
+    Route::get('/finance/subscriptions/create', [FinanceSubscriptionController::class, 'create'])->name('pages.finance.subscriptions.create');
+    Route::post('/finance/subscriptions', [FinanceSubscriptionController::class, 'store'])->name('pages.finance.subscriptions.store');
+    Route::get('/finance/subscriptions/{subscription}/edit', [FinanceSubscriptionController::class, 'edit'])->name('pages.finance.subscriptions.edit');
+    Route::put('/finance/subscriptions/{subscription}', [FinanceSubscriptionController::class, 'update'])->name('pages.finance.subscriptions.update');
+    Route::patch('/finance/subscriptions/{subscription}/status', [FinanceSubscriptionController::class, 'updateStatus'])->name('pages.finance.subscriptions.status');
     Route::post('/finance/reminders/{reminderLog}/retry', [FinanceController::class, 'retryReminder'])->name('pages.finance.reminders.retry');
     Route::delete('/finance/{invoice}', [InvoiceController::class, 'destroy'])->name('pages.finance.destroy');
 

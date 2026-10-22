@@ -3,19 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Invoice;
-use App\Services\Billing\BillingClock;
-use App\Services\Billing\ReminderTimeline;
+use App\Services\Finance\FinanceClock;
+use App\Services\Finance\ReminderTimeline;
 
 /**
  * One invoice, in full — read-only.
- *
- * Separate from FinanceController because the detail view answers a different
- * question from the workspace tabs. It has no actions of its own: deleting an
- * invoice belongs to InvoiceController, and nothing here changes one.
  */
 class FinanceInvoiceController extends Controller
 {
-    public function show(Invoice $invoice, ReminderTimeline $timeline, BillingClock $clock)
+    public function show(Invoice $invoice, ReminderTimeline $timeline, FinanceClock $clock)
     {
         // Everything the page reads, in one pass. Without this the items table,
         // the payment list and the timeline would each trigger their own

@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Services\Billing\BillingClock;
+use App\Services\Finance\FinanceClock;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -74,7 +74,7 @@ class Invoice extends Model
 
     public function subscription()
     {
-        return $this->belongsTo(BillingSubscription::class, 'billing_subscription_id');
+        return $this->belongsTo(FinanceSubscription::class, 'billing_subscription_id');
     }
 
     public function items()
@@ -89,7 +89,7 @@ class Invoice extends Model
 
     public function reminderLogs()
     {
-        return $this->hasMany(BillingReminderLog::class);
+        return $this->hasMany(FinanceReminderLog::class, 'invoice_id');
     }
 
     /**
@@ -146,7 +146,7 @@ class Invoice extends Model
             return false;
         }
 
-        $clock = app(BillingClock::class);
+        $clock = app(FinanceClock::class);
 
         return $clock->businessDate($this->due_date)->lessThan($clock->businessDate($clock->today()));
     }
