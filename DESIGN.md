@@ -295,7 +295,39 @@ di view yang dirutekan, lalu sebelas kontrol lagi ditutup tangan karena pemindai
 melihatnya (paragraf di atas), jadi pemindaian statis sekarang melaporkan nol kontrol di bawah
 44px.
 Toolbar filter Finance, Projects, Request, dan Workspace ikut lebih tinggi di desktop; itu
-konsekuensi yang dipilih pemilik, bukan hasil memampatkan.
+konsekuensi yang dipilih pemilik, bukan hasil memampatkan. (Workspace sudah tidak punya toolbar
+itu: `select` pemilih projectnya dihapus 2026-10-17, lihat bagian 8 item 4. Hitungan `min-h-11`
+152 pada pagi hari itu, lalu 155 setelah kartu state kosong Workspace digambar ulang pemilik
+pada hari yang sama.)
+
+Workspace sempat dibuat satu section dua kolom pada 2026-10-17 (kiri Informasi Umum, kanan
+Project Proposal), lalu dirombak lagi hari itu juga ke opsi "Rel langkah + panel" yang dipilih
+pemilik, karena tiga fitur (Pembuatan Web, SEO, Backlink) tidak muat di satu kolom:
+`grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-6 items-start`, kiri kartu Informasi
+Umum di atas daftar tahap yang bisa ditekan, kanan kartu milik tahap yang dipilih. Delapan kartu
+pindah utuh ke parsial `resources/views/workspace/*.blade.php` (1.112 baris); cangkang
+`pages/project-workspace.blade.php` tinggal 357 baris dan hanya merakit, satu `@include` per
+tahap, jadi tidak ada isi kartu yang berubah saat rombak. Jalurnya Pembuatan Web (Proposal,
+Mockup & build) dan satu jalur SEO yang namanya mengikuti yang dipesan klien (`SEO`, `Backlink`,
+atau `SEO & Backlink`, dibaca dari `wants_seo`/`wants_backlink` dan dipakai lagi sebagai judul
+kartu Kebutuhan). Jalur Backlink sendiri belum dibuat karena publishing-nya belum dibangun;
+data kebutuhan backlink tetap tampil di kartu Kebutuhan, hanya aksinya yang belum ada.
+Penanda tahap selesai diambil dari data yang memang memutuskannya, bukan perkiraan: proposal dari
+`latestProposal`, mockup dari `mockup_candidates` yang tidak kosong, kebutuhan dari `target_url`
+SEO atau backlink, analisis AI dari `ai_recommendations`, performa dari `pagespeed`, traffic dari
+`search_console` atau `google_analytics`. Yang dibuka lebih dulu adalah tahap belum selesai
+pertama; kalau Pembuatan Web sudah penuh dan SEO masih bolong, Workspace dibuka di jalur SEO.
+Dua tombol mati ("Connect Website", "Generate Article") pergi bersama `$isConnected` dan
+`$connectHint` yang memang konstan `false`, diganti dua kontrol rel yang hidup, jadi Workspace
+tetap 43 `min-h-11` dan total seluruh view terukur **154** di 94 view hari ini. Angka 155 pada
+catatan di atas tidak bisa direproduksi: `select` pemilih project (satu `min-h-11`) sudah dicabut
+sebelum rombak ini dan jumlahnya tidak dihitung ulang waktu itu. Kunci tahap SEO sengaja memakai
+nama tab lama (`performa`, `traffic`) karena `SeoBacklinkController::manualScreenshotRedirect()`
+mengirim orang kembali ke `#performa`; `ringkasan` hilang bersama tabnya. Lebar rel 260px belum
+diukur di peramban: peramban dalam aplikasi masih menolak `127.0.0.1:8899`, jadi buktinya render
+HTTP lewat rute asli (`tests/Feature/WorkspaceProposalPreviewTest.php`, dua belas test). Halaman
+preview proposal tidak berubah: `h-[650px]` tetap satu di sana, tanpa `pdf_path` ia menampilkan
+"PDF File Not Available Yet" dan nol `<iframe>`, dan `Document Viewer` tinggal nol.
 
 Cara memeriksanya: semua view yang bisa dirutekan dipindai terhadap enam penolak, palet
 terlarang, jarak di luar langkah, `rounded-2xl` dan `rounded` polos, teks `slate-400/300`,
@@ -318,6 +350,18 @@ sekarang, atas enam berkas itu: `gray-*` 16 jadi 0, `dark:` 10 jadi 0, `indigo-*
 Indonesia supaya cocok dengan sisa aplikasi. `/login` sekarang terukur 0 kegagalan kontras dan
 tanpa overflow di 1440px, 522px, 390px, dan 320px (kartunya menyusut ke 257px tanpa memotong
 apa pun); `x-guest-layout` dan kelas PHP `GuestLayout` tidak dipakai siapa pun dan ikut dibuang.
+
+Angka empat lebar itu diambil ketika kartu login masih punya header. Pada 2026-10-17 pemilik
+menandai blok itu dan minta menghapusnya: `bg-brand-600 p-6 text-center` beserta ikon grid,
+`<h1>SiteFlow</h1>` dan tagline keluar dari `auth/login.blade.php`, jadi kartunya sekarang
+langsung terbuka ke label Username. Kelima halaman auth lain sengaja mempertahankan header-nya,
+jadi `/login` satu-satunya kartu tanpa header dan itu keputusan, bukan temuan yang tertinggal.
+Sesudah penghapusan itu yang terverifikasi adalah HTML yang benar-benar disajikan server (0
+kemunculan blok itu, kartu `max-w-sm` tetap, dan nol elemen `<h1>` sampai `<h6>` di seluruh
+halaman) plus `tests/Feature/Auth` 21 passed; geometri peramban tidak diulang karena peramban
+in-app sesi itu tidak mau memuat `127.0.0.1:8899`. Yang hilang justru satu-satunya teks putih
+di atas biru di halaman tersebut, jadi kegagalan kontras tidak mungkin bertambah dari perubahan
+ini; yang bertambah ialah ketiadaan heading, dicatat di bagian 8 item 8.
 
 Satu efek samping yang menemukan bug lama: `/profile/edit` adalah satu-satunya halaman yang
 memakai `<x-app-layout>` (komponen Breeze) alih-alih `@extends('layouts.app')`. Komponen itu
@@ -424,15 +468,23 @@ Jangan:
    belum: 375px diukur lewat iframe, bukan viewport nyata seperti dashboard dan `/login`, dan
    `service-packages` tidak ikut karena rutenya 500 (item 2).
 4. Sudah dicek ulang lewat peramban (item 3) dan meninggalkan satu temuan bagian 4 yang sengaja
-   belum dikerjakan: **10 kontrol toolbar filter** (empat `select` dan satu input pencarian di
-   tab langganan Finance, tiga `select` di Reminders, `select` status di Projects, `select`
-   pemilih project di Workspace) memakai `bg-slate-50` tanpa border sendiri, terukur
+   belum dikerjakan: **9 kontrol toolbar filter** (empat `select` dan satu input pencarian di
+   tab langganan Finance, tiga `select` di Reminders, `select` status di Projects) memakai
+   `bg-slate-50` tanpa border sendiri, terukur
    `border-top-width: 0px`, dan pembungkus pencariannya cuma `border-slate-200` = 1,17:1
    terhadap putih. Bagian 4 minta `border-slate-500` (4,76:1) untuk bidang yang boundary-nya
    harus dikenali tanpa label, jadi ini kurang. Perbaikannya satu kelas per kontrol, tapi efeknya
    seluruh toolbar aplikasi jadi lebih berborder, jadi tidak dikerjakan diam-diam. Field di form
    yang tiap bidangnya sudah ada label (`finance/subscription-form`, `projects/form`) dibiarkan
-   tanpa border: aturan bagian 4 itu spesifik untuk kontrol tanpa label.
+   tanpa border: aturan bagian 4 itu spesifik untuk kontrol tanpa label. Hitungan ini dulu 10:
+   `select` pemilih project di Workspace ikut terukur, lalu kartu pemilihnya dihapus 2026-10-17
+   atas perintah pemilik dan state kosongnya dijadikan satu kartu tautan ke menu Project
+   ("Project tidak tersedia." dengan tombol "Buka menu Project", mengikuti label menu di
+   `config/navigation.php:15`). Kontrol itu tidak diperbaiki, ia tidak ada lagi. Kartu baru itu
+   sendiri sekarang satu-satunya `rounded-2xl` di seluruh `resources/views`, digambar
+   pemilik setelah hitungan ini diukur; dibiarkan, tidak disentuh diam-diam. `border-dashed`
+   bukan satu-satunya: ada dua, kartu itu dan placeholder "Mockup not yet created" yang sudah
+   ada lebih dulu di kartu mockup Workspace.
 5. Sudah diputuskan pemilik 2026-10-16: naikkan semua ke 44px. Bagian 4 menulis `px-4 py-2`
    (±36px) dan bagian 7 menuntut lantai 44px, dan pemilik memilih yang terakhir. `min-h-11`
    ditulis di 76 kontrol yang tersisa, jadi seluruh toolbar aplikasi lebih tinggi, desktop
@@ -455,6 +507,13 @@ Jangan:
    dirender. (b) `/profile/edit` berjudul "Profile | SiteFlow", sama persis dengan `/profile`,
    jadi dua tab tidak bisa dibedakan dari riwayat. Copy Inggris di judul ada di `/clients/create`
    ("Request Order") dan `/finance` ("Billing & Finance"); itu bagian keputusan `lang/` item 1.
+8. `/login` tidak punya `<h1>` sejak header birunya dihapus 2026-10-17, dan pemilik memilih
+   membiarkannya: halaman itu sekarang mulai dari label "Username". Ini satu-satunya halaman di
+   aplikasi yang tidak punya heading sama sekali (terukur: nol `<h1>`..`<h6>` di HTML yang
+   disajikan), jadi penanda struktur untuk pembaca layar datang dari `<title>` "Login | SiteFlow"
+   dan dari label field. Kalau kelak ada yang ingin "memperbaiki" ini, itu keputusan pemilik
+   lagi, bukan bug yang bisa ditutup sendiri; lima halaman auth lain masih punya heading putih di
+   atas `brand-600` masing-masing.
 
 ## 9. Cara memakai dokumen ini
 

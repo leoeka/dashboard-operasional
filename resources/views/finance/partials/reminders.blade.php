@@ -4,7 +4,7 @@
 
         <select name="status" class="min-h-11 bg-slate-50 text-slate-600 rounded-md px-3 py-2 text-sm outline-none">
             <option value="">Semua status</option>
-            @foreach ([\App\Models\BillingReminderLog::PENDING => 'Menunggu', \App\Models\BillingReminderLog::SENT => 'Terkirim', \App\Models\BillingReminderLog::FAILED => 'Gagal'] as $value => $label)
+            @foreach ([\App\Models\FinanceReminderLog::PENDING => 'Menunggu', \App\Models\FinanceReminderLog::SENT => 'Terkirim', \App\Models\FinanceReminderLog::FAILED => 'Gagal'] as $value => $label)
                 <option value="{{ $value }}" @selected(request('status') === $value)>{{ $label }}</option>
             @endforeach
         </select>
@@ -85,7 +85,7 @@
                             <td class="px-6 py-4">
                                 @if ($log->wasSent())
                                     <x-badge color="emerald">Terkirim</x-badge>
-                                @elseif ($log->status === \App\Models\BillingReminderLog::FAILED)
+                                @elseif ($log->status === \App\Models\FinanceReminderLog::FAILED)
                                     <x-badge color="red">Gagal</x-badge>
                                     {{-- Escaped like any other text. The message is sanitised where
                                          it is written, and truncated here because a reader needs the
@@ -100,7 +100,7 @@
                             </td>
 
                             <td class="px-6 py-4 text-slate-500 font-mono text-right">
-                                {{ $log->attempts }}/{{ \App\Models\BillingReminderLog::MAX_ATTEMPTS }}</td>
+                                {{ $log->attempts }}/{{ \App\Models\FinanceReminderLog::MAX_ATTEMPTS }}</td>
                             {{-- Read in the billing timezone and labelled with it. The
                                  column is stored in UTC and is not touched here. --}}
                             <td class="px-6 py-4 text-slate-500 whitespace-nowrap font-mono text-right">
@@ -111,7 +111,7 @@
                                         @csrf
                                         <button type="submit" class="inline-flex items-center px-1 min-h-11 text-sm text-brand-600 hover:underline whitespace-nowrap">Kirim ulang</button>
                                     </form>
-                                @elseif ($log->status === \App\Models\BillingReminderLog::FAILED)
+                                @elseif ($log->status === \App\Models\FinanceReminderLog::FAILED)
                                     <span class="text-xs text-slate-500">Batas percobaan tercapai</span>
                                 @endif
                             </td>

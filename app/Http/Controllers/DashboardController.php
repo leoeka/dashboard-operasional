@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ActivityLog;
-use App\Models\BillingReminderLog;
+use App\Models\FinanceReminderLog;
 use App\Models\Invoice;
 use App\Models\Project;
 
@@ -32,7 +32,7 @@ class DashboardController extends Controller
         $overdueInvoiceCount = (clone $overdueInvoices)->count();
         $overdueInvoiceAmount = (clone $overdueInvoices)->sum('amount');
 
-        $failedReminderCount = BillingReminderLog::where('status', BillingReminderLog::FAILED)->count();
+        $failedReminderCount = FinanceReminderLog::where('status', FinanceReminderLog::FAILED)->count();
 
         $monthlyRevenue = Invoice::where('status', 'paid')
             ->whereBetween('paid_at', [now()->startOfMonth(), now()->endOfMonth()])

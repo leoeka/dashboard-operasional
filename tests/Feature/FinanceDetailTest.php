@@ -1,14 +1,14 @@
 <?php
 
-use App\Models\BillingReminderLog;
-use App\Models\BillingSubscription;
 use App\Models\Client;
+use App\Models\FinanceReminderLog;
+use App\Models\FinanceSubscription;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Payment;
 use App\Models\Project;
 use App\Models\User;
-use App\Services\Billing\ReminderPolicy;
+use App\Services\Finance\ReminderPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
@@ -50,13 +50,13 @@ function fdProject(Client $client, string $name = 'Website Sumber'): Project
     ]);
 }
 
-function fdSubscription(Client $client, array $overrides = []): BillingSubscription
+function fdSubscription(Client $client, array $overrides = []): FinanceSubscription
 {
-    return BillingSubscription::create(array_merge([
+    return FinanceSubscription::create(array_merge([
         'client_id' => $client->id,
         'name' => 'Hosting + Domain',
         'service_type' => 'hosting',
-        'billing_cycle' => BillingSubscription::CYCLE_YEARLY,
+        'billing_cycle' => FinanceSubscription::CYCLE_YEARLY,
         'amount' => 2500000,
         'start_date' => '2025-06-01',
         'next_renewal_date' => '2026-06-01',
@@ -74,7 +74,7 @@ function fdInvoice(array $attributes): Invoice
 }
 
 /** A renewal invoice wired to its subscription, with the billing period set. */
-function fdRenewalInvoice(BillingSubscription $subscription, string $renewalDate = '2026-06-01'): Invoice
+function fdRenewalInvoice(FinanceSubscription $subscription, string $renewalDate = '2026-06-01'): Invoice
 {
     return fdInvoice([
         'client_id' => $subscription->client_id,
@@ -88,14 +88,14 @@ function fdRenewalInvoice(BillingSubscription $subscription, string $renewalDate
     ]);
 }
 
-function fdLog(Invoice $invoice, int $daysBefore, array $overrides = []): BillingReminderLog
+function fdLog(Invoice $invoice, int $daysBefore, array $overrides = []): FinanceReminderLog
 {
-    return BillingReminderLog::create(array_merge([
+    return FinanceReminderLog::create(array_merge([
         'invoice_id' => $invoice->id,
         'billing_subscription_id' => $invoice->billing_subscription_id,
         'days_before' => $daysBefore,
         'scheduled_for' => $invoice->due_date->copy()->subDays($daysBefore)->toDateString(),
-        'status' => BillingReminderLog::SENT,
+        'status' => FinanceReminderLog::SENT,
         'sent_at' => now(),
         'recipient' => 'budi@sumber.test',
     ], $overrides));
@@ -358,18 +358,18 @@ it('filters the reminder log by status', function () {
     $failed = fdRenewalInvoice($subscription);
     $failed->update(['invoice_number' => 'INV-FAILED']);
     fdLog($failed, 30, [
-        'status' => BillingReminderLog::FAILED,
+        'status' => FinanceReminderLog::FAILED,
         'sent_at' => null,
         'attempts' => 2,
         'error_message' => 'Alamat email tidak dapat dijangkau',
     ]);
 
     $this->actingAs(fdUser())
-        ->get(route('pages.finance', ['tab' => 'reminders', 'status' => BillingReminderLog::FAILED]))
+        ->get(route('pages.finance', ['tab' => 'reminders', 'status' => FinanceReminderLog::FAILED]))
         ->assertOk()
         ->assertSee('INV-FAILED')
         ->assertSee('Gagal')
-        ->assertSee('2/' . BillingReminderLog::MAX_ATTEMPTS)
+        ->assertSee('2/' . FinanceReminderLog::MAX_ATTEMPTS)
         ->assertDontSee('INV-SENT');
 });
 
@@ -412,7 +412,7 @@ it('filters the reminder log by client', function () {
 
 it('shows a pending claim as waiting rather than as sent', function () {
     $invoice = fdRenewalInvoice(fdSubscription(fdClient()));
-    fdLog($invoice, 30, ['status' => BillingReminderLog::PENDING, 'sent_at' => null]);
+    fdLog($invoice, 30, ['status' => FinanceReminderLog::PENDING, 'sent_at' => null]);
 
     $this->actingAs(fdUser())
         ->get(route('pages.finance', ['tab' => 'reminders']))
@@ -423,7 +423,7 @@ it('shows a pending claim as waiting rather than as sent', function () {
 it('escapes a failure message instead of rendering it as markup', function () {
     $invoice = fdRenewalInvoice(fdSubscription(fdClient()));
     fdLog($invoice, 30, [
-        'status' => BillingReminderLog::FAILED,
+        'status' => FinanceReminderLog::FAILED,
         'sent_at' => null,
         'attempts' => 1,
         'error_message' => '<script>alert(1)</script> koneksi ditolak',
@@ -443,7 +443,7 @@ it('truncates a long failure message rather than printing a wall of text', funct
     $long = str_repeat('kesalahan pengiriman ', 40) . 'EKORPESAN';
 
     fdLog($invoice, 30, [
-        'status' => BillingReminderLog::FAILED,
+        'status' => FinanceReminderLog::FAILED,
         'sent_at' => null,
         'attempts' => 1,
         'error_message' => $long,
@@ -460,7 +460,7 @@ it('truncates a long failure message rather than printing a wall of text', funct
 
 it('offers retry for a failed reminder log', function () {
     $invoice = fdRenewalInvoice(fdSubscription(fdClient()));
-    fdLog($invoice, 30, ['status' => BillingReminderLog::FAILED, 'sent_at' => null, 'attempts' => 1]);
+    fdLog($invoice, 30, ['status' => FinanceReminderLog::FAILED, 'sent_at' => null, 'attempts' => 1]);
 
     $this->actingAs(fdUser())
         ->get(route('pages.finance', ['tab' => 'reminders']))
@@ -482,7 +482,7 @@ it('keeps the reminder filters attached to the pagination links', function () {
     }
 
     $this->actingAs(fdUser())
-        ->get(route('pages.finance', ['tab' => 'reminders', 'status' => BillingReminderLog::SENT]))
+        ->get(route('pages.finance', ['tab' => 'reminders', 'status' => FinanceReminderLog::SENT]))
         ->assertOk()
         ->assertSee('status=sent', false)
         ->assertSee('page=2', false);
@@ -544,7 +544,7 @@ it('follows the monthly schedule for a monthly subscription', function () {
     $subscription = fdSubscription(fdClient(), [
         'name' => 'SEO Bulanan',
         'service_type' => 'seo',
-        'billing_cycle' => BillingSubscription::CYCLE_MONTHLY,
+        'billing_cycle' => FinanceSubscription::CYCLE_MONTHLY,
         'start_date' => '2026-05-01',
         'next_renewal_date' => '2026-06-01',
     ]);
@@ -581,7 +581,7 @@ it('marks a failed threshold with how many attempts it has had', function () {
     $subscription = fdSubscription(fdClient());
     $invoice = fdRenewalInvoice($subscription);
     fdLog($invoice, 30, [
-        'status' => BillingReminderLog::FAILED,
+        'status' => FinanceReminderLog::FAILED,
         'sent_at' => null,
         'attempts' => 2,
         'error_message' => 'Host penerima menolak koneksi',
@@ -590,14 +590,14 @@ it('marks a failed threshold with how many attempts it has had', function () {
     $this->actingAs(fdUser())
         ->get(route('pages.finance.invoices.show', $invoice))
         ->assertOk()
-        ->assertSee('Gagal · percobaan 2/' . BillingReminderLog::MAX_ATTEMPTS)
+        ->assertSee('Gagal · percobaan 2/' . FinanceReminderLog::MAX_ATTEMPTS)
         ->assertSee('Host penerima menolak koneksi');
 });
 
 it('marks a claimed but undelivered threshold as waiting', function () {
     $subscription = fdSubscription(fdClient());
     $invoice = fdRenewalInvoice($subscription);
-    fdLog($invoice, 30, ['status' => BillingReminderLog::PENDING, 'sent_at' => null]);
+    fdLog($invoice, 30, ['status' => FinanceReminderLog::PENDING, 'sent_at' => null]);
 
     $this->actingAs(fdUser())
         ->get(route('pages.finance.invoices.show', $invoice))
@@ -649,7 +649,7 @@ it('stores nothing while deriving the timeline', function () {
     $subscription = fdSubscription(fdClient());
     $invoice = fdRenewalInvoice($subscription);
 
-    $before = BillingReminderLog::count();
+    $before = FinanceReminderLog::count();
 
     $this->actingAs(fdUser())
         ->get(route('pages.finance.invoices.show', $invoice))
@@ -657,7 +657,7 @@ it('stores nothing while deriving the timeline', function () {
 
     // Viewing the page must not claim a threshold — that would send an email
     // the scheduler never scheduled.
-    expect(BillingReminderLog::count())->toBe($before);
+    expect(FinanceReminderLog::count())->toBe($before);
 });
 
 // --------------------------------------------------------- compatibility ---
@@ -869,11 +869,11 @@ it('derives every day-semantics state without writing a row', function () {
     $invoice = fdRenewalInvoice($subscription);
     $invoice->update(['status' => 'paid', 'paid_at' => '2026-05-20']);
 
-    $before = BillingReminderLog::count();
+    $before = FinanceReminderLog::count();
 
     $this->actingAs(fdUser())->get(route('pages.finance.invoices.show', $invoice))->assertOk();
 
-    expect(BillingReminderLog::count())->toBe($before)
+    expect(FinanceReminderLog::count())->toBe($before)
         ->and($invoice->fresh()->status)->toBe('paid');
 });
 
@@ -928,8 +928,8 @@ it('does not call an invoice overdue before the business day has turned', functi
 it('reads overdue from the configured billing zone rather than a fixed one', function () {
     // Pinned to Asia/Makassar nowhere: point the config at a zone on the other
     // side of UTC and the same instant must stop being overdue.
-    config(['billing.timezone' => 'America/New_York']);
-    app()->forgetInstance(\App\Services\Billing\BillingClock::class);
+    config(['finance.timezone' => 'America/New_York']);
+    app()->forgetInstance(\App\Services\Finance\FinanceClock::class);
 
     Carbon::setTestNow(Carbon::parse('2026-10-23 01:00:00', 'UTC'));
 

@@ -32,3 +32,5 @@ Thumbs.db
 /manual-book/
 AGENTS.md
 CLAUDE.md
+# Snapshot manual fitur lama (dibuat oleh scripts/backup-mockup-feature.php)
+backup_fitur_*.zip

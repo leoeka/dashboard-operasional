@@ -15,12 +15,17 @@ class ServicePackage extends Model
 
     /**
      * A catalogue entry, not a subscription: this is the price list, while
-     * BillingSubscription is one client's copy of an entry with its own renewal
+     * FinanceSubscription is one client's copy of an entry with its own renewal
      * date. Nothing here carries a date.
      */
+    public function subscriptions()
+    {
+        return $this->hasMany(FinanceSubscription::class);
+    }
+
     public function billingSubscriptions()
     {
-        return $this->hasMany(BillingSubscription::class);
+        return $this->subscriptions();
     }
 
     public function featureList(): array

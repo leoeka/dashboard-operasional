@@ -1,8 +1,8 @@
 <?php
 
-use App\Models\BillingReminderLog;
-use App\Models\BillingSubscription;
 use App\Models\Client;
+use App\Models\FinanceReminderLog;
+use App\Models\FinanceSubscription;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\Payment;
@@ -39,13 +39,13 @@ function billingProject(Client $client): Project
     ]);
 }
 
-function hostingSubscription(Client $client, array $overrides = []): BillingSubscription
+function hostingSubscription(Client $client, array $overrides = []): FinanceSubscription
 {
-    return BillingSubscription::create(array_merge([
+    return FinanceSubscription::create(array_merge([
         'client_id' => $client->id,
         'name' => 'Hosting + Domain',
         'service_type' => 'hosting',
-        'billing_cycle' => BillingSubscription::CYCLE_YEARLY,
+        'billing_cycle' => FinanceSubscription::CYCLE_YEARLY,
         'amount' => 2500000,
         'start_date' => '2025-10-30',
         'next_renewal_date' => '2026-10-30',
@@ -92,7 +92,7 @@ it('links a subscription to a package and a project when they exist', function (
         'service_package_id' => $package->id,
         'name' => 'SEO Basic',
         'service_type' => 'seo',
-        'billing_cycle' => BillingSubscription::CYCLE_MONTHLY,
+        'billing_cycle' => FinanceSubscription::CYCLE_MONTHLY,
         'amount' => 3500000,
     ]);
 
@@ -247,12 +247,12 @@ it('refuses a second reminder log for the same threshold on the same invoice', f
         'due_date' => '2026-10-30',
     ]);
 
-    $log = fn (int $days) => BillingReminderLog::create([
+    $log = fn (int $days) => FinanceReminderLog::create([
         'invoice_id' => $invoice->id,
         'billing_subscription_id' => $subscription->id,
         'days_before' => $days,
         'scheduled_for' => today(),
-        'status' => BillingReminderLog::SENT,
+        'status' => FinanceReminderLog::SENT,
         'sent_at' => now(),
         'recipient' => 'budi@abc.test',
     ]);
@@ -269,16 +269,16 @@ it('refuses a second reminder log for the same threshold on the same invoice', f
 });
 
 it('describes a reminder the way the schedule is written', function () {
-    $log = new BillingReminderLog(['days_before' => 30, 'status' => BillingReminderLog::FAILED, 'attempts' => 1]);
+    $log = new FinanceReminderLog(['days_before' => 30, 'status' => FinanceReminderLog::FAILED, 'attempts' => 1]);
 
     expect($log->label())->toBe('H-30')
         ->and($log->wasSent())->toBeFalse()
         ->and($log->canRetry())->toBeTrue();
 
-    $exhausted = new BillingReminderLog([
+    $exhausted = new FinanceReminderLog([
         'days_before' => 7,
-        'status' => BillingReminderLog::FAILED,
-        'attempts' => BillingReminderLog::MAX_ATTEMPTS,
+        'status' => FinanceReminderLog::FAILED,
+        'attempts' => FinanceReminderLog::MAX_ATTEMPTS,
     ]);
 
     expect($exhausted->canRetry())->toBeFalse();
@@ -426,7 +426,7 @@ it('keeps invoices when the client record itself is deleted', function () {
     // history and stays, with its references simply emptied.
     expect(Invoice::whereKey($invoice->id)->exists())->toBeTrue()
         ->and($invoice->client_id)->toBeNull()
-        ->and(BillingSubscription::whereKey($subscription->id)->exists())->toBeFalse();
+        ->and(FinanceSubscription::whereKey($subscription->id)->exists())->toBeFalse();
 });
 
 it('removes an invoice own children when the invoice itself is deleted', function () {
@@ -448,7 +448,7 @@ it('removes an invoice own children when the invoice itself is deleted', functio
         'quantity' => 1, 'unit_price' => 2500000, 'total' => 2500000,
     ]);
     Payment::create(['invoice_id' => $invoice->id, 'paid_on' => today(), 'amount' => 2500000]);
-    BillingReminderLog::create([
+    FinanceReminderLog::create([
         'invoice_id' => $invoice->id,
         'billing_subscription_id' => $subscription->id,
         'days_before' => 30,
@@ -461,5 +461,5 @@ it('removes an invoice own children when the invoice itself is deleted', functio
     // project and subscription it merely refers to.
     expect(InvoiceItem::count())->toBe(0)
         ->and(Payment::count())->toBe(0)
-        ->and(BillingReminderLog::count())->toBe(0);
+        ->and(FinanceReminderLog::count())->toBe(0);
 });

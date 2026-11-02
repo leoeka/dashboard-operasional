@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BillingReminderLog;
-use App\Models\BillingSubscription;
+use App\Models\FinanceReminderLog;
+use App\Models\FinanceSubscription;
 use App\Models\Client;
 use App\Models\Invoice;
-use App\Services\Billing\BillingClock;
-use App\Services\Billing\BillingCycle;
-use App\Services\Billing\BillingRenewalService;
+use App\Services\Finance\FinanceClock;
+use App\Services\Finance\FinanceCycle;
+use App\Services\Finance\FinanceRenewalService;
 use Illuminate\Http\Request;
 
 /**
@@ -27,8 +27,8 @@ class FinanceController extends Controller
     public const TABS = ['overview', 'subscriptions', 'invoices', 'reminders'];
 
     public function __construct(
-        private BillingClock $clock,
-        private BillingCycle $cycle,
+        private FinanceClock $clock,
+        private FinanceCycle $cycle,
     ) {
     }
 
@@ -51,7 +51,7 @@ class FinanceController extends Controller
         return view('pages.finance', $data);
     }
 
-    public function retryReminder(BillingReminderLog $reminderLog, BillingRenewalService $renewals)
+    public function retryReminder(FinanceReminderLog $reminderLog, FinanceRenewalService $renewals)
     {
         if (!$reminderLog->canRetry()) {
             return back()->with('error', 'Reminder ini tidak bisa dikirim ulang.');
@@ -76,8 +76,8 @@ class FinanceController extends Controller
 
         return [
             'total_clients' => Client::count(),
-            'active_subscriptions' => BillingSubscription::where('status', 'active')->count(),
-            'upcoming_renewals' => BillingSubscription::where('status', 'active')
+            'active_subscriptions' => FinanceSubscription::where('status', 'active')->count(),
+            'upcoming_renewals' => FinanceSubscription::where('status', 'active')
                 ->whereDate('next_renewal_date', '>=', $today)
                 ->whereDate('next_renewal_date', '<=', $in30)
                 ->count(),
@@ -86,7 +86,7 @@ class FinanceController extends Controller
 
     private function overviewTab(): array
     {
-        $renewals = BillingSubscription::where('status', 'active')
+        $renewals = FinanceSubscription::where('status', 'active')
             ->whereNotNull('next_renewal_date')
             ->whereDate('next_renewal_date', '<=', $this->clock->today()->addDays(45)->toDateString())
             ->with(['client:id,company_name', 'project:id,name'])
@@ -95,7 +95,7 @@ class FinanceController extends Controller
             ->get();
 
         return [
-            'renewals' => $renewals->map(fn (BillingSubscription $s) => [
+            'renewals' => $renewals->map(fn (FinanceSubscription $s) => [
                 'model' => $s,
                 'days' => $days = $this->cycle->daysUntil($s->next_renewal_date),
                 'countdown' => $this->countdownLabel($days),
@@ -106,7 +106,7 @@ class FinanceController extends Controller
 
     private function subscriptionsTab(Request $request): array
     {
-        $query = BillingSubscription::with(['client:id,company_name', 'project:id,name'])
+        $query = FinanceSubscription::with(['client:id,company_name', 'project:id,name'])
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
             ->when($request->filled('service_type'), fn ($q) => $q->where('service_type', $request->query('service_type')))
             ->when($request->filled('cycle'), fn ($q) => $q->where('billing_cycle', $request->query('cycle')))
@@ -127,7 +127,7 @@ class FinanceController extends Controller
 
         // Attached after pagination so the countdown is computed for the page
         // being shown, not for every subscription in the database.
-        $subscriptions->getCollection()->each(function (BillingSubscription $s) {
+        $subscriptions->getCollection()->each(function (FinanceSubscription $s) {
             $days = $this->cycle->daysUntil($s->next_renewal_date);
             $s->setAttribute('days_until', $days);
             $s->setAttribute('countdown', $this->countdownLabel($days));
@@ -179,7 +179,7 @@ class FinanceController extends Controller
      */
     private function remindersTab(Request $request): array
     {
-        $logs = BillingReminderLog::query()
+        $logs = FinanceReminderLog::query()
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->query('status')))
             ->when($request->filled('threshold'), fn ($q) => $q->where('days_before', $request->query('threshold')))
             ->when($request->filled('client'), function ($q) use ($request) {
@@ -205,7 +205,7 @@ class FinanceController extends Controller
             'clients' => Client::orderBy('company_name')->get(['id', 'company_name']),
             // Offered as filter options rather than typed out in the template,
             // so the list follows the policy rather than a copy of it.
-            'thresholdOptions' => collect(BillingReminderLog::query()->distinct()->orderByDesc('days_before')->pluck('days_before')),
+            'thresholdOptions' => collect(FinanceReminderLog::query()->distinct()->orderByDesc('days_before')->pluck('days_before')),
         ];
     }
 

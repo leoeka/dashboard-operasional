@@ -26,6 +26,8 @@ class Project extends Model
         'name',
         'client_name',
         'type',
+        'website_features',
+        'has_client_assets',
         'website_name',
         'value',
         'status',
@@ -43,6 +45,7 @@ class Project extends Model
     protected $casts = [
         'wants_seo' => 'boolean',
         'wants_backlink' => 'boolean',
+        'has_client_assets' => 'boolean',
         'seo_requirements' => 'array',
         'backlink_requirements' => 'array',
     ];
@@ -62,14 +65,24 @@ class Project extends Model
         return $this->hasMany(ProjectFile::class)->latest();
     }
 
-    public function proposals()
-    {
-        return $this->hasMany(Proposal::class);
-    }
-
     public function activityLogs()
     {
         return $this->hasMany(ActivityLog::class)->latest();
+    }
+
+    public function mockupCandidates()
+    {
+        return $this->hasMany(MockupCandidate::class)->orderBy('candidate_number');
+    }
+
+    public function clientProposals()
+    {
+        return $this->hasMany(ClientProposal::class)->latest();
+    }
+
+    public function wpBuild()
+    {
+        return $this->hasOne(WpBuild::class)->latestOfMany();
     }
 
     public function statusColor(): string
@@ -92,19 +105,19 @@ class Project extends Model
         };
     }
 
+    public function serviceTypes(): array
+    {
+        return array_values(array_filter([
+            ($this->type || (!$this->wants_seo && !$this->wants_backlink)) ? 'website' : null,
+            $this->wants_seo ? 'seo' : null,
+            $this->wants_backlink ? 'backlink' : null,
+        ]));
+    }
+
     public function serviceTypeLabel(): string
     {
-        $types = [];
-
-        if ($this->type || (!$this->wants_seo && !$this->wants_backlink)) {
-            $types[] = 'Web';
-        }
-        if ($this->wants_seo) {
-            $types[] = 'SEO';
-        }
-        if ($this->wants_backlink) {
-            $types[] = 'Backlink';
-        }
+        $labels = ['website' => 'Web', 'seo' => 'SEO', 'backlink' => 'Backlink'];
+        $types = array_map(fn ($type) => $labels[$type], $this->serviceTypes());
 
         return implode(' + ', $types) ?: 'Project';
     }
@@ -122,15 +135,5 @@ class Project extends Model
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
-    }
-
-    public function latestProposal()
-    {
-        return $this->hasOne(Proposal::class)->latestOfMany();
-    }
-
-    public function bundles()
-    {
-        return $this->hasMany(ProjectBundle::class);
     }
 }

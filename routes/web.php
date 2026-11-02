@@ -2,16 +2,19 @@
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
-use App\Http\Controllers\WebsiteBuilderController;
+use App\Http\Controllers\AiWorkspaceController;
 use App\Http\Controllers\SeoBacklinkController;
 use App\Http\Controllers\SeoUrlAnalysisController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\requestOrderController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\BillingSubscriptionController;
+use App\Http\Controllers\FinanceSubscriptionController;
 use App\Http\Controllers\FinanceController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\MockupCandidateController;
+use App\Http\Controllers\ClientProposalController;
+use App\Http\Controllers\WpBuildController;
 use App\Http\Controllers\ReportController;
 
 /*
@@ -50,22 +53,9 @@ Route::middleware(['auth'])->group(function () {
     // before this route split — pre-existing, not caused by it).
     Route::delete('/projects/{project}/files/{file}', [ProjectController::class, 'destroyFile'])->name('pages.projects.files.destroy');
 
-    Route::get(
-        '/projects/{project}/proposal/preview',
-        [WebsiteBuilderController::class, 'previewProposal']
-    )->name('pages.projects.proposal.preview');
-
-    Route::get(
-        '/projects/{project}/proposal/download',
-        [WebsiteBuilderController::class, 'downloadProposal']
-    )->name('pages.projects.proposal.download');
-
     // 5. AI Workspace
-    Route::get('/project-workspace', [WebsiteBuilderController::class, 'aiWorkspace'])->name('pages.project-workspace');
-    Route::get('/workshop', [WebsiteBuilderController::class, 'proposalWorkshop'])->name('pages.workshop');
-    // NOTE: generateAiContent has no controller method yet (already
-    // missing before this route split — pre-existing, not caused by it).
-    Route::post('/seo-backlink/{project}/generate', [WebsiteBuilderController::class, 'generateAiContent'])->name('pages.seo-backlink.generate');
+    Route::get('/project-workspace', [AiWorkspaceController::class, 'aiWorkspace'])->name('pages.project-workspace');
+    Route::get('/workshop', [AiWorkspaceController::class, 'proposalWorkshop'])->name('pages.workshop');
     Route::post('/projects/{project}/analyze-seo-backlink', [SeoBacklinkController::class, 'analyzeSeoBacklink'])
         ->name('pages.projects.seo-backlink.analyze');
     Route::get('/projects/{project}/analyze-seo-backlink/status', [SeoBacklinkController::class, 'seoBacklinkStatus'])
@@ -131,23 +121,51 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/projects/{project}/keywords/select', [SeoBacklinkController::class, 'selectKeywords'])
         ->name('pages.projects.keywords.select');
 
+    // Mockup pipeline — gerbang tim di Workspace. Generate berat lewat antrean.
+    Route::post('/projects/{project}/mockup-candidates', [MockupCandidateController::class, 'store'])
+        ->name('pages.projects.mockup.store');
+    Route::post('/projects/{project}/mockup-candidates/{candidate}/regenerate', [MockupCandidateController::class, 'regenerate'])
+        ->name('pages.projects.mockup.regenerate');
+    Route::post('/projects/{project}/mockup-candidates/approve', [MockupCandidateController::class, 'approve'])
+        ->name('pages.projects.mockup.approve');
+    Route::get('/mockup-candidates/{candidate}/preview.png', [MockupCandidateController::class, 'preview'])
+        ->name('pages.projects.mockup.preview');
+
+    // Proposal PDF untuk klien — dirakit dari tiga kandidat yang disetujui tim.
+    Route::post('/projects/{project}/proposals', [ClientProposalController::class, 'store'])
+        ->name('pages.projects.proposals.store');
+    Route::get('/projects/{project}/proposals/{proposal}/download', [ClientProposalController::class, 'download'])
+        ->name('pages.projects.proposals.download');
+
+    // Pilihan klien (tim mencatat dari PDF yang dikembalikan) + kunci build.
+    Route::post('/projects/{project}/proposals/{proposal}/chosen-candidate/{candidate}', [ClientProposalController::class, 'choose'])
+        ->name('pages.projects.proposals.choose');
+    Route::post('/projects/{project}/builds', [WpBuildController::class, 'store'])
+        ->name('pages.projects.builds.store');
+    Route::get('/projects/{project}/builds/{build}/download', [WpBuildController::class, 'download'])
+        ->name('pages.projects.builds.download');
+
     // 7. Finance
     // A reminder workspace, not a cash book: payments are settled outside this
-    // system. The page reads; the only writes are the renewal engine's own
-    // reminder retry and the invoice actions that still belong here.
+    // system. The page reads; the writes are the renewal engine's own reminder
+    // retry, the settlement marker below, and the invoice actions.
     Route::get('/finance', [FinanceController::class, 'index'])->name('pages.finance');
 
-    // Read-only invoice detail; every action on it posts to the routes above.
+    // Invoice detail. The one thing an operator records here is that a bill
+    // chased off-system was paid: a status and a date, never an amount.
     Route::get('/finance/invoices/{invoice}', [\App\Http\Controllers\FinanceInvoiceController::class, 'show'])->name('pages.finance.invoices.show');
+    Route::patch('/finance/{invoice}/paid', [InvoiceController::class, 'markPaid'])->name('pages.finance.invoices.paid');
+    Route::patch('/finance/{invoice}/unpaid', [InvoiceController::class, 'markUnpaid'])->name('pages.finance.invoices.unpaid');
 
-    // Recurring subscriptions. Status changes only — a subscription is never
-    // deleted, because billed invoices point at it. The renewal date is moved
-    // forward here, by hand, once a period has been paid off-system.
-    Route::get('/finance/subscriptions/create', [BillingSubscriptionController::class, 'create'])->name('pages.finance.subscriptions.create');
-    Route::post('/finance/subscriptions', [BillingSubscriptionController::class, 'store'])->name('pages.finance.subscriptions.store');
-    Route::get('/finance/subscriptions/{subscription}/edit', [BillingSubscriptionController::class, 'edit'])->name('pages.finance.subscriptions.edit');
-    Route::put('/finance/subscriptions/{subscription}', [BillingSubscriptionController::class, 'update'])->name('pages.finance.subscriptions.update');
-    Route::patch('/finance/subscriptions/{subscription}/status', [BillingSubscriptionController::class, 'updateStatus'])->name('pages.finance.subscriptions.status');
+    // Recurring subscriptions. Status changes only, because a subscription is
+    // deleted, because billed invoices point at it. The renewal date is no
+    // longer an operator's job: the billing engine rolls it forward on the
+    // calendar, whether or not the money has arrived.
+    Route::get('/finance/subscriptions/create', [FinanceSubscriptionController::class, 'create'])->name('pages.finance.subscriptions.create');
+    Route::post('/finance/subscriptions', [FinanceSubscriptionController::class, 'store'])->name('pages.finance.subscriptions.store');
+    Route::get('/finance/subscriptions/{subscription}/edit', [FinanceSubscriptionController::class, 'edit'])->name('pages.finance.subscriptions.edit');
+    Route::put('/finance/subscriptions/{subscription}', [FinanceSubscriptionController::class, 'update'])->name('pages.finance.subscriptions.update');
+    Route::patch('/finance/subscriptions/{subscription}/status', [FinanceSubscriptionController::class, 'updateStatus'])->name('pages.finance.subscriptions.status');
     Route::post('/finance/reminders/{reminderLog}/retry', [FinanceController::class, 'retryReminder'])->name('pages.finance.reminders.retry');
     Route::delete('/finance/{invoice}', [InvoiceController::class, 'destroy'])->name('pages.finance.destroy');
 
@@ -162,31 +180,6 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::post('/logout', [ProfileController::class, 'logout'])->name('logout');
-
-    // 10. Proposal
-
-    Route::post('/projects/{project}/proposal/generate', [WebsiteBuilderController::class, 'generateProposal'])->name('pages.projects.proposal.generate');
-    Route::get('/projects/{project}/proposal/status', [WebsiteBuilderController::class, 'proposalStatus'])
-        ->name('pages.projects.proposal.status');
-    Route::post('/projects/{project}/proposal/approve', [WebsiteBuilderController::class, 'approveProposal'])
-        ->name('pages.projects.proposal.approve');
-    Route::post('/projects/{project}/proposal/mockup/select', [WebsiteBuilderController::class, 'selectMockup'])
-        ->name('pages.projects.proposal.mockup.select');
-
-    // Live website demo of a mockup candidate (0-based index into
-    // mockup_candidates) — rendered from the same blueprint as the PNG and
-    // the WordPress build. See MockupPreviewController.
-    Route::get('/projects/{project}/mockup/{candidate}/preview', [\App\Http\Controllers\MockupPreviewController::class, 'show'])
-        ->whereNumber('candidate')
-        ->name('pages.projects.mockup.preview');
-    Route::get('/projects/{project}/mockup/{candidate}/demo', [\App\Http\Controllers\MockupPreviewController::class, 'demo'])
-        ->whereNumber('candidate')
-        ->name('pages.projects.mockup.demo');
-
-    // WordPress bundle workflow
-    Route::get('/projects/{project}/bundle', [\App\Http\Controllers\BundleController::class, 'index'])->name('pages.projects.bundle');
-    Route::post('/projects/{project}/bundle/build', [\App\Http\Controllers\BundleController::class, 'build'])->name('pages.projects.bundle.build');
-    Route::get('/projects/{project}/bundle/download', [\App\Http\Controllers\BundleController::class, 'download'])->name('pages.projects.bundle.download');
 
     Route::resource('service-packages', \App\Http\Controllers\ServicePackageController::class)->except(['show']);
 

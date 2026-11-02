@@ -1,21 +1,14 @@
 <?php
 
 use App\Exceptions\ProviderException;
-use App\Models\PipelineCheckpoint;
-use App\Models\Client;
-use App\Models\Project;
 use App\Services\AnalisisGeminiService;
 use App\Services\CompetitorContentFetcher;
-use App\Services\GenerateMockupGptService;
 use App\Services\GoogleAnalyticsService;
-use App\Services\PipelineCheckpointService;
-use App\Services\ScreenshotService;
 use App\Services\SearchConsoleService;
 use Gemini\Laravel\Facades\Gemini;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Storage;
 
 it('preserves ordinary prose and unrelated parameter names', function (string $text) {
     expect(ProviderException::sanitise($text))->toBe($text);
@@ -68,45 +61,6 @@ it('sanitises directly constructed provider exceptions without losing classifica
         ->and($failure->isTransient())->toBeTrue();
 });
 
-it('reruns a failed checkpoint even if a stale payload exists and then reuses only completed results', function () {
-    $project = Project::create(['name' => 'Audit', 'client_name' => 'Audit', 'type' => 'Company Profile', 'code' => 'AUDIT-1', 'status' => 'request']);
-    PipelineCheckpoint::create(['project_id' => $project->id, 'stage' => 'gemini_analysis', 'status' => PipelineCheckpoint::FAILED, 'payload' => ['stale' => true]]);
-    $checkpoints = app(PipelineCheckpointService::class);
-    expect($checkpoints->completed($project, 'gemini_analysis'))->toBeNull();
-    $calls = 0;
-    $work = function () use (&$calls) { $calls++; return ['real' => true]; };
-    expect($checkpoints->remember($project, 'gemini_analysis', $work))->toBe(['real' => true])
-        ->and($checkpoints->remember($project, 'gemini_analysis', $work))->toBe(['real' => true])
-        ->and($calls)->toBe(1);
-});
-
-it('propagates a safe checkpoint failure with its stage and provider classification', function () {
-    $project = Project::create(['name' => 'Audit', 'client_name' => 'Audit', 'type' => 'Company Profile', 'code' => 'AUDIT-2', 'status' => 'request']);
-    Log::spy();
-    $checkpoints = app(PipelineCheckpointService::class);
-    $original = new ProviderException('gemini', ProviderException::RATE_LIMITED, '', 'token=hidden-value', 429);
-    try {
-        $checkpoints->remember($project, 'gemini_analysis', fn () => throw $original);
-        $this->fail('Expected provider failure');
-    } catch (ProviderException $e) {
-        expect($e)->toBe($original);
-    }
-    Log::shouldHaveReceived('error')->withArgs(fn ($message, $context) =>
-        $context['stage'] === 'gemini_analysis' && $context['provider'] === 'gemini'
-        && $context['http_status'] === 429 && $context['retryable'] === true
-        && $context['error_code'] === ProviderException::RATE_LIMITED
-        && !str_contains(json_encode($context), 'hidden-value')
-    )->once();
-    try {
-        $checkpoints->remember($project, 'gemini_analysis', fn () => throw new RuntimeException('Unauthorized api_key=raw-secret'));
-        $this->fail('Expected safe provider failure');
-    } catch (ProviderException $e) {
-        expect($e->detail)->not->toContain('raw-secret')
-            ->and($e->getPrevious())->toBeNull()
-            ->and($e->errorCode)->toBe(ProviderException::AUTHENTICATION_FAILED);
-    }
-});
-
 it('sanitises provider and reference log paths', function (string $path, bool $transport) {
     $logs = [];
     foreach (['info', 'warning', 'error'] as $level) {
@@ -132,43 +86,16 @@ it('sanitises provider and reference log paths', function (string $path, bool $t
         ->and(json_encode($logs))->not->toContain($secret);
 })->with(['ga-token', 'gsc-token', 'reference'])->with([false, true]);
 
-it('sanitises Gemini helper and GPT reference exceptions', function (string $provider) {
+it('sanitises Gemini helper exceptions', function () {
     Log::spy();
-    if ($provider === 'gemini') {
-        $gemini = Mockery::mock();
-        Gemini::swap($gemini);
-        $gemini->shouldReceive('generativeModel')->once()->andThrow(new RuntimeException('Invalid API key: audit-private-value'));
-        expect(fn () => app(AnalisisGeminiService::class)->callJson('test'))->toThrow(ProviderException::class);
-        $level = 'error';
-    } else {
-        config(['services.openai.key' => 'test-key']);
-        Http::fake(fn () => throw new RuntimeException('Authorization: Bearer audit-private-value'));
-        expect(app(GenerateMockupGptService::class)->extractDesignProfile(new Project(), ['images' => ['data:image/png;base64,dGVzdA==']]))->toBeNull();
-        $level = 'warning';
-    }
-    Log::shouldHaveReceived($level)->withArgs(fn ($message, $context = []) =>
+    $gemini = Mockery::mock();
+    Gemini::swap($gemini);
+    $gemini->shouldReceive('generativeModel')->once()->andThrow(new RuntimeException('Invalid API key: audit-private-value'));
+    expect(fn () => app(AnalisisGeminiService::class)->callJson('test'))->toThrow(ProviderException::class);
+    Log::shouldHaveReceived('error')->withArgs(fn ($message, $context = []) =>
         !str_contains($message.json_encode($context), 'audit-private-value')
         && str_contains($message.json_encode($context), '[redacted]')
     )->once();
-})->with(['gemini', 'openai']);
-
-it('does not log malformed Gemini payloads', function () {
-    $logs = [];
-    foreach (['warning', 'error'] as $level) {
-        Log::shouldReceive($level)->zeroOrMoreTimes()->andReturnUsing(function (...$args) use (&$logs) { $logs[] = $args; });
-    }
-    $gemini = Mockery::mock();
-    Gemini::swap($gemini);
-    $model = Mockery::mock();
-    $gemini->shouldReceive('generativeModel')->once()->andReturn($model);
-    $model->shouldReceive('withGenerationConfig')->once()->andReturnSelf();
-    $response = Mockery::mock();
-    $response->shouldReceive('text')->once()->andReturn('invalid response containing unlabelled-private-value');
-    $model->shouldReceive('generateContent')->once()->andReturn($response);
-    expect(fn () => app(AnalisisGeminiService::class)->analyzeProject(new Project(['name' => 'Audit']), new Client()))
-        ->toThrow(ProviderException::class);
-    expect($logs)->not->toBeEmpty()
-        ->and(json_encode($logs))->not->toContain('unlabelled-private-value', 'raw_response');
 });
 
 it('does not let Google property discovery propagate raw transport errors', function (string $provider) {
@@ -190,14 +117,3 @@ it('does not let Google property discovery propagate raw transport errors', func
             ->and($e->getPrevious())->toBeNull();
     }
 })->with(['ga', 'gsc']);
-
-it('sanitises screenshot errors and logged reference URLs', function (bool $html) {
-    Log::spy();
-    Storage::shouldReceive('disk')->with('public')->once()->andThrow(new RuntimeException('Failed; token=audit-private-value'));
-    $service = app(ScreenshotService::class);
-    expect($html ? $service->captureHtml('<html></html>', 'test.png') : $service->capture('https://example.com?key=audit-private-value', 'test.png'))->toBeNull();
-    Log::shouldHaveReceived('warning')->withArgs(fn ($message, $context = []) =>
-        !str_contains($message.json_encode($context), 'audit-private-value')
-        && str_contains($message.json_encode($context), '[redacted]')
-    )->once();
-})->with([false, true]);

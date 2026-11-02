@@ -20,7 +20,7 @@ class InvoicePdfService
         $invoice->loadMissing(['client', 'project.client', 'subscription', 'items']);
 
         $client = $invoice->billableClient();
-        $pay = config('billing.payment', []);
+        $pay = config('finance.payment', []);
 
         $serviceName = $invoice->subscription?->name
             ?? $invoice->project?->name
