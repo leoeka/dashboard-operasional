@@ -60,7 +60,7 @@
                 Project tidak tersedia.
             </h3>
             <p class="mx-auto mt-1 max-w-sm text-sm text-slate-500">
-                Pilih salah satu project terlebih dahulu untuk melihat dan mengelola di sini.
+                Pilih project di atas terlebih dahulu untuk melihat dan mengelola hasil analisis di sini.
             </p>
             <span
                 class="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white group-hover:bg-brand-700 transition">
