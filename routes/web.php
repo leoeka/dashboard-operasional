@@ -4,6 +4,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\WebsiteBuilderController;
 use App\Http\Controllers\SeoBacklinkController;
+use App\Http\Controllers\SeoUrlAnalysisController;
 use App\Http\Controllers\PageController;
 use App\Http\Controllers\requestOrderController;
 use Illuminate\Support\Facades\Route;
@@ -30,6 +31,9 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/clients/view', [RequestOrderController::class, 'clients'])->name('pages.crm');
     Route::get('/clients/create', [RequestOrderController::class, 'create'])->name('pages.request');
     Route::post('/clients', [RequestOrderController::class, 'store'])->name('clients.store');
+
+    Route::get('/seo-analysis', [SeoUrlAnalysisController::class, 'create'])->name('pages.seo-analysis');
+    Route::post('/seo-analysis', [SeoUrlAnalysisController::class, 'analyze'])->name('pages.seo-analysis.analyze');
 
     // 2. Route Dynamic Parameter (Taruh Paling Bawah)
     Route::get('/clients/{client}', [RequestOrderController::class, 'clientView'])->name('pages.crm-view');
@@ -108,6 +112,10 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.ga4.analyze');
     Route::get('/projects/{project}/seo-backlink/report/download', [SeoBacklinkController::class, 'downloadSeoBacklinkReport'])
         ->name('pages.projects.seo-backlink.report.download');
+    Route::get('/projects/{project}/seo-analysis/report/download', [SeoBacklinkController::class, 'downloadSeoAnalysisReport'])
+        ->name('pages.projects.seo-analysis.report.download');
+    Route::post('/projects/{project}/seo-analysis/semrush', [SeoBacklinkController::class, 'saveSemrushReport'])
+        ->name('pages.projects.seo-analysis.semrush.store');
     Route::post('/projects/{project}/competitor-pagespeed/analyze', [SeoBacklinkController::class, 'analyzeCompetitorPageSpeed'])
         ->name('pages.projects.competitor-pagespeed.analyze');
     Route::get('/projects/{project}/competitor-pagespeed/status', [SeoBacklinkController::class, 'competitorPageSpeedStatus'])

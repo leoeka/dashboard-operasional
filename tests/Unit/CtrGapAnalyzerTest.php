@@ -7,7 +7,8 @@ it('returns no opportunities for an empty query set', function () {
 
     expect($r['opportunities'])->toBe([])
         ->and($r['queries_analyzed'])->toBe(0)
-        ->and($r['summary']['opportunity_count'])->toBe(0);
+        ->and($r['summary']['opportunity_count'])->toBe(0)
+        ->and($r['recommendation'])->toContain('Belum cukup data');
 });
 
 it('flags a well-ranked query whose CTR is far below the expected curve', function () {
@@ -18,6 +19,7 @@ it('flags a well-ranked query whose CTR is far below the expected curve', functi
     expect($r['summary']['opportunity_count'])->toBe(1);
     $o = $r['opportunities'][0];
     expect($o['keyword'])->toBe('jasa desain interior jakarta')
+        ->and($o['missed_clicks'])->toBe((int) round($o['missed_clicks_in_period'] / 3))
         ->and($o['missed_clicks'])->toBeGreaterThan(100)
         ->and($o['expected_ctr'])->toBeGreaterThan($o['actual_ctr']);
 });
@@ -30,7 +32,8 @@ it('ignores low-impression queries and healthy-CTR queries', function () {
     ]);
 
     expect($r['queries_analyzed'])->toBe(1) // only "sehat" passes the impression + position filter
-        ->and($r['opportunities'])->toBe([]);
+        ->and($r['opportunities'])->toBe([])
+        ->and($r['recommendation'])->toContain('1 query yang memenuhi kriteria');
 });
 
 it('sorts opportunities by estimated missed clicks, descending', function () {

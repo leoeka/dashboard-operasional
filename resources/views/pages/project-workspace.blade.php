@@ -17,9 +17,9 @@
                     class="min-h-11 inline-flex items-center gap-2 text-xs font-semibold text-slate-700 border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2 rounded-md transition w-fit">
                     <i class='bx bx-file'></i> Download Proposal (PDF)
                 </a>
-                <a href="{{ route('pages.projects.seo-backlink.report.download', $project) }}"
+                <a href="{{ route('pages.projects.seo-analysis.report.download', $project) }}"
                     class="min-h-11 inline-flex items-center gap-2 text-xs font-semibold text-brand-600 hover:text-brand-700 border border-slate-300 hover:bg-brand-50 px-3 py-2 rounded-md transition w-fit">
-                    <i class='bx bx-download'></i> Download Report (PDF)
+                    <i class='bx bx-download'></i> Download SEO Analysis (PDF)
                 </a>
             </div>
         @endif
@@ -43,8 +43,9 @@
                 class="min-h-11 min-w-0 flex-1 bg-slate-50 text-slate-700 rounded-md px-4 py-3 text-sm outline-none">
                 <option value="">-- Select project --</option>
                 @foreach ($projects as $p)
+                    @php $workspaceUrl = $p->seo_requirements['target_url'] ?? $p->backlink_requirements['target_url'] ?? null; @endphp
                     <option value="{{ $p->id }}" @selected($project && $project->id === $p->id)>
-                        {{ $p->name }} ({{ $p->client_name }})
+                        {{ $workspaceUrl ? $workspaceUrl . ' — ' . $p->client_name : $p->name . ' (' . $p->client_name . ')' }}
                     </option>
                 @endforeach
             </select>
@@ -439,7 +440,7 @@
                                     </div>
                                     <div class="flex gap-2">
                                         <span class="text-slate-600 w-28 flex-shrink-0">Location</span>
-                                        <span class="text-slate-700">{{ $seo['location'] ?: '-' }}</span>
+                                        <span class="text-slate-700">{{ filled($seo['location'] ?? null) ? $seo['location'] : '-' }}</span>
                                     </div>
                                     <div class="flex gap-2 sm:col-span-2">
                                         <span class="text-slate-600 w-28 flex-shrink-0">Keyword</span>
@@ -597,12 +598,18 @@
                                             <p class="text-xs text-slate-600">
                                                 Keyword Candidates ({{ count($aiRecommendations['main_keywords'] ?? []) }})
                                                 <span
-                                                    class="ml-1 inline-block text-xs px-2 py-1 rounded-md {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700' }}">
-                                                    {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'Google Ads Data' : 'AI Estimate' }}
+                                                    class="ml-1 inline-block text-xs px-2 py-1 rounded-md {{ ($aiRecommendations['data_source'] ?? '') === 'search_console' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700' }}">
+                                                    {{ match ($aiRecommendations['data_source'] ?? '') { 'google_ads_api' => 'Google Ads Keyword Planner', 'search_console' => 'Search Console signals (90d)', default => 'AI ranking; no measured volume' } }}
                                                 </span>
                                             </p>
                                             <span id="keywordSelectedCount" class="text-xs text-slate-600"></span>
                                         </div>
+
+                                        @if (($aiRecommendations['google_ads_status'] ?? '') === 'project_not_approved')
+                                            <div class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                                Google Ads Keyword Planner returned 403 because this Google Cloud project is approved for test accounts only. Request production access for the Google Ads API project/developer token, then rerun keyword analysis. Search Console impressions are shown separately and are not monthly search volume.
+                                            </div>
+                                        @endif
 
                                         <form id="keywordSelectForm">
                                             @csrf
@@ -613,8 +620,9 @@
                                                             <th class="pb-2 pr-2 w-6"></th>
                                                             <th class="pb-2 pr-4">Keyword</th>
                                                             <th class="pb-2 pr-4">Derivatives</th>
-                                                            <th class="pb-2 pr-4">Volume/month</th>
-                                                            <th class="pb-2 pr-4">Competition</th>
+                                                            <th class="pb-2 pr-4">Search volume/month</th>
+                                                            <th class="pb-2 pr-4">Ads competition</th>
+                                                            <th class="pb-2 pr-4">GSC impressions (90d)</th>
                                                             <th class="pb-2">Reason</th>
                                                         </tr>
                                                     </thead>
@@ -630,9 +638,10 @@
                                                                 <td class="py-2 pr-4 text-slate-500 text-xs">
                                                                     {{ implode(', ', array_filter((array) ($kw['derivative_keywords'] ?? []))) ?: '-' }}
                                                                 </td>
-                                                                <td class="py-2 pr-4 text-slate-500">{{ $kw['avg_monthly_searches'] ?? '-' }}
+                                                                <td class="py-2 pr-4 text-slate-500">{{ is_numeric($kw['avg_monthly_searches'] ?? null) ? number_format((int) $kw['avg_monthly_searches']) : '—' }}
                                                                 </td>
-                                                                <td class="py-2 pr-4 text-slate-500">{{ $kw['competition'] ?? '-' }}</td>
+                                                                <td class="py-2 pr-4 text-slate-500">{{ $kw['competition'] ?? '—' }}</td>
+                                                                <td class="py-2 pr-4 text-slate-500">{{ isset($kw['search_console_metrics']['impressions']) ? number_format((int) $kw['search_console_metrics']['impressions']) : '—' }}</td>
                                                                 <td class="py-2 text-slate-500">{{ $kw['reasoning'] ?? '-' }}</td>
                                                             </tr>
                                                         @endforeach
@@ -1374,7 +1383,7 @@
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-600 mb-4">Last 3 months.</p>
+                        <p class="text-xs text-slate-600 mb-4">Last 28 days (excluding the latest 3 days while Search Console data is finalized).</p>
 
                         @if (!$resolvedUrl)
                             <div class="text-sm text-amber-700 bg-amber-50 border-l-4 border-l-amber-700 rounded-md p-4">
@@ -1536,7 +1545,7 @@
                                 </span>
                             @endif
                         </div>
-                        <p class="text-xs text-slate-600 mb-4">Last 3 months.</p>
+                        <p class="text-xs text-slate-600 mb-4">Last 30 days.</p>
 
                         @if (!$resolvedUrl)
                             <div class="text-sm text-amber-700 bg-amber-50 border-l-4 border-l-amber-700 rounded-md p-4">
@@ -1718,6 +1727,96 @@
                             </script>
                         @endif
                     </x-card>
+
+                    @php
+                        $semrushReport = $seo['semrush_report'] ?? [];
+                        $semrushMetrics = $semrushReport['metrics'] ?? [];
+                        $semrushFields = [
+                            'authority_score' => ['Authority Score', 'number', 100],
+                            'ai_visibility_score' => ['AI Visibility Score', 'number', null],
+                            'organic_traffic' => ['Organic Traffic', 'number', null],
+                            'organic_keywords' => ['Organic Keywords', 'number', null],
+                            'paid_traffic' => ['Paid Traffic', 'number', null],
+                            'paid_keywords' => ['Paid Keywords', 'number', null],
+                            'referring_domains' => ['Referring Domains', 'number', null],
+                            'backlinks' => ['Backlinks', 'number', null],
+                            'traffic_share' => ['Traffic Share (%)', 'number', 100],
+                        ];
+                    @endphp
+                    <x-card class="mb-6">
+                        <h2 class="font-semibold text-slate-800">Semrush — data manual untuk laporan SEO</h2>
+                        <p class="text-xs text-slate-600 mt-1 mb-4">
+                            Unggah screenshot overview Semrush dan salin angka yang terlihat. Screenshot tidak dibaca otomatis;
+                            temuan dan kesimpulan laporan memakai nilai serta catatan yang Anda masukkan di bawah.
+                        </p>
+                        @if ($resolvedUrl)
+                            <a href="https://www.semrush.com/analytics/overview/?q={{ urlencode(parse_url($resolvedUrl, PHP_URL_HOST)) }}&searchType=domain"
+                                target="_blank" rel="noopener" class="inline-flex min-h-11 items-center text-xs text-brand-600 hover:underline">
+                                Buka Semrush untuk domain ini &rarr;
+                            </a>
+                        @endif
+
+                        @if (!empty($seo['manual_screenshots']['own_semrush']))
+                            <div class="mt-2">
+                                <img src="{{ Storage::url($seo['manual_screenshots']['own_semrush']) }}" alt="Screenshot Semrush" class="max-w-xl max-h-72 object-contain border border-slate-200 rounded-md">
+                                <form action="{{ route('pages.projects.manual-screenshot.destroy', $project) }}" method="POST" class="mt-1">
+                                    @csrf
+                                    @method('DELETE')
+                                    <input type="hidden" name="target" value="own_semrush">
+                                    <input type="hidden" name="return_tab" value="traffic">
+                                    <button type="submit" class="min-h-11 text-xs text-red-700 hover:underline">Hapus screenshot untuk unggah ulang</button>
+                                </form>
+                            </div>
+                        @else
+                            <form action="{{ route('pages.projects.manual-screenshot.store', $project) }}" method="POST" enctype="multipart/form-data" class="mt-2 flex flex-wrap items-center gap-2">
+                                @csrf
+                                <input type="hidden" name="target" value="own_semrush">
+                                <input type="hidden" name="return_tab" value="traffic">
+                                <input type="file" name="screenshot" accept="image/*" required class="text-xs">
+                                <button type="submit" class="min-h-11 text-xs bg-brand-600 text-white px-3 py-2 rounded-md">Unggah screenshot</button>
+                            </form>
+                        @endif
+
+                        <form action="{{ route('pages.projects.seo-analysis.semrush.store', $project) }}" method="POST" class="mt-5 border-t border-slate-100 pt-4">
+                            @csrf
+                            <label class="block text-xs font-semibold text-slate-700 mb-1" for="semrush_as_of">Tanggal data Semrush</label>
+                            <input id="semrush_as_of" type="date" name="as_of" value="{{ old('as_of', $semrushReport['as_of'] ?? '') }}" class="min-h-11 border border-slate-300 rounded-md px-3 py-2 text-sm mb-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                                @foreach ($semrushFields as $key => [$label, $type, $max])
+                                    <label class="block text-xs text-slate-700">{{ $label }}
+                                        <input type="number" min="0" @if ($max !== null) max="{{ $max }}" @endif step="{{ $key === 'authority_score' ? '0.1' : '1' }}"
+                                            name="metrics[{{ $key }}]" value="{{ old('metrics.' . $key, $semrushMetrics[$key] ?? '') }}"
+                                            class="min-h-11 block w-full mt-1 border border-slate-300 rounded-md px-3 py-2 text-sm">
+                                    </label>
+                                @endforeach
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <label class="block text-xs text-slate-700">Visibilitas AI — satu platform per baris: <span class="font-mono">Platform|Mentions|Cited pages</span>
+                                    <textarea name="ai_platforms_text" rows="4" class="block w-full mt-1 border border-slate-300 rounded-md px-3 py-2 text-sm" placeholder="ChatGPT|7|28&#10;Google AI Overview|0|28&#10;Gemini|10|7">{{ old('ai_platforms_text', collect($semrushReport['ai_platforms'] ?? [])->map(fn ($r) => ($r['label'] ?? '') . '|' . ($r['first'] ?? 0) . '|' . ($r['second'] ?? 0))->implode("\n")) }}</textarea>
+                                </label>
+                                <label class="block text-xs text-slate-700">Distribusi negara — satu negara per baris: <span class="font-mono">Negara|Traffic|Keywords</span>
+                                    <textarea name="countries_text" rows="4" class="block w-full mt-1 border border-slate-300 rounded-md px-3 py-2 text-sm" placeholder="Indonesia|2900|381&#10;Australia|598|203">{{ old('countries_text', collect($semrushReport['countries'] ?? [])->map(fn ($r) => ($r['label'] ?? '') . '|' . ($r['first'] ?? 0) . '|' . ($r['second'] ?? 0))->implode("\n")) }}</textarea>
+                                </label>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                                <label class="block text-xs text-slate-700">Ringkasan tren
+                                    <textarea name="trend_summary" rows="3" maxlength="2500" class="block w-full mt-1 border border-slate-300 rounded-md px-3 py-2 text-sm">{{ old('trend_summary', $semrushReport['trend_summary'] ?? '') }}</textarea>
+                                </label>
+                                <label class="block text-xs text-slate-700">Poin penting / interpretasi
+                                    <textarea name="key_points" rows="3" maxlength="2500" class="block w-full mt-1 border border-slate-300 rounded-md px-3 py-2 text-sm">{{ old('key_points', $semrushReport['key_points'] ?? '') }}</textarea>
+                                </label>
+                            </div>
+                            <label class="block text-xs text-slate-700 mt-4">Kesimpulan dan saran tindak lanjut
+                                <textarea name="recommendations" rows="3" maxlength="2500" class="block w-full mt-1 border border-slate-300 rounded-md px-3 py-2 text-sm">{{ old('recommendations', $semrushReport['recommendations'] ?? '') }}</textarea>
+                            </label>
+                            <button type="submit" class="min-h-11 mt-4 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-md">Simpan data Semrush</button>
+                        </form>
+                    </x-card>
+                    <div class="mb-4">
+                        <a href="{{ route('pages.projects.seo-analysis.report.download', $project) }}" class="min-h-11 inline-flex items-center gap-2 bg-brand-600 text-white text-sm font-semibold px-4 py-2 rounded-md hover:bg-brand-700">
+                            <i class='bx bx-download'></i> Unduh Analysis SEO Page (PDF)
+                        </a>
+                    </div>
                 </div>
 
             </div>

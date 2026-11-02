@@ -14,6 +14,7 @@ return [
         ['label' => 'CRM', 'route' => 'pages.crm', 'icon' => 'bx-group'],
         ['label' => 'Project', 'route' => 'pages.projects', 'icon' => 'bx-briefcase'],
         ['label' => 'Request Order', 'route' => 'pages.request', 'icon' => 'bx-list-plus'],
+        ['label' => 'Analisa SEO', 'route' => 'pages.seo-analysis', 'icon' => 'bx-search-alt'],
         ['label' => 'Workspace', 'route' => 'pages.project-workspace', 'icon' => 'bx-cube'],
         ['label' => 'Finance', 'route' => 'pages.finance', 'icon' => 'bx-wallet'],
         ['label' => 'Reports', 'route' => 'pages.reports', 'icon' => 'bx-bar-chart-alt-2'],
