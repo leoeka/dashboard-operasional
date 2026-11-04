@@ -185,51 +185,6 @@
                     </dl>
                 </div>
             </x-card>
-
-            {{-- PAYMENTS — nothing writes here any more, but invoices settled
-                 before payments moved outside the system still have their
-                 history, and it stays readable. --}}
-            @if ($invoice->payments->isNotEmpty())
-                <x-card padding="p-0">
-                    <div class="px-6 py-4 border-b border-slate-100">
-                        <h2 class="font-semibold text-slate-800">Riwayat Pembayaran</h2>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm min-w-[720px]">
-                            <thead>
-                                <tr class="text-left text-xs text-slate-600 bg-slate-50 border-b border-slate-100">
-                                    <th class="px-6 py-3 font-semibold">Tanggal</th>
-                                    <th class="px-6 py-3 font-semibold">Nominal</th>
-                                    <th class="px-6 py-3 font-semibold">Metode</th>
-                                    <th class="px-6 py-3 font-semibold">Referensi</th>
-                                    <th class="px-6 py-3 font-semibold">Dicatat Oleh</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-slate-100">
-                                @foreach ($invoice->payments as $payment)
-                                    <tr class="align-top">
-                                        <td class="px-6 py-4 text-slate-600 font-mono">
-                                            {{ $payment->paid_on->translatedFormat('d M Y') }}</td>
-                                        <td class="px-6 py-4 text-slate-700 whitespace-nowrap font-mono">
-                                            {{ $payment->currency }}
-                                            {{ number_format((float) $payment->amount, 0, ',', '.') }}
-                                        </td>
-                                        <td class="px-6 py-4 text-slate-500">{{ $payment->methodLabel() }}</td>
-                                        <td class="px-6 py-4 text-slate-500">{{ $payment->reference ?: '-' }}</td>
-                                        <td class="px-6 py-4 text-slate-500">
-                                            {{ $payment->recorder?->name ?? '-' }}
-                                            @if ($payment->notes)
-                                                <p class="text-xs text-slate-500 mt-1">{{ $payment->notes }}</p>
-                                            @endif
-                                        </td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    </div>
-                </x-card>
-            @endif
         </div>
 
         {{-- RIGHT: who is billed, what for, and what the reminders did --}}

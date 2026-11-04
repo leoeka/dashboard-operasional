@@ -74,11 +74,6 @@ class FinanceSubscription extends Model
         return $this->belongsTo(Project::class);
     }
 
-    public function servicePackage()
-    {
-        return $this->belongsTo(ServicePackage::class);
-    }
-
     public function invoices()
     {
         return $this->hasMany(Invoice::class, 'billing_subscription_id');

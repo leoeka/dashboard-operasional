@@ -88,8 +88,101 @@ function inspCandidate(Project $project): MockupCandidate
 HTML;
 
     file_put_contents($candidateDir . '/index.html', $html);
-    file_put_contents($candidateDir . '/preview.png', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='));
-    file_put_contents($candidateDir . '/slot-rendang.jpg', 'dummy-jpg-data');
+    file_put_contents($candidateDir . '/preview.png', (string) base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='));
+    file_put_contents($candidateDir . '/slot-rendang.jpg', (string) base64_decode('/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAABAAEDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD3+iiigD//2Q=='));
+
+    return $candidate;
+}
+
+/**
+ * Kandidat yang sudah punya dua halaman isi dan navigasi header berbentuk
+ * daftar: bentuk yang dipakai tema hasil tahap halaman isi.
+ */
+function inspCandidateWithPages(Project $project): MockupCandidate
+{
+    $candidate = inspCandidate($project);
+    $candidateDir = (new MockupWorkspace())->candidatePath($candidate);
+
+    $html = <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        :root {
+            --brand-color: #b91c1c;
+            --text-color: #1f2937;
+            --bg-color: #ffffff;
+        }
+        body { font-family: sans-serif; color: var(--text-color); background: var(--bg-color); }
+    </style>
+</head>
+<body>
+    <header class="site-header">
+        <nav>
+            <ul class="nav-links">
+                <li><a href="__EXITO_PAGE_URL:tentang">Tentang</a></li>
+                <li><a href="__EXITO_PAGE_URL:layanan">Layanan</a></li>
+            </ul>
+        </nav>
+        <a href="__EXITO_PAGE_URL:whatsapp" class="btn-wa">Pesan Meja WA</a>
+    </header>
+    <main class="site-main">
+        <h1>Rendang Daging Istimewa</h1>
+        <img src="__EXITO_IMAGE:slot-rendang" alt="Rendang">
+        <a href="__EXITO_PAGE_URL:telepon">Hubungi Kami</a>
+        <a href="__EXITO_PAGE_URL:email">Reservasi Email</a>
+    </main>
+    <footer class="site-footer">
+        <p>&copy; 2026 Restoran Salero</p>
+    </footer>
+</body>
+</html>
+HTML;
+
+    file_put_contents($candidateDir . '/index.html', $html);
+
+    if (!is_dir($candidateDir . '/pages')) {
+        mkdir($candidateDir . '/pages', 0775, true);
+    }
+
+    file_put_contents($candidateDir . '/pages/tentang.html', <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tentang Kami</title>
+    <style>.tentang-hero { color: #1f2937; background: #ffffff; }</style>
+</head>
+<body>
+    <header><a href="__EXITO_PAGE_URL:layanan">Layanan</a></header>
+    <main class="tentang-hero">
+        <h1>Tentang Restoran Salero</h1>
+        <p>Kami memasak rendang sejak 1998.</p>
+        <img src="__EXITO_IMAGE:slot-rendang" alt="Rendang">
+        <a href="__EXITO_PAGE_URL:layanan">Lihat layanan</a>
+    </main>
+    <footer><p>Footer halaman</p></footer>
+</body>
+</html>
+HTML);
+
+    file_put_contents($candidateDir . '/pages/layanan.html', <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Layanan</title>
+    <style>.layanan-grid { color: #1f2937; background: #ffffff; }</style>
+</head>
+<body>
+    <header><a href="__EXITO_PAGE_URL:tentang">Tentang</a></header>
+    <main class="layanan-grid">
+        <h1>Layanan Kami</h1>
+        <p>Katering, reservasi meja, dan paket acara.</p>
+        <a href="__EXITO_PAGE_URL:tentang">Kenali kami</a>
+    </main>
+    <footer><p>Footer halaman</p></footer>
+</body>
+</html>
+HTML);
 
     return $candidate;
 }
@@ -128,7 +221,11 @@ it('passes inspection and packages theme into ready zip file when all rules are 
         ->and($result->inspection_results['checks']['zero_markers'])->toBeTrue()
         ->and($result->inspection_results['checks']['menu_locations'])->toBeTrue()
         ->and($result->inspection_results['checks']['no_external_embeds'])->toBeTrue()
-        ->and($result->inspection_results['checks']['file_size'])->toBeTrue();
+        ->and($result->inspection_results['checks']['file_size'])->toBeTrue()
+        ->and($result->inspection_results['checks']['color_contrast'])->toBeTrue()
+        ->and($result->inspection_results['checks']['elementor_payload'])->toBeTrue()
+        ->and($result->inspection_results['checks']['front_page'])->toBeTrue()
+        ->and($result->inspection_results['elementor_pages_count'])->toBe(1);
 
     // Verifikasi fisik berkas ZIP
     $zipPath = storage_path('app/' . $result->zip_path);
@@ -223,7 +320,7 @@ it('fails inspection when a php syntax error is detected in a template', functio
 
     $themeDir = (new MockupWorkspace())->buildPath($build);
     // Masukkan sintaks PHP rusak
-    file_put_contents($themeDir . '/front-page.php', "<?php parse error syntax !!!");
+    file_put_contents($themeDir . '/page.php', "<?php parse error syntax !!!");
 
     $inspector = new WpThemeInspector();
 
@@ -313,6 +410,118 @@ it('fails inspection M-11 when file size exceeds limit', function () {
         ->and($fresh->inspection_results['checks']['file_size'])->toBeFalse();
 });
 
+it('fails inspection K-9 when style.css imports a font from an external address', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidate($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    file_put_contents(
+        $themeDir . '/style.css',
+        "@import url(\"https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap\");\n",
+        FILE_APPEND
+    );
+
+    $inspector = new WpThemeInspector();
+
+    expect(fn () => $inspector->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['no_external_embeds'])->toBeFalse()
+        ->and(implode(' ', $fresh->inspection_results['errors']))->toContain('fonts.googleapis.com');
+});
+
+it('fails inspection M-1 when a text and background pair is below the contrast threshold', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidate($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    file_put_contents($themeDir . '/style.css', ".muted { color: #aaaaaa; background: #ffffff; }\n", FILE_APPEND);
+
+    $inspector = new WpThemeInspector();
+
+    expect(fn () => $inspector->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['color_contrast'])->toBeFalse()
+        ->and(implode(' ', $fresh->inspection_results['errors']))->toContain('M-1');
+});
+
+it('fails inspection M-2 when text over a brand color is not the highest-ratio candidate', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidate($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    file_put_contents(
+        $themeDir . '/style.css',
+        ":root { --brand-bg: #767676; }\n.hero { color: #ffffff; background: var(--brand-bg); }\n",
+        FILE_APPEND
+    );
+
+    $inspector = new WpThemeInspector();
+
+    expect(fn () => $inspector->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['color_contrast'])->toBeFalse()
+        ->and(implode(' ', $fresh->inspection_results['errors']))->toContain('M-2');
+});
+
+it('ignores composite backgrounds it cannot reduce to one flat color', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidate($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    file_put_contents(
+        $themeDir . '/style.css',
+        ".card { color: #333333; background: rgba(0, 0, 0, 0.5); }\n"
+        . ".hero { color: #ffffff; background: linear-gradient(#9ca3af, #111827); }\n",
+        FILE_APPEND
+    );
+
+    $result = (new WpThemeInspector())->inspectAndPackage($build);
+
+    expect($result->status)->toBe(WpBuild::STATUS_READY)
+        ->and($result->inspection_results['checks']['color_contrast'])->toBeTrue();
+});
+
 it('allows downloading the theme zip file when build status is ready', function () {
     $client = inspClient();
     $project = inspProject($client);
@@ -376,10 +585,14 @@ it('preserves structured inspection results when build job fails in queue', func
     $project = inspProject($client);
     $candidate = inspCandidate($project);
 
-    // Tambahkan iframe terlarang (K-9) pada index.html kandidat di dalam body
+    // Selipkan @import alamat luar ke CSS kandidat: pembangun lolos, meja
+    // periksa yang menolak (K-9), jadi hasil terstruktur tetap tercatat.
     $candidateDir = (new MockupWorkspace())->candidatePath($candidate);
     $html = file_get_contents($candidateDir . '/index.html');
-    file_put_contents($candidateDir . '/index.html', str_replace('</main>', '<iframe src="https://evil.com"></iframe></main>', $html));
+    file_put_contents(
+        $candidateDir . '/index.html',
+        str_replace('</style>', '@import url("https://evil.com/track.css");</style>', $html)
+    );
 
     $build = WpBuild::create([
         'project_id' => $project->id,
@@ -396,4 +609,304 @@ it('preserves structured inspection results when build job fails in queue', func
         ->and($fresh->inspection_results['checks']['no_external_embeds'])->toBeFalse()
         ->and($fresh->inspection_results['error'])->toContain('Meja periksa gagal')
         ->and($fresh->inspection_results['failed_at'])->not->toBeNull();
+});
+
+it('passes inspection with content pages, menu and media payload present', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidateWithPages($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+        'status' => WpBuild::STATUS_PENDING,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $result = (new WpThemeInspector())->inspectAndPackage($build);
+
+    expect($result->status)->toBe(WpBuild::STATUS_READY)
+        ->and($result->inspection_results['checks']['page_payloads'])->toBeTrue()
+        ->and($result->inspection_results['checks']['menu_filled'])->toBeTrue()
+        ->and($result->inspection_results['checks']['media_payload'])->toBeTrue()
+        ->and($result->inspection_results['checks']['elementor_payload'])->toBeTrue()
+        ->and($result->inspection_results['checks']['front_page'])->toBeTrue()
+        ->and($result->inspection_results['pages_count'])->toBe(3);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    $meta = json_decode((string) file_get_contents($themeDir . '/content/halaman.json'), true);
+
+    expect(array_column($meta['halaman'], 'slug'))->toEqualCanonicalizing(['beranda', 'tentang', 'layanan'])
+        ->and(array_column($meta['nav'], 'slug'))->toBe(['tentang', 'layanan'])
+        ->and($meta['gambar'])->toBe(['slot-rendang.jpg']);
+});
+
+it('fails page payload check when a content page points at an image missing from the theme', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidateWithPages($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    file_put_contents(
+        $themeDir . '/content/tentang.html',
+        "\n<img src=\"[[siteflow:gambar:hantu.jpg]]\" alt=\"Hantu\">\n",
+        FILE_APPEND
+    );
+
+    expect(fn () => (new WpThemeInspector())->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['page_payloads'])->toBeFalse()
+        ->and(implode(' ', $fresh->inspection_results['errors']))->toContain("gambar 'hantu.jpg' yang tidak terdaftar");
+});
+
+it('fails menu payload check when a menu item has no page behind it', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidateWithPages($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    $metaPath = $themeDir . '/content/halaman.json';
+    $meta = json_decode((string) file_get_contents($metaPath), true);
+    $meta['nav'][] = ['slug' => 'promo', 'label' => 'Promo'];
+    file_put_contents($metaPath, (string) json_encode($meta, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES));
+
+    expect(fn () => (new WpThemeInspector())->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['menu_filled'])->toBeFalse()
+        ->and(implode(' ', $fresh->inspection_results['errors']))->toContain("Item menu 'promo' tidak punya halaman isi.");
+});
+
+it('fails media payload check when an extra unlisted image sits in the theme', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidateWithPages($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    copy($themeDir . '/images/slot-rendang.jpg', $themeDir . '/images/ekstra.jpg');
+
+    expect(fn () => (new WpThemeInspector())->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['media_payload'])->toBeFalse()
+        ->and(implode(' ', $fresh->inspection_results['errors']))->toContain('images/ekstra.jpg tidak terdaftar');
+});
+
+it('fails K-9 when a content page carries a script tag', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidateWithPages($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    file_put_contents($themeDir . '/content/layanan.html', "<script>alert(1)</script>\n", FILE_APPEND);
+
+    expect(fn () => (new WpThemeInspector())->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['no_external_embeds'])->toBeFalse();
+});
+
+it('fails page payload check when a theme template links to a page that was never built', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidateWithPages($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    file_put_contents(
+        $themeDir . '/page.php',
+        "\n<?php echo esc_url(siteflow_page_url('promo')); ?>\n",
+        FILE_APPEND
+    );
+
+    expect(fn () => (new WpThemeInspector())->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['page_payloads'])->toBeFalse()
+        ->and(implode(' ', $fresh->inspection_results['errors']))->toContain("menaut ke halaman 'promo' yang tidak dibuat");
+});
+
+it('fails media payload check when a listed image is not a real image', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidateWithPages($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    file_put_contents($themeDir . '/images/slot-rendang.jpg', 'bukan-gambar');
+
+    expect(fn () => (new WpThemeInspector())->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['media_payload'])->toBeFalse()
+        ->and(implode(' ', $fresh->inspection_results['errors']))->toContain('bukan gambar yang sah');
+});
+
+it('fails K-9 when a content page carries a javascript: link or inline handler', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidateWithPages($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    file_put_contents(
+        $themeDir . '/content/tentang.html',
+        "\n<a href=\"javascript:alert(1)\">Klik</a>\n<img src=\"x.jpg\" onerror=\"alert(1)\">\n",
+        FILE_APPEND
+    );
+
+    expect(fn () => (new WpThemeInspector())->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    $errors = implode(' ', $fresh->inspection_results['errors']);
+
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['no_external_embeds'])->toBeFalse()
+        ->and($errors)->toContain('javascript:')
+        ->and($errors)->toContain('on...=');
+});
+
+it('fails elementor payload check when a page has no element data', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidateWithPages($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    file_put_contents(
+        $themeDir . '/content/layanan.json',
+        (string) json_encode(['versi' => 'x', 'elementor' => []])
+    );
+
+    expect(fn () => (new WpThemeInspector())->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['elementor_payload'])->toBeFalse()
+        ->and(implode(' ', $fresh->inspection_results['errors']))->toContain('content/layanan.json tidak memuat elemen Elementor');
+});
+
+it('fails elementor payload check when a page uses a raw html widget', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidateWithPages($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    $path = $themeDir . '/content/tentang.json';
+    $data = json_decode((string) file_get_contents($path), true);
+    $data['elementor'] = [[
+        'id' => 'abc1234',
+        'elType' => 'widget',
+        'widgetType' => 'html',
+        'settings' => ['html' => '<p>HTML mentah</p>'],
+        'elements' => [],
+    ]];
+    file_put_contents($path, (string) json_encode($data));
+
+    expect(fn () => (new WpThemeInspector())->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['elementor_payload'])->toBeFalse()
+        ->and(implode(' ', $fresh->inspection_results['errors']))->toContain("widget 'html' tidak dipakai");
+});
+
+it('fails front page check when a stale front-page.php is present', function () {
+    $client = inspClient();
+    $project = inspProject($client);
+    $candidate = inspCandidate($project);
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    file_put_contents($themeDir . '/front-page.php', "<?php // sisa build lama\n");
+
+    expect(fn () => (new WpThemeInspector())->inspectAndPackage($build))
+        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
+
+    $fresh = $build->fresh();
+    expect($fresh->status)->toBe(WpBuild::STATUS_INSPECTION_FAILED)
+        ->and($fresh->inspection_results['checks']['front_page'])->toBeFalse()
+        ->and(implode(' ', $fresh->inspection_results['errors']))->toContain('front-page.php masih ada');
 });

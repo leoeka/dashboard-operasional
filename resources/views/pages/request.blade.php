@@ -201,6 +201,16 @@
                                 <span class="text-sm font-semibold text-slate-800">No</span>
                             </label>
                         </div>
+
+                        <div id="clientAssetsUploadField" class="mt-3 {{ old('has_client_assets') === '1' ? '' : 'hidden' }}">
+                            <label for="client_asset_files" class="block text-sm font-semibold text-slate-800">
+                                Upload Client Asset Files (Photos, Documents, Content)
+                            </label>
+                            <input type="file" id="client_asset_files" name="client_asset_files[]" multiple
+                                accept="image/png,image/jpeg,image/webp,.pdf,.doc,.docx,.zip,.txt,.svg"
+                                class="min-h-11 mt-1 block w-full text-sm text-slate-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100">
+                            <p class="mt-1 text-xs text-slate-500">Bisa memilih beberapa file sekaligus (foto, dokumen brief, profile, dll. Maks. 20MB per file).</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -582,6 +592,20 @@
 
             designReferenceType?.addEventListener('change', toggleDesignReferenceFields);
             toggleDesignReferenceFields();
+
+            const clientAssetsYes = document.getElementById('client_assets_yes');
+            const clientAssetsNo = document.getElementById('client_assets_no');
+            const clientAssetsUploadField = document.getElementById('clientAssetsUploadField');
+
+            function toggleClientAssetsUpload() {
+                if (clientAssetsUploadField) {
+                    clientAssetsUploadField.classList.toggle('hidden', !clientAssetsYes?.checked);
+                }
+            }
+
+            clientAssetsYes?.addEventListener('change', toggleClientAssetsUpload);
+            clientAssetsNo?.addEventListener('change', toggleClientAssetsUpload);
+            toggleClientAssetsUpload();
         })();
     </script>
 @endsection

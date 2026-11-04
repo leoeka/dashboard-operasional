@@ -1,22 +1,49 @@
-{{-- FILTERS — status keeps the original four, purpose is new and separates the
-     project invoices from the recurring ones now sharing the table. --}}
+{{-- FILTERS: Filter Jenis Layanan (Kiri) dan Filter Status Pembayaran (Kanan) --}}
 <x-card padding="p-4" class="mb-4">
-    <div class="flex flex-wrap gap-2 mb-3">
-        @foreach ([null => 'Semua', 'unpaid' => 'Belum Dibayar', 'overdue' => 'Terlambat', 'paid' => 'Lunas'] as $value => $label)
-            <a href="{{ route('pages.finance', array_filter(['tab' => 'invoices', 'status' => $value, 'purpose' => request('purpose')])) }}"
-                class="min-h-11 text-xs px-3 py-2 rounded-md {{ request('status') === $value || (!$value && !request('status')) ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600' }}">
-                {{ $label }}
-            </a>
-        @endforeach
-    </div>
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        {{-- Sisi Kiri: Filter Jenis / Siklus Layanan --}}
+        <div>
+            <label class="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">Jenis Layanan</label>
+            <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                @php
+                    $activeCycle = request('cycle');
+                @endphp
+                <a href="{{ route('pages.finance', array_filter(['tab' => 'invoices', 'cycle' => null, 'status' => request('status')])) }}"
+                    class="min-h-9 px-3 py-1.5 text-xs font-semibold rounded-md transition inline-flex items-center {{ empty($activeCycle) ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600 hover:text-slate-900' }}">
+                    Semua
+                </a>
+                <a href="{{ route('pages.finance', array_filter(['tab' => 'invoices', 'cycle' => 'monthly', 'status' => request('status')])) }}"
+                    class="min-h-9 px-3 py-1.5 text-xs font-semibold rounded-md transition inline-flex items-center {{ $activeCycle === 'monthly' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600 hover:text-slate-900' }}">
+                    Bulanan
+                </a>
+                <a href="{{ route('pages.finance', array_filter(['tab' => 'invoices', 'cycle' => 'yearly', 'status' => request('status')])) }}"
+                    class="min-h-9 px-3 py-1.5 text-xs font-semibold rounded-md transition inline-flex items-center {{ $activeCycle === 'yearly' ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600 hover:text-slate-900' }}">
+                    Tahunan
+                </a>
+            </div>
+        </div>
 
-    <div class="flex flex-wrap gap-2">
-        @foreach ([null => 'Semua Jenis', 'project_payment' => 'Pembayaran Project', 'renewal' => 'Perpanjangan'] as $value => $label)
-            <a href="{{ route('pages.finance', array_filter(['tab' => 'invoices', 'purpose' => $value, 'status' => request('status')])) }}"
-                class="min-h-11 text-xs px-3 py-2 rounded-md border {{ request('purpose') === $value || (!$value && !request('purpose')) ? 'border-brand-500 text-brand-600 bg-brand-50' : 'border-slate-200 text-slate-500' }}">
-                {{ $label }}
-            </a>
-        @endforeach
+        {{-- Sisi Kanan: Filter Status Pembayaran --}}
+        <div class="sm:text-right">
+            <label class="block text-xs font-semibold text-slate-500 mb-1.5 uppercase tracking-wider">Status Pembayaran</label>
+            <div class="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
+                @php
+                    $activeStatus = request('status');
+                @endphp
+                <a href="{{ route('pages.finance', array_filter(['tab' => 'invoices', 'status' => null, 'cycle' => request('cycle')])) }}"
+                    class="min-h-9 px-3 py-1.5 text-xs font-semibold rounded-md transition inline-flex items-center {{ empty($activeStatus) ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-600 hover:text-slate-900' }}">
+                    Semua
+                </a>
+                <a href="{{ route('pages.finance', array_filter(['tab' => 'invoices', 'status' => 'unpaid', 'cycle' => request('cycle')])) }}"
+                    class="min-h-9 px-3 py-1.5 text-xs font-semibold rounded-md transition inline-flex items-center {{ $activeStatus === 'unpaid' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-600 hover:text-slate-900' }}">
+                    Belum Dibayar
+                </a>
+                <a href="{{ route('pages.finance', array_filter(['tab' => 'invoices', 'status' => 'paid', 'cycle' => request('cycle')])) }}"
+                    class="min-h-9 px-3 py-1.5 text-xs font-semibold rounded-md transition inline-flex items-center {{ $activeStatus === 'paid' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-600 hover:text-slate-900' }}">
+                    Sudah Dibayar
+                </a>
+            </div>
+        </div>
     </div>
 </x-card>
 
@@ -66,9 +93,13 @@
 
                             <td class="px-6 py-4">
                                 @if ($invoice->isRenewal())
-                                    <x-badge color="purple">Perpanjangan</x-badge>
+                                    @if ($invoice->subscription?->billing_cycle === 'monthly')
+                                        <x-badge color="purple">Bulanan</x-badge>
+                                    @else
+                                        <x-badge color="blue">Tahunan</x-badge>
+                                    @endif
                                 @else
-                                    <x-badge color="blue">Project</x-badge>
+                                    <x-badge color="slate">Project</x-badge>
                                 @endif
                             </td>
 

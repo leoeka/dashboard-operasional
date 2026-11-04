@@ -4,10 +4,7 @@ use App\Models\Client;
 use App\Models\FinanceReminderLog;
 use App\Models\FinanceSubscription;
 use App\Models\Invoice;
-use App\Models\InvoiceItem;
-use App\Models\Payment;
 use App\Models\Project;
-use App\Models\ServicePackage;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -52,23 +49,6 @@ function hostingSubscription(Client $client, array $overrides = []): FinanceSubs
     ], $overrides));
 }
 
-it('creates the service_packages table the existing model always assumed', function () {
-    expect(Schema::hasTable('service_packages'))->toBeTrue();
-
-    // Fields follow ServicePackageController::validated(), so the page that was
-    // returning a 500 now works unchanged.
-    $package = ServicePackage::create([
-        'name' => 'SEO Basic',
-        'category' => 'paket_utama',
-        'price' => 3500000,
-        'unit' => 'per bulan',
-        'features' => "Riset keyword\nOptimasi on-page",
-    ]);
-
-    expect($package->fresh()->price)->toBe('3500000.00')
-        ->and($package->featureList())->toHaveCount(2);
-});
-
 it('lets a subscription exist without any service package or project', function () {
     $client = billingClient();
     $subscription = hostingSubscription($client);
@@ -80,26 +60,21 @@ it('lets a subscription exist without any service package or project', function 
         ->and($subscription->isActive())->toBeTrue();
 });
 
-it('links a subscription to a package and a project when they exist', function () {
+it('links a subscription to a project when it exists', function () {
     $client = billingClient();
     $project = billingProject($client);
-    $package = ServicePackage::create([
-        'name' => 'SEO Basic', 'category' => 'paket_utama', 'price' => 3500000, 'features' => 'x',
-    ]);
 
     $seo = hostingSubscription($client, [
         'project_id' => $project->id,
-        'service_package_id' => $package->id,
         'name' => 'SEO Basic',
         'service_type' => 'seo',
         'billing_cycle' => FinanceSubscription::CYCLE_MONTHLY,
         'amount' => 3500000,
     ]);
 
-    expect($seo->project->name)->toBe('Website ABC')
-        ->and($seo->servicePackage->name)->toBe('SEO Basic')
-        ->and($seo->isYearly())->toBeFalse()
-        ->and($package->billingSubscriptions)->toHaveCount(1);
+    expect($seo->project->id)->toBe($project->id)
+        ->and($seo->project->name)->toBe('Website ABC')
+        ->and($seo->isYearly())->toBeFalse();
 });
 
 it('keeps the existing project invoice working exactly as before', function () {
@@ -188,50 +163,26 @@ it('adds up line items to the invoice total', function () {
         'due_date' => today()->addDays(30),
     ]);
 
+    $items = [];
     foreach ([
         ['Hosting Business', 1500000],
         ['Domain abc.com', 300000],
         ['Website Maintenance', 1000000],
     ] as $position => [$description, $price]) {
-        InvoiceItem::create([
-            'invoice_id' => $invoice->id,
+        $items[] = [
             'description' => $description,
             'quantity' => 1,
             'unit_price' => $price,
             'total' => $price,
             'position' => $position,
-        ]);
+        ];
     }
-
-    $invoice->load('items');
+    $invoice->update(['items' => $items]);
 
     expect($invoice->items)->toHaveCount(3)
         ->and($invoice->itemsTotal())->toBe('2800000.00')
         ->and($invoice->itemsTotal())->toBe($invoice->amount)
         ->and($invoice->items->first()->description)->toBe('Hosting Business');
-});
-
-it('records a payment against an invoice with its own detail', function () {
-    $client = billingClient();
-    $invoice = Invoice::create([
-        'client_id' => $client->id,
-        'invoice_number' => 'INV-2026-000126',
-        'type' => 'full',
-        'amount' => 2500000,
-        'due_date' => today(),
-    ]);
-
-    $payment = Payment::create([
-        'invoice_id' => $invoice->id,
-        'paid_on' => today(),
-        'amount' => 2500000,
-        'method' => 'bank_transfer',
-        'reference' => 'TRF/2026/0099',
-    ]);
-
-    expect($invoice->fresh()->payments)->toHaveCount(1)
-        ->and($payment->methodLabel())->toBe('Bank Transfer')
-        ->and($payment->invoice->invoice_number)->toBe('INV-2026-000126');
 });
 
 it('refuses a second reminder log for the same threshold on the same invoice', function () {
@@ -367,18 +318,15 @@ it('keeps the invoice when the project it was raised for is deleted', function (
         'amount' => 5000000,
         'due_date' => today(),
     ]);
-    Payment::create(['invoice_id' => $invoice->id, 'paid_on' => today(), 'amount' => 5000000]);
-
     $project->delete();
 
     // An invoice is a finance record. It outlives the project it was raised
-    // for — this used to cascade, taking the invoice and its payment with it.
+    // for — this used to cascade, taking the invoice with it.
     $invoice->refresh();
 
     expect(Invoice::whereKey($invoice->id)->exists())->toBeTrue()
         ->and($invoice->project_id)->toBeNull()
         ->and($invoice->client_id)->toBe($client->id)
-        ->and($invoice->payments)->toHaveCount(1)
         ->and($invoice->amount)->toBe('5000000.00');
 });
 
@@ -443,11 +391,9 @@ it('removes an invoice own children when the invoice itself is deleted', functio
         'due_date' => today(),
     ]);
 
-    InvoiceItem::create([
-        'invoice_id' => $invoice->id, 'description' => 'Hosting',
-        'quantity' => 1, 'unit_price' => 2500000, 'total' => 2500000,
-    ]);
-    Payment::create(['invoice_id' => $invoice->id, 'paid_on' => today(), 'amount' => 2500000]);
+    $invoice->update(['items' => [
+        ['description' => 'Hosting', 'quantity' => 1, 'unit_price' => 2500000, 'total' => 2500000],
+    ]]);
     FinanceReminderLog::create([
         'invoice_id' => $invoice->id,
         'billing_subscription_id' => $subscription->id,
@@ -457,9 +403,6 @@ it('removes an invoice own children when the invoice itself is deleted', functio
 
     $invoice->delete();
 
-    // These belong TO the invoice, so they go with it — unlike the client,
-    // project and subscription it merely refers to.
-    expect(InvoiceItem::count())->toBe(0)
-        ->and(Payment::count())->toBe(0)
+    expect(Invoice::whereKey($invoice->id)->exists())->toBeFalse()
         ->and(FinanceReminderLog::count())->toBe(0);
 });

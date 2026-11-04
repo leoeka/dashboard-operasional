@@ -221,7 +221,7 @@ it('stops the remaining thresholds of a paid invoice from sending', function () 
 
     // H-30 for a renewal due 2026-10-30: the invoice is raised and reminded.
     Carbon::setTestNow(Carbon::parse('2026-09-30 09:00:00'));
-    app(BillingRenewalService::class)->processDue();
+    app(FinanceRenewalService::class)->processDue();
 
     $invoice = Invoice::where('purpose', Invoice::PURPOSE_RENEWAL)->sole();
 
@@ -233,9 +233,9 @@ it('stops the remaining thresholds of a paid invoice from sending', function () 
 
     // H-7 and H-3 would both be reminder days if the bill were still open.
     Carbon::setTestNow(Carbon::parse('2026-10-23 09:00:00'));
-    app(BillingRenewalService::class)->processDue();
+    app(FinanceRenewalService::class)->processDue();
     Carbon::setTestNow(Carbon::parse('2026-10-27 09:00:00'));
-    app(BillingRenewalService::class)->processDue();
+    app(FinanceRenewalService::class)->processDue();
 
     expect(FinanceReminderLog::count())->toBe(1)
         ->and($recorder->sent)->toHaveCount(1);
@@ -246,7 +246,7 @@ it('keeps rolling the subscription period after an invoice is marked paid', func
     $subscription = markSubscription(markClient());
 
     Carbon::setTestNow(Carbon::parse('2026-09-30 09:00:00'));
-    app(BillingRenewalService::class)->processDue();
+    app(FinanceRenewalService::class)->processDue();
 
     $invoice = Invoice::where('purpose', Invoice::PURPOSE_RENEWAL)->sole();
     $this->actingAs(markUser())->patch(route('pages.finance.invoices.paid', $invoice), ['paid_on' => '2026-09-30']);
@@ -254,7 +254,7 @@ it('keeps rolling the subscription period after an invoice is marked paid', func
     // Periods follow the calendar, not the money: the roll happens on schedule
     // and the next year's invoice is raised on its own H-30.
     Carbon::setTestNow(Carbon::parse('2026-11-02 09:00:00'));
-    app(BillingRenewalService::class)->processDue();
+    app(FinanceRenewalService::class)->processDue();
 
     expect($subscription->refresh()->next_renewal_date->format('Y-m-d'))->toBe('2027-10-30')
         ->and(Invoice::where('purpose', Invoice::PURPOSE_RENEWAL)->count())->toBe(1);

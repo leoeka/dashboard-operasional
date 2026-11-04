@@ -11,13 +11,13 @@ use Carbon\Carbon;
  *
  * One place maps the models to the layout (pdf/partials/invoice-document), so the
  * email body and the PDF can never drift apart. Payment details come from
- * config('billing.payment'), the same source the email already used.
+ * config('finance.payment'), the same source the email already used.
  */
 class InvoicePdfService
 {
     public function data(Invoice $invoice): array
     {
-        $invoice->loadMissing(['client', 'project.client', 'subscription', 'items']);
+        $invoice->loadMissing(['client', 'project.client', 'subscription']);
 
         $client = $invoice->billableClient();
         $pay = config('finance.payment', []);

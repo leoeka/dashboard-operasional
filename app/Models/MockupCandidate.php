@@ -68,4 +68,17 @@ class MockupCandidate extends Model
     {
         return $this->hasOne(WpBuild::class);
     }
+
+    /**
+     * Mengambil persentase dan pesan tahapan proses pembuatan kandidat saat ini.
+     *
+     * @return array{percent: int, message: string}
+     */
+    public function progress(): array
+    {
+        return \Illuminate\Support\Facades\Cache::get("mockup_candidate_{$this->id}_progress", [
+            'percent' => 20,
+            'message' => 'Merancang konsep desain...',
+        ]);
+    }
 }

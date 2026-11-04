@@ -4,9 +4,7 @@ use App\Models\Client;
 use App\Models\FinanceReminderLog;
 use App\Models\FinanceSubscription;
 use App\Models\Invoice;
-use App\Models\Payment;
 use App\Models\Project;
-use App\Models\ServicePackage;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
@@ -102,9 +100,6 @@ it('does not expose invoice payment status counts in Finance summary', function 
 it('does not count received payments because collection happens outside this system', function () {
     $client = financeClient();
     $invoice = financeInvoice(['client_id' => $client->id, 'amount' => 2500000]);
-
-    Payment::create(['invoice_id' => $invoice->id, 'paid_on' => today(), 'amount' => 2500000]);
-    Payment::create(['invoice_id' => $invoice->id, 'paid_on' => today()->subMonth(), 'amount' => 9000000]);
 
     $summary = $this->actingAs(financeUser())->get(route('pages.finance'))->viewData('summary');
 
@@ -233,16 +228,12 @@ it('has no switch that stops an active subscription from billing', function () {
     expect((bool) FinanceSubscription::sole()->auto_invoice)->toBeTrue();
 });
 
-it('creates a subscription from an optional service package', function () {
+it('creates a custom subscription with custom fields', function () {
     $client = financeClient();
-    $package = ServicePackage::create([
-        'name' => 'SEO Basic', 'category' => 'paket_utama', 'price' => 3500000, 'unit' => 'per bulan', 'features' => 'x',
-    ]);
 
     $this->actingAs(financeUser())
         ->post(route('pages.finance.subscriptions.store'), [
             'client_id' => $client->id,
-            'service_package_id' => $package->id,
             'name' => 'SEO Basic',
             'service_type' => 'seo',
             'amount' => 3500000,
@@ -251,7 +242,7 @@ it('creates a subscription from an optional service package', function () {
         ])
         ->assertRedirect();
 
-    expect(FinanceSubscription::sole()->servicePackage->name)->toBe('SEO Basic');
+    expect(FinanceSubscription::sole()->name)->toBe('SEO Basic');
 });
 
 it('rejects a subscription without the fields it cannot work without', function () {
@@ -292,7 +283,9 @@ it('leaves already-issued invoices alone when the price changes', function () {
         'purpose' => Invoice::PURPOSE_RENEWAL,
         'amount' => 2500000,
     ]);
-    $invoice->items()->create(['description' => 'Hosting + Domain', 'quantity' => 1, 'unit_price' => 2500000, 'total' => 2500000]);
+    $invoice->update(['items' => [
+        ['description' => 'Hosting + Domain', 'quantity' => 1, 'unit_price' => 2500000, 'total' => 2500000],
+    ]]);
 
     $this->actingAs(financeUser())->put(route('pages.finance.subscriptions.update', $subscription), [
         'client_id' => $client->id,
@@ -383,6 +376,36 @@ it('filters invoices by purpose', function () {
         ->assertSee('INV-ABC-2001')->assertDontSee('INV-2026-000002');
 });
 
+it('filters invoices by cycle and date range', function () {
+    $client = financeClient();
+    $subMonthly = financeSubscription($client, ['name' => 'SEO Bulanan', 'billing_cycle' => 'monthly']);
+    $subYearly = financeSubscription($client, ['name' => 'Hosting Tahunan', 'billing_cycle' => 'yearly']);
+
+    financeInvoice([
+        'client_id' => $client->id,
+        'billing_subscription_id' => $subMonthly->id,
+        'invoice_number' => 'INV-CYCLE-M',
+        'due_date' => '2026-11-10',
+    ]);
+    financeInvoice([
+        'client_id' => $client->id,
+        'billing_subscription_id' => $subYearly->id,
+        'invoice_number' => 'INV-CYCLE-Y',
+        'due_date' => '2026-12-20',
+    ]);
+
+    $user = financeUser();
+
+    $this->actingAs($user)->get(route('pages.finance', ['tab' => 'invoices', 'cycle' => 'monthly']))
+        ->assertSee('INV-CYCLE-M')->assertDontSee('INV-CYCLE-Y');
+
+    $this->actingAs($user)->get(route('pages.finance', ['tab' => 'invoices', 'cycle' => 'yearly']))
+        ->assertSee('INV-CYCLE-Y')->assertDontSee('INV-CYCLE-M');
+
+    $this->actingAs($user)->get(route('pages.finance', ['tab' => 'invoices', 'start_date' => '2026-12-01', 'end_date' => '2026-12-31']))
+        ->assertSee('INV-CYCLE-Y')->assertDontSee('INV-CYCLE-M');
+});
+
 it('filters invoices by status and by overdue', function () {
     $client = financeClient();
 
@@ -440,8 +463,7 @@ it('offers no way to settle an invoice from the page', function () {
         ->assertOk()
         ->assertDontSee('Tandai Lunas');
 
-    expect($invoice->fresh()->status)->toBe('unpaid')
-        ->and(Payment::count())->toBe(0);
+    expect($invoice->fresh()->status)->toBe('unpaid');
 });
 
 it('never moves the renewal date from the invoice side of the workspace', function () {
@@ -776,8 +798,9 @@ it('keeps the payments, items and reminder logs of a refused delete', function (
         'amount' => 2500000,
     ]);
 
-    $invoice->items()->create(['description' => 'Hosting', 'quantity' => 1, 'unit_price' => 2500000, 'total' => 2500000]);
-    Payment::create(['invoice_id' => $invoice->id, 'paid_on' => today(), 'amount' => 2500000]);
+    $invoice->update(['items' => [
+        ['description' => 'Hosting', 'quantity' => 1, 'unit_price' => 2500000, 'total' => 2500000],
+    ]]);
     FinanceReminderLog::create([
         'invoice_id' => $invoice->id,
         'billing_subscription_id' => $subscription->id,
@@ -789,10 +812,9 @@ it('keeps the payments, items and reminder logs of a refused delete', function (
 
     $this->actingAs(financeUser())->delete(route('pages.finance.destroy', $invoice));
 
-    // All three cascade from the invoice, which is exactly why the delete is
+    // The reminder log cascades from the invoice, which is exactly why the delete is
     // refused rather than merely hidden.
-    expect(App\Models\InvoiceItem::count())->toBe(1)
-        ->and(Payment::count())->toBe(1)
+    expect(Invoice::whereKey($invoice->id)->exists())->toBeTrue()
         ->and(FinanceReminderLog::count())->toBe(1);
 });
 

@@ -27,6 +27,7 @@ class Invoice extends Model
         'tax',
         'currency',
         'due_date',
+        'items',
         'billing_period_start',
         'billing_period_end',
         'status',
@@ -52,6 +53,7 @@ class Invoice extends Model
     protected $casts = [
         'issue_date' => 'date',
         'due_date' => 'date',
+        'items' => 'array',
         'billing_period_start' => 'date',
         'billing_period_end' => 'date',
         'paid_at' => 'date',
@@ -77,14 +79,23 @@ class Invoice extends Model
         return $this->belongsTo(FinanceSubscription::class, 'billing_subscription_id');
     }
 
-    public function items()
+    public function getItemsAttribute($value)
     {
-        return $this->hasMany(InvoiceItem::class)->orderBy('position');
+        $decoded = is_string($value) ? json_decode($value, true) : ($value ?? []);
+        return collect($decoded)->map(function ($item) {
+            return (object) [
+                'description' => $item['description'] ?? '',
+                'quantity' => (float) ($item['quantity'] ?? 1),
+                'unit_price' => number_format((float) ($item['unit_price'] ?? 0), 2, '.', ''),
+                'total' => number_format((float) ($item['total'] ?? 0), 2, '.', ''),
+                'position' => (int) ($item['position'] ?? 0),
+            ];
+        });
     }
 
-    public function payments()
+    public function items()
     {
-        return $this->hasMany(Payment::class);
+        return $this->items;
     }
 
     public function reminderLogs()
@@ -130,8 +141,8 @@ class Invoice extends Model
     /**
      * Unpaid, and its due date is behind the business date.
      *
-     * Asked of BillingClock rather than of today(), because the application
-     * deliberately runs on UTC while the business runs on config('billing.
+     * Asked of FinanceClock rather than of today(), because the application
+     * deliberately runs on UTC while the business runs on config('finance.
      * timezone'). For the eight hours those two disagree, today() would call an
      * invoice current that the Finance summary — which has always used the
      * clock — already counts as overdue, and the badge on the row would

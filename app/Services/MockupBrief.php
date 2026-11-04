@@ -5,12 +5,17 @@ namespace App\Services;
 use App\Models\Project;
 
 /**
- * Perakit brief kandidat dari data proyek (form Request). Baris yang datanya
- * kosong tidak ditulis, supaya GPT tidak menebak-nebak dari ruang kosong.
+ * Perakit ringkas data proyek (form Request) untuk brief kandidat. Baris yang
+ * datanya kosong tidak ditulis, supaya model tidak menebak dari ruang kosong.
  */
 class MockupBrief
 {
-    public static function forRondeSatu(Project $project): string
+    /**
+     * Baris data proyek yang dibaca brief Codex.
+     *
+     * @return list<string>
+     */
+    public static function dataProyek(Project $project): array
     {
         $baris = [
             'Proyek: ' . $project->name . ' (jenis: ' . ($project->type ?: 'website') . ')',
@@ -23,12 +28,7 @@ class MockupBrief
             }
         }
 
-        $baris[] = '';
-        $baris[] = 'Tulis RENCANA DESAIN untuk satu kandidat mockup website proyek ini,'
-            . ' mengikuti aturan (metode dua ronde, bentuk JSON, kontrak artefak).'
-            . ' Balas HANYA dengan JSON rencana.';
-
-        return implode("\n", $baris);
+        return $baris;
     }
 
     private static function barisOpsional(Project $project): array

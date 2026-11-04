@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Schema;
 return new class extends Migration {
     public function up(): void
     {
-        foreach (['proposals', 'project_bundles', 'pipeline_checkpoints', 'mockup_templates'] as $table) {
+        foreach (['proposals', 'project_bundles', 'pipeline_checkpoints', 'mockup_templates', 'ai_usage_logs', 'project_tasks', 'payments', 'invoice_items', 'service_packages'] as $table) {
             Schema::dropIfExists($table);
         }
 

@@ -26,7 +26,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('client_id')->constrained()->cascadeOnDelete();
             $table->foreignId('project_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignId('service_package_id')->nullable()->constrained()->nullOnDelete();
+            $table->unsignedBigInteger('service_package_id')->nullable();
 
             $table->string('name');
             $table->string('service_type', 30)->default('other'); // hosting|domain|website|maintenance|seo|other

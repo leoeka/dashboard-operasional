@@ -288,4 +288,13 @@ it('shows the proposal actions on the gate only when the set is fully reviewed',
         ->assertOk()
         ->assertSee('Unduh proposal PDF')
         ->assertSee('Buat ulang proposal');
+
+    // Ada kandidat buat-ulang yang menunggu tinjau: panel buat-ulang proposal
+    // hilang, tetapi PDF yang sudah terlanjur dibuat tetap bisa diunduh.
+    $set->first()->update(['status' => MockupCandidate::STATUS_DRAFT]);
+    $this->actingAs($user)
+        ->get('/project-workspace?project=' . $project->id)
+        ->assertOk()
+        ->assertDontSee('Buat ulang proposal')
+        ->assertSee('Unduh proposal PDF');
 });

@@ -6,7 +6,6 @@ use App\Exceptions\ProviderException;
 use App\Models\FinanceReminderLog;
 use App\Models\FinanceSubscription;
 use App\Models\Invoice;
-use App\Models\InvoiceItem;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -444,15 +443,15 @@ class FinanceRenewalService
                         'currency' => $subscription->currency ?: 'IDR',
                         'status' => 'unpaid',
                         'notes' => "Perpanjangan otomatis untuk {$subscription->name}",
-                    ]);
-
-                    InvoiceItem::create([
-                        'invoice_id' => $invoice->id,
-                        'description' => $this->itemDescription($subscription, $period),
-                        'quantity' => 1,
-                        'unit_price' => $subscription->amount,
-                        'total' => $subscription->amount,
-                        'position' => 0,
+                        'items' => [
+                            [
+                                'description' => $this->itemDescription($subscription, $period),
+                                'quantity' => 1,
+                                'unit_price' => (float) $subscription->amount,
+                                'total' => (float) $subscription->amount,
+                                'position' => 0,
+                            ],
+                        ],
                     ]);
 
                     return $invoice;

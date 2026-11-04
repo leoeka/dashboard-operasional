@@ -37,17 +37,6 @@ return [
 
     'openai' => [
         'key' => env('OPENAI_API_KEY'),
-        'mockup_model' => env('OPENAI_MOCKUP_MODEL', 'gpt-5-mini'),
-        'image_model' => env('OPENAI_IMAGE_MODEL', 'gpt-image-1'),
-        // `low` is cheap but draws garbled text and soft detail into mockup photos.
-        'image_quality' => env('OPENAI_IMAGE_QUALITY', 'medium'),
-        'review_generated_images' => env('OPENAI_REVIEW_GENERATED_IMAGES', env('APP_ENV') !== 'testing'),
-        'image_review_model' => env('OPENAI_IMAGE_REVIEW_MODEL', 'gpt-4.1-mini'),
-        // The account's image rate limit (OpenAI tier 1: 5/min). 0 = no limit.
-        'images_per_minute' => env('OPENAI_IMAGES_PER_MINUTE', 5),
-        // Seconds one proposal run may spend on photos; the rest are filled on retry.
-        'image_time_budget' => env('OPENAI_IMAGE_TIME_BUDGET', 300),
-        'mockup_candidate_count' => env('OPENAI_MOCKUP_CANDIDATE_COUNT', 3),
         // Website author: sitemap + real copy for the proposal. Streaming is
         // what keeps a long JSON answer alive, so the timeout is generous.
         'website_content_model' => env('OPENAI_WEBSITE_CONTENT_MODEL', 'gpt-5.6'),
@@ -81,8 +70,23 @@ return [
     ],
 
     'mockup' => [
-        // Batas pengaman ronde alat per kandidat supaya loop tidak menggantung.
-        'max_tool_rounds' => env('MOCKUP_MAX_TOOL_ROUNDS', 12),
+        'codex' => [
+            // Jalur penuh, jangan bergantung pada PATH milik proses web.
+            'node' => env('MOCKUP_CODEX_NODE', 'node'),
+            'script' => env('MOCKUP_CODEX_SCRIPT'),
+            'model' => env('MOCKUP_CODEX_MODEL'),
+            // Batas keras satu kandidat. Lewat ini proses dimatikan bersama anaknya.
+            // Satu kandidat sekarang membuat gambar rancangan lalu 5 foto sendiri,
+            // jadi 20 menit pernah kehabisan waktu di tengah jalan.
+            'timeout' => env('MOCKUP_CODEX_TIMEOUT', 2100),
+            // Folder login Codex (bawaan ~/.codex). Hanya dibaca untuk gambar.
+            'home' => env('MOCKUP_CODEX_HOME'),
+            // Tempat meja kerja khusus uji; kosong = storage/app/mockup-work.
+            'base' => env('MOCKUP_CODEX_BASE'),
+            // Folder kerja sementara. Kosong = folder temp sistem, di luar repo,
+            // supaya Codex tidak membaca AGENTS.md/DESIGN.md milik aplikasi ini.
+            'work' => env('MOCKUP_CODEX_WORK'),
+        ],
     ],
 
     'pagespeed' => [

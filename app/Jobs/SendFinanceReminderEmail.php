@@ -47,7 +47,7 @@ class SendFinanceReminderEmail implements ShouldQueue
 
     public function handle(): void
     {
-        $log = FinanceReminderLog::with(['invoice.subscription', 'invoice.client', 'invoice.project.client', 'invoice.items'])
+        $log = FinanceReminderLog::with(['invoice.subscription', 'invoice.client', 'invoice.project.client'])
             ->find($this->reminderLogId);
 
         if (!$log) {
