@@ -136,7 +136,11 @@ class Project extends Model
 
     public function getSeoRequirementsAttribute($value)
     {
-        $seo = $this->relationLoaded('seo') ? $this->getRelation('seo') : $this->seo()->first();
+        // Project belum tersimpan → tidak ada baris relasi untuk dibaca, jadi
+        // pakai nilai kolom langsung tanpa memicu query ke tabel.
+        $seo = !$this->exists
+            ? null
+            : ($this->relationLoaded('seo') ? $this->getRelation('seo') : $this->seo()->first());
         if ($seo) {
             $data = $seo->data ?? [];
             if ($seo->target_url !== null) $data['target_url'] = $seo->target_url;

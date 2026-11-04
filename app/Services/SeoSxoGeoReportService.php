@@ -84,7 +84,7 @@ class SeoSxoGeoReportService
             $parts[] = $this->part('Core Web Vitals', $this->cwvScore($pagespeed), $w['core_web_vitals']);
             $parts[] = $this->part('Aksesibilitas', $pagespeed['scores']['accessibility'] ?? null, $w['accessibility']);
         }
-        if ($ctr !== null) {
+        if ($ctr !== null && (int) ($ctr['queries_analyzed'] ?? 0) > 0) {
             $count = (int) ($ctr['summary']['opportunity_count'] ?? 0);
             $parts[] = $this->part('CTR judul & meta', max(0, 100 - min(60, $count * 10)), $w['ctr']);
         }

@@ -216,11 +216,10 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
     }
 
     /**
-     * TAHAP 3: Dari kandidat + data volume Google Ads (kalau tersedia), pilih
-     * 10 keyword utama final + related keywords. AI di sini menganalisis DATA
-     * (kalau ada), bukan menebak dari nol lagi.
+    * Dari kandidat dan sinyal query Search Console, urutkan keyword utama
+    * serta related keywords. Search Console bukan sumber volume pasar/Ads.
      */
-    public function selectFinalKeywords(Project $project, array $candidates, array $volumeData, array $competitorContents = [], int $count = 25): array
+    public function selectFinalKeywords(Project $project, array $candidates, array $volumeData, array $competitorContents = [], int $count = 25, array $googleAdsMetrics = []): array
     {
         $volumeContext = '';
         if (!empty($volumeData)) {
@@ -230,6 +229,14 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
             }
         } else {
             $volumeContext = "\n\n(Belum ada data performa pencarian dari Search Console untuk website ini — kemungkinan situs baru/belum terindex Google. Nilai berdasarkan relevansi dan penilaian umum saja, beri tahu di summary bahwa ini estimasi kualitatif, bukan data performa nyata.)";
+        }
+
+        $googleAdsContext = '';
+        if (!empty($googleAdsMetrics)) {
+            $googleAdsContext = "\n\nMetrik historis aktual dari Google Ads Keyword Planner (gunakan hanya untuk keyword yang tercantum):\n";
+            foreach ($googleAdsMetrics as $keyword => $metrics) {
+                $googleAdsContext .= '- "' . $keyword . '": rata-rata pencarian bulanan ' . ($metrics['avg_monthly_searches'] ?? 'tidak tersedia') . ', kompetisi ' . ($metrics['competition'] ?? 'tidak tersedia') . "\n";
+            }
         }
 
         $competitorSummary = '';
@@ -255,12 +262,19 @@ Tipe Bisnis: {$project->type}
  
 Kandidat keyword: {$candidatesText}
 {$volumeContext}
+{$googleAdsContext}
 {$competitorSummary}{$locationSummary}
  
-Urutkan berdasarkan: relevansi dengan bisnis, volume pencarian (kalau
-data tersedia), tingkat persaingan, dan peluang ranking realistis untuk
-bisnis skala ini. Sertakan juga related keywords terpisah untuk
+Urutkan berdasarkan: relevansi dengan bisnis, volume Google Ads jika
+tersedia, sinyal performa Search Console jika tersedia, dan peluang
+ranking realistis untuk bisnis skala ini. Search Console impressions
+adalah tayangan situs selama periode laporan, BUKAN volume pencarian
+bulanan pasar. Sertakan juga related keywords terpisah untuk
 memperluas coverage konten (di luar {$count} keyword utama).
+
+Gunakan angka volume pencarian dan tingkat kompetisi HANYA dari metrik
+Google Ads di atas. Jika suatu keyword tidak ada di metrik tersebut,
+isi avg_monthly_searches dan competition dengan null untuk keyword itu.
 
 Untuk SETIAP keyword utama, sertakan 2-3 \"derivative_keywords\": variasi
 turunan long-tail dari keyword utama itu (lebih spesifik/lebih panjang,
@@ -275,7 +289,7 @@ Wajib kembalikan HANYA format JSON murni tanpa markdown:
     ...hingga {$count} item, diurutkan dari yang paling direkomendasikan...
   ],
   \"related_keywords\": [\"keyword tambahan 1\", ...],
-  \"data_source\": \"google_ads_api atau ai_estimate\",
+    \"data_source\": \"google_ads_api, search_console atau ai_estimate\",
   \"summary\": \"ringkasan strategi keyword, 2-3 kalimat\"
 }
 ";

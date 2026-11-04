@@ -353,34 +353,69 @@ class SeoBacklinkController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function downloadSeoBacklinkReport(Project $project)
+    public function saveSemrushReport(Request $request, Project $project)
     {
-        $seo = $project->seo_requirements ?? [];
-        $backlink = $project->backlink_requirements ?? [];
-
-        $discoveredCompetitors = collect(explode("\n", $seo['competitors'] ?? ''))
-            ->map(fn($u) => trim($u))
-            ->filter()
-            ->values();
-
-        $pdf = Pdf::loadView('pdf.seo-backlink-report', [
-            'project' => $project,
-            'seo' => $seo,
-            'backlink' => $backlink,
-            'aiRecommendations' => $seo['ai_recommendations'] ?? null,
-            'aiTopics' => $seo['ai_identified_topics'] ?? null,
-            'discoveredCompetitors' => $discoveredCompetitors,
-            'competitorPagespeed' => $seo['competitor_pagespeed'] ?? null,
-            'pagespeed' => $seo['pagespeed'] ?? null,
-            'searchConsole' => $seo['search_console'] ?? null,
-            'ga4' => $seo['google_analytics'] ?? null,
-            'generatedAt' => now()->format('d F Y H:i'),
+        $data = $request->validate([
+            'as_of' => ['nullable', 'date'],
+            'metrics.authority_score' => ['nullable', 'numeric', 'between:0,100'],
+            'metrics.ai_visibility_score' => ['nullable', 'numeric', 'min:0'],
+            'metrics.organic_traffic' => ['nullable', 'integer', 'min:0'],
+            'metrics.organic_keywords' => ['nullable', 'integer', 'min:0'],
+            'metrics.paid_traffic' => ['nullable', 'integer', 'min:0'],
+            'metrics.paid_keywords' => ['nullable', 'integer', 'min:0'],
+            'metrics.referring_domains' => ['nullable', 'integer', 'min:0'],
+            'metrics.backlinks' => ['nullable', 'integer', 'min:0'],
+            'metrics.traffic_share' => ['nullable', 'numeric', 'between:0,100'],
+            'ai_platforms_text' => ['nullable', 'string', 'max:2000'],
+            'countries_text' => ['nullable', 'string', 'max:2000'],
+            'trend_summary' => ['nullable', 'string', 'max:2500'],
+            'key_points' => ['nullable', 'string', 'max:2500'],
+            'recommendations' => ['nullable', 'string', 'max:2500'],
         ]);
 
-        $clientSlug = Str::slug($project->client_name);
-        $fileName = "Laporan-SEO-Backlink-{$clientSlug}-{$project->code}.pdf";
+        $metrics = array_filter($data['metrics'] ?? [], fn ($value) => $value !== null && $value !== '');
+        $seo = $project->seo_requirements ?? [];
+        $seo['semrush_report'] = [
+            'as_of' => $data['as_of'] ?? null,
+            'metrics' => $metrics,
+            'ai_platforms' => $this->parseSemrushRows($data['ai_platforms_text'] ?? '', 3),
+            'countries' => $this->parseSemrushRows($data['countries_text'] ?? '', 3),
+            'trend_summary' => trim($data['trend_summary'] ?? ''),
+            'key_points' => trim($data['key_points'] ?? ''),
+            'recommendations' => trim($data['recommendations'] ?? ''),
+        ];
+        $project->update(['seo_requirements' => $seo]);
 
-        return $pdf->download($fileName);
+        return redirect()->to(route('pages.project-workspace', ['project' => $project->id]) . '#traffic')
+            ->with('success', 'Data Semrush untuk laporan SEO berhasil disimpan.');
+    }
+
+    /** @return list<array{label:string,first:int,second:int}> */
+    private function parseSemrushRows(string $text, int $maximum): array
+    {
+        $rows = [];
+        foreach (array_slice(preg_split('/\r\n|\r|\n/', $text) ?: [], 0, $maximum) as $line) {
+            $parts = array_map('trim', explode('|', $line));
+            if (count($parts) !== 3 || $parts[0] === '' || !ctype_digit($parts[1]) || !ctype_digit($parts[2])) {
+                continue;
+            }
+            $rows[] = ['label' => mb_substr($parts[0], 0, 100), 'first' => (int) $parts[1], 'second' => (int) $parts[2]];
+        }
+
+        return $rows;
+    }
+
+    public function downloadSeoBacklinkReport(Project $project)
+    {
+        return $this->downloadSeoAnalysisReport($project, app(\App\Services\SeoAnalysisReportService::class));
+    }
+
+    public function downloadSeoAnalysisReport(Project $project, \App\Services\SeoAnalysisReportService $service)
+    {
+        $pdf = Pdf::loadView('pdf.seo-analysis-report', $service->assemble($project));
+        $clientSlug = Str::slug($project->client_name);
+
+        return $pdf->download("Analysis-SEO-{$clientSlug}-{$project->code}.pdf");
     }
 
     public function analyzeCompetitorPageSpeed(Project $project)
@@ -483,7 +518,7 @@ class SeoBacklinkController extends Controller
         $validated = $request->validate([
             'target' => ['required', 'string', 'regex:/^(own_pagespeed|own_semrush|competitor_pagespeed:.+|competitor_semrush:.+)$/'],
             'screenshot' => ['required', 'image', 'max:5120'],
-            'return_tab' => ['nullable', 'in:performa'],
+            'return_tab' => ['nullable', 'in:performa,traffic'],
         ]);
 
         $seo = $project->seo_requirements ?? [];
@@ -522,7 +557,7 @@ class SeoBacklinkController extends Controller
     {
         $validated = $request->validate([
             'target' => ['required', 'string', 'regex:/^(own_pagespeed|own_semrush|competitor_pagespeed:.+|competitor_semrush:.+)$/'],
-            'return_tab' => ['nullable', 'in:performa'],
+            'return_tab' => ['nullable', 'in:performa,traffic'],
         ]);
 
         $seo = $project->seo_requirements ?? [];
@@ -552,11 +587,12 @@ class SeoBacklinkController extends Controller
             ->with('success', 'Screenshot deleted.');
     }
 
-    /** Keep manually uploaded performance screenshots on the Performa tab. */
+    /** Return to the tab that initiated the screenshot action. */
     private function manualScreenshotRedirect(Request $request, Project $project)
     {
-        if ($request->input('return_tab') === 'performa') {
-            return redirect()->to(route('pages.project-workspace', ['project' => $project->id]) . '#performa');
+        $tab = $request->input('return_tab');
+        if (in_array($tab, ['performa', 'traffic'], true)) {
+            return redirect()->to(route('pages.project-workspace', ['project' => $project->id]) . '#' . $tab);
         }
 
         return back();

@@ -146,14 +146,10 @@ class GoogleAnalyticsService
     }
 
     /**
-     * Ambil laporan 90 hari terakhir untuk 1 Property GA4: total sessions
-     * organik + users + conversions, new vs returning users, dan top 10
-     * landing page (sessions, engagement rate, rata-rata waktu
-     * engagement, conversions) — semua difilter cuma traffic organik
-     * (sessionDefaultChannelGroup = "Organic Search"), sesuai yang
-     * diminta di spec dashboard ("Total Organic Sessions", dst).
+    * Ambil ringkasan semua channel dan tren harian untuk laporan bulanan,
+    * sekaligus mempertahankan metrik organik untuk scorecard dan landing page.
      */
-    public function getReport(string $accessToken, string $propertyId, int $days = 90): ?array
+    public function getReport(string $accessToken, string $propertyId, int $days = 30): ?array
     {
         try {
             $dateRange = [['startDate' => "{$days}daysAgo", 'endDate' => 'yesterday']];
@@ -163,6 +159,84 @@ class GoogleAnalyticsService
                     'stringFilter' => ['value' => 'Organic Search'],
                 ],
             ];
+
+            // RINGKASAN SELURUH TRAFFIC
+            $overallRows = $this->runReport($accessToken, $propertyId, [
+                'dateRanges' => $dateRange,
+                'metrics' => [
+                    ['name' => 'sessions'],
+                    ['name' => 'engagedSessions'],
+                    ['name' => 'engagementRate'],
+                    ['name' => 'userEngagementDuration'],
+                    ['name' => 'eventCount'],
+                    ['name' => 'conversions'],
+                ],
+            ]);
+            $overallRow = $overallRows[0] ?? null;
+            $overallSessions = (int) ($overallRow['metricValues'][0]['value'] ?? 0);
+            $overallEngagementDuration = (float) ($overallRow['metricValues'][3]['value'] ?? 0);
+            $overall = [
+                'sessions' => $overallSessions,
+                'engaged_sessions' => (int) ($overallRow['metricValues'][1]['value'] ?? 0),
+                'engagement_rate' => (float) ($overallRow['metricValues'][2]['value'] ?? 0),
+                'avg_engagement_time' => $overallSessions > 0 ? round($overallEngagementDuration / $overallSessions, 1) : 0,
+                'event_count' => (int) ($overallRow['metricValues'][4]['value'] ?? 0),
+                'events_per_session' => $overallSessions > 0 ? round((int) ($overallRow['metricValues'][4]['value'] ?? 0) / $overallSessions, 2) : 0,
+                'conversions' => (float) ($overallRow['metricValues'][5]['value'] ?? 0),
+                'conversion_rate' => $overallSessions > 0 ? round((float) ($overallRow['metricValues'][5]['value'] ?? 0) / $overallSessions, 4) : 0,
+            ];
+
+            // PERFORMA PER SALURAN (seluruh traffic)
+            $channelRows = $this->runReport($accessToken, $propertyId, [
+                'dateRanges' => $dateRange,
+                'dimensions' => [['name' => 'sessionDefaultChannelGroup']],
+                'metrics' => [
+                    ['name' => 'sessions'],
+                    ['name' => 'engagedSessions'],
+                    ['name' => 'engagementRate'],
+                    ['name' => 'userEngagementDuration'],
+                    ['name' => 'eventCount'],
+                    ['name' => 'conversions'],
+                ],
+                'orderBys' => [['metric' => ['metricName' => 'sessions'], 'desc' => true]],
+                'limit' => 12,
+            ]);
+            $channels = array_map(function ($row) use ($overall) {
+                $values = $row['metricValues'] ?? [];
+                $sessions = (int) ($values[0]['value'] ?? 0);
+                $engagedSessions = (int) ($values[1]['value'] ?? 0);
+                $duration = (float) ($values[3]['value'] ?? 0);
+                $events = (int) ($values[4]['value'] ?? 0);
+
+                return [
+                    'channel' => $row['dimensionValues'][0]['value'] ?? 'Unassigned',
+                    'sessions' => $sessions,
+                    'session_share' => $overall['sessions'] > 0 ? round($sessions / $overall['sessions'], 4) : 0,
+                    'engaged_sessions' => $engagedSessions,
+                    'engaged_session_share' => $overall['engaged_sessions'] > 0 ? round($engagedSessions / $overall['engaged_sessions'], 4) : 0,
+                    'engagement_rate' => (float) ($values[2]['value'] ?? 0),
+                    'avg_engagement_time' => $sessions > 0 ? round($duration / $sessions, 1) : 0,
+                    'events_per_session' => $sessions > 0 ? round($events / $sessions, 2) : 0,
+                    'event_count' => $events,
+                    'event_share' => $overall['event_count'] > 0 ? round($events / $overall['event_count'], 4) : 0,
+                    'conversions' => (float) ($values[5]['value'] ?? 0),
+                    'conversion_share' => $overall['conversions'] > 0 ? round((float) ($values[5]['value'] ?? 0) / $overall['conversions'], 4) : 0,
+                ];
+            }, $channelRows);
+
+            // TREN HARIAN untuk mengenali lonjakan/penurunan, bukan klaim sebab-akibat.
+            $trendRows = $this->runReport($accessToken, $propertyId, [
+                'dateRanges' => $dateRange,
+                'dimensions' => [['name' => 'date']],
+                'metrics' => [['name' => 'sessions'], ['name' => 'conversions']],
+                'orderBys' => [['dimension' => ['dimensionName' => 'date'], 'desc' => false]],
+                'limit' => 400,
+            ]);
+            $dailyTrend = array_map(fn ($row) => [
+                'date' => $row['dimensionValues'][0]['value'] ?? '',
+                'sessions' => (int) ($row['metricValues'][0]['value'] ?? 0),
+                'conversions' => (float) ($row['metricValues'][1]['value'] ?? 0),
+            ], $trendRows);
 
             // TOTALS
             $totalsRows = $this->runReport($accessToken, $propertyId, [
@@ -232,6 +306,9 @@ class GoogleAnalyticsService
 
             return [
                 'property_id' => $propertyId,
+                'overall' => $overall,
+                'channels' => $channels,
+                'daily_trend' => $dailyTrend,
                 'totals' => $totals,
                 'new_vs_returning' => $newVsReturning,
                 'by_landing_page' => $byLandingPage,

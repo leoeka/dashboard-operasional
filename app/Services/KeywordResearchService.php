@@ -44,6 +44,7 @@ class KeywordResearchService
         private CompetitorContentFetcher $fetcher,
         private CompetitorDiscoveryService $discovery,
         private SearchConsoleService $searchConsole,
+        private GoogleAdsKeywordService $googleAds,
     ) {
     }
 
@@ -84,9 +85,7 @@ class KeywordResearchService
         $seedKeywords = implode(', ', $topics['seed_keywords'] ?? []);
 
         // TAHAP 3 — cari kompetitor otomatis (Custom Search API)
-        // FIX (dukungan lokasi luar negeri): ambil lokasi sekali di sini,
-        // dipakai untuk cari kompetitor DAN cek volume Google Ads di
-        // bawah — sebelumnya lokasi ini tidak disalurkan ke keduanya.
+        // Lokasi dipakai untuk mempersempit pencarian kompetitor.
         $location = trim((string) ($context->seo_requirements['location'] ?? ''));
         $location = $location !== '' ? $location : null;
 
@@ -144,10 +143,14 @@ class KeywordResearchService
         $report('running', 60, 'AI memperluas daftar kandidat keyword...');
         $candidates = $this->aiService->expandSeedKeywords($context, $seedKeywords, $competitorContents);
 
-        // TAHAP 6 — cek performa pencarian (Search Console: query yang
-        // sudah membawa traffic organik ke situs client)
+        // TAHAP 6 — ambil query Search Console (klik/tayang aktual untuk
+        // situs ini, bukan volume pencarian pasar dari Google Ads).
         $report('running', 78, 'Mengecek performa pencarian asli via Search Console...');
         $volumeData = $this->searchConsole->getTopQueries($websiteUrl);
+
+        $report('running', 84, 'Mengambil volume historis Google Ads Keyword Planner...');
+        $googleAdsMetrics = $this->googleAds->getHistoricalMetrics($candidates, $location);
+        $googleAdsStatus = $this->googleAds->historicalMetricsStatus();
 
         // TAHAP 7 — Gemini RANKING kandidat (bukan lagi "tentukan final").
         // PENTING: struktur $finalResult TETAP sama seperti sebelumnya
@@ -163,19 +166,45 @@ class KeywordResearchService
             $candidates,
             $volumeData,
             $competitorContents,
-            self::CANDIDATE_COUNT
+            self::CANDIDATE_COUNT,
+            $googleAdsMetrics
         );
 
         $finalResult['main_keywords'] = collect($finalResult['main_keywords'] ?? [])
             ->take(self::CANDIDATE_COUNT)
-            ->map(function ($item) {
+            ->map(function ($item) use ($volumeData, $googleAdsMetrics) {
                 if (is_array($item)) {
+                    $keyword = mb_strtolower(trim((string) ($item['keyword'] ?? '')));
+                    $query = collect($volumeData)->first(
+                        fn($row) => mb_strtolower(trim((string) ($row['keyword'] ?? ''))) === $keyword
+                    );
+
+                    // API results are authoritative; never retain Gemini's
+                    // estimated volume or competition when no exact match exists.
+                    $adsMetrics = $googleAdsMetrics[$keyword] ?? null;
+                    $item['avg_monthly_searches'] = $adsMetrics['avg_monthly_searches'] ?? null;
+                    $item['competition'] = $adsMetrics['competition'] ?? null;
+                    $item['competition_index'] = $adsMetrics['competition_index'] ?? null;
+                    $item['google_ads_metrics'] = $adsMetrics;
+                    $item['search_console_metrics'] = $query ? [
+                        'clicks' => (int) ($query['clicks'] ?? 0),
+                        'impressions' => (int) ($query['impressions'] ?? 0),
+                        'ctr' => isset($query['ctr']) ? (float) $query['ctr'] : null,
+                        'position' => isset($query['position']) ? (float) $query['position'] : null,
+                        'period_days' => 90,
+                    ] : null;
                     $item['selected'] = $item['selected'] ?? false;
                 }
                 return $item;
             })
             ->values()
             ->all();
+
+        // Determine data source from real API results, not Gemini's response.
+        $finalResult['data_source'] = !empty($googleAdsMetrics)
+            ? 'google_ads_api'
+            : (!empty($volumeData) ? 'search_console' : 'ai_estimate');
+        $finalResult['google_ads_status'] = $googleAdsStatus ?: (!empty($googleAdsMetrics) ? 'available' : 'unavailable');
 
         return [
             'topics' => $topics,

@@ -518,10 +518,10 @@
 
                 if (rec.main_keywords && rec.main_keywords.length) {
                     html +=
-                        '<div><p class="text-xs text-slate-600 mb-2">Top 10 Keywords</p><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-600 border-b border-slate-200"><th class="pb-1 pr-3">Keyword</th><th class="pb-1 pr-3 text-right">Volume/mo</th><th class="pb-1">Competition</th></tr></thead><tbody>';
+                        '<div><p class="text-xs text-slate-600 mb-2">Keyword candidates (' + rec.main_keywords.length + ')</p><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-600 border-b border-slate-200"><th class="pb-1 pr-3">Keyword</th><th class="pb-1 pr-3 text-right">Search volume/month</th><th class="pb-1">Ads competition</th></tr></thead><tbody>';
                     rec.main_keywords.forEach(kw => {
                         html +=
-                            `<tr class="border-b border-slate-100"><td class="py-1 pr-3 font-semibold text-slate-700">${escapeHtml(kw.keyword)}</td><td class="py-1 pr-3 text-right font-mono text-slate-600">${escapeHtml(kw.avg_monthly_searches ?? '-')}</td><td class="py-1 text-slate-600">${escapeHtml(kw.competition ?? '-')}</td></tr>`;
+                            `<tr class="border-b border-slate-100"><td class="py-1 pr-3 font-semibold text-slate-700">${escapeHtml(kw.keyword)}</td><td class="py-1 pr-3 text-right font-mono text-slate-600">${escapeHtml(kw.avg_monthly_searches ?? '—')}</td><td class="py-1 text-slate-600">${escapeHtml(kw.competition ?? '—')}</td></tr>`;
                     });
                     html += '</tbody></table></div></div>';
                 }

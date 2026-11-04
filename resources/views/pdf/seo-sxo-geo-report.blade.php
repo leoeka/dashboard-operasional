@@ -151,11 +151,15 @@
 @include('pdf.partials.seo-sxo-geo-parts', ['parts' => $scores['sxo']['parts']])
 
 @if ($ctr)
-    <h3>CTR di bawah normal ({{ $ctr['summary']['opportunity_count'] }} query &middot; ~{{ $ctr['summary']['estimated_missed_clicks'] }} klik/bln hilang)</h3>
+    @if ((int) ($ctr['queries_analyzed'] ?? 0) === 0)
+        <h3>CTR gap belum dapat dinilai</h3>
+    @else
+        <h3>Analisis CTR ({{ $ctr['queries_analyzed'] }} query eligible &middot; {{ $ctr['summary']['opportunity_count'] }} peluang &middot; ~{{ $ctr['summary']['estimated_missed_clicks'] }} klik/bln berpotensi)</h3>
+    @endif
     <p class="muted">{{ $ctr['recommendation'] }}</p>
     @if (!empty($ctr['opportunities']))
         <table class="data-table" style="margin-top:6px">
-            <tr><th>Query</th><th class="num">Posisi</th><th class="num">Impresi</th><th class="num">CTR</th><th class="num">Seharusnya</th><th class="num">Klik hilang</th></tr>
+            <tr><th>Query</th><th class="num">Posisi</th><th class="num">Impresi (90 hari)</th><th class="num">CTR</th><th class="num">Pembanding</th><th class="num">Klik/bln berpotensi</th></tr>
             @foreach (array_slice($ctr['opportunities'], 0, 10) as $o)
                 <tr>
                     <td>{{ $o['keyword'] }}</td>

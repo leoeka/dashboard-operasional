@@ -54,14 +54,17 @@ return [
     ],
 
     // Shared Google OAuth client (key name kept as-is to avoid touching
-    // every call site). Used by SearchConsoleService, GoogleAnalyticsService
-    // and the google:get-refresh-token command. The Ads-only fields
-    // (refresh_token / developer_token / customer_id / login_customer_id)
-    // were removed together with GoogleAdsKeywordService — the team gets
-    // keyword volume from Search Console, not the Google Ads API.
+    // Shared OAuth client plus Google Ads API credentials.
     'google_ads' => [
         'client_id' => env('GOOGLE_ADS_CLIENT_ID'),
         'client_secret' => env('GOOGLE_ADS_CLIENT_SECRET'),
+        'refresh_token' => env('GOOGLE_ADS_REFRESH_TOKEN'),
+        'developer_token' => env('GOOGLE_ADS_DEVELOPER_TOKEN'),
+        'customer_id' => env('GOOGLE_ADS_CUSTOMER_ID'),
+        'login_customer_id' => env('GOOGLE_ADS_LOGIN_CUSTOMER_ID'),
+        'api_version' => env('GOOGLE_ADS_API_VERSION', 'v26'),
+        'geo_target_constants' => array_filter(array_map('trim', explode(',', env('GOOGLE_ADS_GEO_TARGET_CONSTANTS', 'geoTargetConstants/2376')))),
+        'language_constant' => env('GOOGLE_ADS_LANGUAGE_CONSTANT', 'languageConstants/1022'),
     ],
 
     'google_custom_search' => [

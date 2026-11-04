@@ -75,10 +75,13 @@ class AnalyzeCtrGapJob implements ShouldQueue
         $this->project->update(['seo_requirements' => $seo]);
 
         $count = $result['summary']['opportunity_count'];
+        $analyzed = $result['queries_analyzed'];
         $this->project->logActivity(
             $count > 0
                 ? "Analisis CTR gap selesai — {$count} query di halaman 1 dengan CTR di bawah normal"
-                : 'Analisis CTR gap selesai — tidak ada query yang menonjol di bawah normal'
+                : ($analyzed > 0
+                    ? "Analisis CTR gap selesai — tidak ditemukan peluang pada {$analyzed} query yang memenuhi kriteria"
+                    : 'Analisis CTR gap selesai — belum cukup query yang memenuhi kriteria untuk dinilai')
         );
 
         $this->report('done', 100, 'Analisis CTR gap selesai.');

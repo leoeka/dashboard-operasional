@@ -120,6 +120,9 @@
                     </label>
                 </div>
                 <p id="service-error" class="text-xs text-red-700 mt-2 hidden">Select at least one service requirement.</p>
+                <a href="{{ route('pages.seo-analysis') }}" class="inline-flex min-h-11 items-center gap-2 mt-3 text-sm font-semibold text-brand-600 hover:text-brand-700">
+                    <i class='bx bx-search-alt'></i> Analisa SEO / SXO / GEO dari URL website
+                </a>
             </div>
 
             <div class="border-b pb-4 service-section" id="section-website" style="display:none;">
@@ -531,9 +534,9 @@
                 }
 
                 if (rec.main_keywords && rec.main_keywords.length) {
-                    html += '<div><p class="text-xs text-slate-600 mb-2">Top 10 Keywords</p><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-b"><th class="pb-1 pr-3">Keyword</th><th class="pb-1 pr-3">Volume/mo</th><th class="pb-1">Competition</th></tr></thead><tbody>';
+                    html += '<div><p class="text-xs text-slate-600 mb-2">Keyword candidates (' + rec.main_keywords.length + ')</p><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="text-left text-xs text-slate-500 border-b"><th class="pb-1 pr-3">Keyword</th><th class="pb-1 pr-3">Search volume/month</th><th class="pb-1">Ads competition</th></tr></thead><tbody>';
                     rec.main_keywords.forEach(kw => {
-                        html += `<tr class="border-b border-slate-200"><td class="py-1 pr-3 font-semibold text-slate-800">${escapeHtml(kw.keyword)}</td><td class="py-1 pr-3 text-slate-600">${escapeHtml(kw.avg_monthly_searches ?? '-')}</td><td class="py-1 text-slate-600">${escapeHtml(kw.competition ?? '-')}</td></tr>`;
+                        html += `<tr class="border-b border-slate-200"><td class="py-1 pr-3 font-semibold text-slate-800">${escapeHtml(kw.keyword)}</td><td class="py-1 pr-3 text-slate-600">${escapeHtml(kw.avg_monthly_searches ?? '—')}</td><td class="py-1 text-slate-600">${escapeHtml(kw.competition ?? '—')}</td></tr>`;
                     });
                     html += '</tbody></table></div></div>';
                 }

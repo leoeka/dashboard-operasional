@@ -319,6 +319,10 @@ class AiCrawlerAccessService
 
     private function fetchText(string $url): ?string
     {
+        if (!CompetitorContentFetcher::isSafeUrl($url)) {
+            return null;
+        }
+
         try {
             $response = Http::timeout(10)
                 ->retry(2, 400, throw: false)

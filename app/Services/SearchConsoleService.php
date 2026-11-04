@@ -13,8 +13,8 @@ use Illuminate\Support\Facades\Log;
  * akses ke Search Console banyak client sekaligus (bukan akun per-
  * client). Refresh token disimpan di .env, gagal secara HALUS (return
  * null) kalau kredensial belum lengkap — tidak bikin fitur lain ikut
- * gagal. Ini juga satu-satunya sumber data volume/performa keyword yang
- * dipakai sistem (Google Ads Keyword Planner sengaja tidak dipakai).
+ * gagal. Search Console metrics here describe the site's impressions,
+ * clicks, CTR, and position; they are distinct from Google Ads market volume.
  */
 class SearchConsoleService
 {
@@ -58,7 +58,7 @@ class SearchConsoleService
      * Return null kalau: kredensial belum lengkap, atau website ini
      * TIDAK ketemu di daftar property yang terverifikasi di akun.
      */
-    public function getPerformance(string $siteUrl, int $days = 90): ?array
+    public function getPerformance(string $siteUrl, int $days = 28): ?array
     {
         $accessToken = $this->getAccessToken();
         if (!$accessToken) {
@@ -72,7 +72,9 @@ class SearchConsoleService
             return null;
         }
 
-        $startDate = now()->subDays($days)->format('Y-m-d');
+        // Keep the requested number of calendar dates while excluding the
+        // latest three incomplete dates from the end of the range.
+        $startDate = now()->subDays($days + 2)->format('Y-m-d');
         $endDate = now()->subDays(3)->format('Y-m-d');
 
         try {
@@ -80,6 +82,7 @@ class SearchConsoleService
             $topQueries = $this->query($accessToken, $property, $startDate, $endDate, ['query'], 10);
             $byDevice = $this->query($accessToken, $property, $startDate, $endDate, ['device'], 10);
             $topPages = $this->query($accessToken, $property, $startDate, $endDate, ['page'], 10);
+            $dailyTrend = $this->query($accessToken, $property, $startDate, $endDate, ['date'], 400);
 
             return [
                 'property' => $property,
@@ -87,7 +90,8 @@ class SearchConsoleService
                 'top_queries' => $topQueries,
                 'top_pages' => $topPages,
                 'by_device' => $byDevice,
-                'period' => ['start' => $startDate, 'end' => $endDate],
+                'daily_trend' => $dailyTrend,
+                'period' => ['start' => $startDate, 'end' => $endDate, 'days' => $days],
             ];
         } catch (\Throwable $e) {
             Log::error('SearchConsoleService Exception: ' . ProviderException::sanitise($e->getMessage()), ['site' => ProviderException::sanitise($siteUrl)]);

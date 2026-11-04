@@ -13,6 +13,7 @@ class AiWorkspaceController extends Controller
 {
     public function aiWorkspace(Request $request, MockupGate $gate)
     {
+        $projects = Project::latest()->get();
         $project = null;
         $mockupSet = collect();
         $clientProposal = null;
@@ -35,7 +36,7 @@ class AiWorkspaceController extends Controller
             }
         }
 
-        return view('pages.project-workspace', compact('project', 'mockupSet', 'clientProposal', 'wpBuild', 'codexStatus'));
+        return view('pages.project-workspace', compact('projects', 'project', 'mockupSet', 'clientProposal', 'wpBuild', 'codexStatus'));
     }
 
     public function proposalWorkshop(Request $request)

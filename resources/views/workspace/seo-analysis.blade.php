@@ -73,12 +73,18 @@
                         <p class="text-xs text-slate-600">
                             Keyword Candidates ({{ count($aiRecommendations['main_keywords'] ?? []) }})
                             <span
-                                class="ml-1 inline-block text-xs px-2 py-1 rounded-md {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700' }}">
-                                {{ ($aiRecommendations['data_source'] ?? '') === 'google_ads_api' ? 'Google Ads Data' : 'AI Estimate' }}
+                                class="ml-1 inline-block text-xs px-2 py-1 rounded-md {{ in_array(($aiRecommendations['data_source'] ?? ''), ['google_ads_api', 'search_console'], true) ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-700' }}">
+                                {{ match ($aiRecommendations['data_source'] ?? '') { 'google_ads_api' => 'Google Ads Keyword Planner', 'search_console' => 'Search Console signals (90d)', default => 'AI ranking; no measured volume' } }}
                             </span>
                         </p>
                         <span id="keywordSelectedCount" class="text-xs text-slate-600"></span>
                     </div>
+
+                    @if (($aiRecommendations['google_ads_status'] ?? '') === 'project_not_approved')
+                        <div class="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                            Google Ads Keyword Planner returned 403 because this Google Cloud project is approved for test accounts only. Request production access for the Google Ads API project/developer token, then rerun keyword analysis. Search Console impressions are shown separately and are not monthly search volume.
+                        </div>
+                    @endif
 
                     <form id="keywordSelectForm">
                         @csrf
@@ -90,8 +96,9 @@
                                         <th class="pb-2 pr-2 w-6"></th>
                                         <th class="pb-2 pr-4">Keyword</th>
                                         <th class="pb-2 pr-4">Derivatives</th>
-                                        <th class="pb-2 pr-4">Volume/month</th>
-                                        <th class="pb-2 pr-4">Competition</th>
+                                        <th class="pb-2 pr-4">Search volume/month</th>
+                                        <th class="pb-2 pr-4">Ads competition</th>
+                                        <th class="pb-2 pr-4">GSC impressions (90d)</th>
                                         <th class="pb-2">Reason</th>
                                     </tr>
                                 </thead>
@@ -111,10 +118,13 @@
                                                 {{ implode(', ', array_filter((array) ($kw['derivative_keywords'] ?? []))) ?: '-' }}
                                             </td>
                                             <td class="py-2 pr-4 text-slate-500">
-                                                {{ $kw['avg_monthly_searches'] ?? '-' }}
+                                                {{ is_numeric($kw['avg_monthly_searches'] ?? null) ? number_format((int) $kw['avg_monthly_searches']) : '—' }}
                                             </td>
                                             <td class="py-2 pr-4 text-slate-500">
                                                 {{ $kw['competition'] ?? '-' }}</td>
+                                            <td class="py-2 pr-4 text-slate-500">
+                                                {{ isset($kw['search_console_metrics']['impressions']) ? number_format((int) $kw['search_console_metrics']['impressions']) : '—' }}
+                                            </td>
                                             <td class="py-2 text-slate-500">
                                                 {{ $kw['reasoning'] ?? '-' }}</td>
                                         </tr>

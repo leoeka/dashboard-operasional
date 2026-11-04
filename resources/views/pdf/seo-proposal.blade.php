@@ -449,7 +449,7 @@
                         <th style="width:26%">Main Keyword</th>
                         <th style="width:34%">Derivative Keywords</th>
                         <th style="width:22%">Monthly Search Volume</th>
-                        <th style="width:18%">Competition</th>
+                        <th style="width:18%">Google Ads Competition</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -462,9 +462,8 @@
                         <tr>
                             <td>{{ $keyword['keyword'] ?? '-' }}</td>
                             <td>{{ $derivatives ? implode(', ', $derivatives) : '—' }}</td>
-                            <td>{{ is_numeric($volume) ? number_format((float) $volume) . ' / mo' : '—' }}</td>
-                            <td>{{ in_array($competition, ['LOW', 'MEDIUM', 'HIGH']) ? ucfirst(strtolower($competition)) : '—' }}
-                            </td>
+                            <td>{{ is_numeric($volume) ? number_format((int) $volume) : '—' }}</td>
+                            <td>{{ in_array($competition, ['LOW', 'MEDIUM', 'HIGH'], true) ? ucfirst(strtolower($competition)) : '—' }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -472,9 +471,9 @@
 
             <p class="empty-note">
                 @if (($aiRecommendations['data_source'] ?? '') === 'google_ads_api')
-                    Search volume &amp; competition sourced from Google Ads Keyword Planner.
+                    Monthly search volume and competition are historical metrics from Google Ads Keyword Planner, targeted to the selected area and language.
                 @else
-                    Search volume &amp; competition are AI estimates — not measured Google Ads data.
+                    Google Ads Keyword Planner metrics were unavailable for this analysis. Search volume and competition are not shown as estimates.
                 @endif
             </p>
         @else
@@ -528,8 +527,8 @@
 
         <p class="footer-note">
             This proposal was generated automatically by the system — data sourced from Google PageSpeed Insights,
-            Google Places API (competitor analysis), and AI analysis (Gemini). Keyword search volume figures are
-            AI estimates unless marked as sourced from Google Ads data.
+            Google Places API (competitor analysis), and AI analysis (Gemini). Monthly keyword search volume and
+            Google Ads competition are not available; Search Console impressions are shown separately where an exact query match exists.
         </p>
     </div>
 

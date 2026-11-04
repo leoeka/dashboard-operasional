@@ -20,7 +20,7 @@ class CtrGapAnalyzer
     /** Selisih minimal (poin persen) di bawah ekspektasi supaya dihitung peluang. */
     private const GAP_THRESHOLD = 0.02;
 
-    /** Peluang harus mewakili minimal sekian klik/bulan yang hilang. */
+    /** Peluang harus mewakili minimal sekian estimasi klik/bulan yang hilang. */
     private const MIN_MISSED_CLICKS = 5;
 
     /**
@@ -37,14 +37,16 @@ class CtrGapAnalyzer
      * @return array{
      *   checked_at:string, queries_analyzed:int,
      *   opportunities:list<array<string,mixed>>,
+     *   period_days:int,
      *   summary:array{opportunity_count:int,estimated_missed_clicks:int},
      *   recommendation:string
      * }
      */
-    public function analyze(array $rows): array
+    public function analyze(array $rows, int $periodDays = 90): array
     {
         $opportunities = [];
         $analyzed = 0;
+        $periodDays = max(1, $periodDays);
 
         foreach ($rows as $row) {
             $keyword = trim((string) ($row['keyword'] ?? ''));
@@ -65,8 +67,9 @@ class CtrGapAnalyzer
                 continue;
             }
 
-            $missedClicks = (int) round($impressions * $gap);
-            if ($missedClicks < self::MIN_MISSED_CLICKS) {
+            $missedClicksInPeriod = (int) round($impressions * $gap);
+            $missedClicksPerMonth = (int) round($missedClicksInPeriod * 30 / $periodDays);
+            if ($missedClicksPerMonth < self::MIN_MISSED_CLICKS) {
                 continue;
             }
 
@@ -77,7 +80,8 @@ class CtrGapAnalyzer
                 'actual_ctr' => round($actualCtr, 4),
                 'expected_ctr' => round($expectedCtr, 4),
                 'gap' => round($gap, 4),
-                'missed_clicks' => $missedClicks,
+                'missed_clicks' => $missedClicksPerMonth,
+                'missed_clicks_in_period' => $missedClicksInPeriod,
             ];
         }
 
@@ -87,13 +91,14 @@ class CtrGapAnalyzer
 
         return [
             'checked_at' => now()->toDateTimeString(),
+            'period_days' => $periodDays,
             'queries_analyzed' => $analyzed,
             'opportunities' => $opportunities,
             'summary' => [
                 'opportunity_count' => count($opportunities),
                 'estimated_missed_clicks' => (int) $totalMissed,
             ],
-            'recommendation' => $this->recommendation($opportunities, (int) $totalMissed),
+            'recommendation' => $this->recommendation($opportunities, (int) $totalMissed, $analyzed),
         ];
     }
 
@@ -114,16 +119,20 @@ class CtrGapAnalyzer
         return self::EXPECTED_CTR[$low] + (self::EXPECTED_CTR[$high] - self::EXPECTED_CTR[$low]) * $frac;
     }
 
-    private function recommendation(array $opportunities, int $totalMissed): string
+    private function recommendation(array $opportunities, int $totalMissed, int $analyzed): string
     {
         if ($opportunities === []) {
-            return 'Tidak ada query yang CTR-nya jauh di bawah normal — title & meta description sudah bekerja baik untuk posisi rankingnya.';
+            if ($analyzed === 0) {
+                return 'Belum cukup data untuk menilai CTR gap: tidak ada query yang memenuhi kriteria posisi halaman pertama dan minimal 50 impresi.';
+            }
+
+            return "Tidak ditemukan CTR gap yang signifikan pada {$analyzed} query yang memenuhi kriteria. Ini bukan jaminan semua title/meta sudah optimal; pantau lagi setelah data bertambah.";
         }
 
         $top = array_slice(array_map(fn ($o) => '"' . $o['keyword'] . '"', $opportunities), 0, 3);
 
-        return count($opportunities) . ' query sudah ranking di halaman 1 tapi CTR-nya di bawah rata-rata — sekitar '
-            . $totalMissed . ' klik/bulan hilang. Tulis ulang title tag & meta description halaman terkait '
+        return count($opportunities) . ' query sudah ranking di halaman 1 tapi CTR-nya di bawah pembanding — estimasi sekitar '
+            . $totalMissed . ' klik/bulan yang berpotensi diperoleh. Tinjau title tag & meta description halaman terkait '
             . '(perlakukan seperti teks iklan: manfaat + angka + ajakan). Prioritas: ' . implode(', ', $top) . '.';
     }
 }
