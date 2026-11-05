@@ -999,3 +999,127 @@ it('rejects an svg image from the candidate with a clear message', function () {
     expect(fn () => (new WpThemeBuilder())->build($build))
         ->toThrow(RuntimeException::class, 'berformat .svg');
 });
+
+it('keeps a full-bleed photo as the block background and stretches the page wrapper', function () {
+    $client = wpTestClient();
+    $project = wpTestProject($client);
+
+    $html = <<<HTML
+<!DOCTYPE html>
+<html>
+<head><style>
+    :root { --ink: #26312d; }
+    body { color: #26312d; }
+    .hero { position: relative; overflow: hidden; height: 680px; }
+    .hero>img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+    .hero:after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8,32,28,.94), rgba(8,32,28,.2)); }
+</style></head>
+<body>
+    <header><nav>Tentang</nav></header>
+    <main><section class="hero"><h1>Kargo</h1><img src="__EXITO_IMAGE:hero" alt="Truk di pelabuhan"></section></main>
+    <footer><p>Footer</p></footer>
+</body>
+</html>
+HTML;
+
+    $candidate = wpTestCandidate($project, $html);
+    $candidateDir = (new MockupWorkspace())->candidatePath($candidate);
+    file_put_contents($candidateDir . '/hero.png', wpTestPngBytes());
+
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    $style = file_get_contents($themeDir . '/style.css');
+
+    // Foto yang di markah aslinya menutupi blok tidak dipaksa kembali ke alur.
+    // Slot lain (galeri) tetap boleh memakai rasio.
+    expect($style)->toContain('.siteflow-photo.siteflow-photo-hero{position:absolute;inset:0;width:100%;height:100%')
+        ->and($style)->not->toMatch('/siteflow-photo-hero img\{[^}]*aspect-ratio/');
+
+    // Akar halaman isi dikembalikan ke lebar layar, bukan lebar konten kit.
+    expect($style)->toContain('.siteflow-page.siteflow-page .siteflow-page-scope,.elementor-edit-area.elementor-edit-area .siteflow-page-scope{width:100%;max-width:none');
+
+    // Peta lampiran per tema: dua klien boleh punya berkas bernama sama.
+    expect(file_get_contents($themeDir . '/functions.php'))
+        ->toContain("'siteflow_media_ids_' . get_stylesheet()");
+});
+
+it('keeps band colour, button variants and a full-height svg layer in Elementor', function () {
+    $client = wpTestClient();
+    $project = wpTestProject($client);
+
+    $html = <<<HTML
+<!DOCTYPE html>
+<html>
+<head><style>
+    :root{--forest:#123d35;--orange:#ff7a1a;--button-radius:999px}
+    body{color:#26312d}
+    .hero{background:var(--forest);color:#ffffff}
+    .hero h1{font-size:48px}
+    .button{background:var(--orange);border-radius:var(--button-radius);color:#fff}
+    .button-light{background:#f6f1e6;color:var(--forest)}
+    .route-art{position:relative;height:440px}
+    .route-art svg{position:absolute;inset:0;width:100%;height:100%}
+</style></head>
+<body>
+    <header><nav>Tentang</nav></header>
+    <main>
+        <section class="hero">
+            <h1>Kargo antar pulau</h1>
+            <p>Bicarakan kebutuhan pengiriman bersama tim kami.</p>
+            <div class="hero-cta">
+                <a class="button" href="/kontak">Konsultasikan pengiriman</a>
+                <a class="button-light" href="/layanan">Lihat layanan</a>
+            </div>
+        </section>
+        <section class="coverage">
+            <div class="route-art"><svg viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg"><path d="M10 100h380" stroke="#fff" stroke-dasharray="6 8" fill="none"/></svg></div>
+        </section>
+    </main>
+    <footer><p>Footer</p></footer>
+</body>
+</html>
+HTML;
+
+    $candidate = wpTestCandidate($project, $html);
+    $build = WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+    ]);
+
+    (new WpThemeBuilder())->build($build);
+
+    $themeDir = (new MockupWorkspace())->buildPath($build);
+    $style = file_get_contents($themeDir . '/style.css');
+
+    // Dua kelas tombol tetap dua sasaran berbeda: yang terakhir tidak boleh
+    // menimpa warna tombol pertama.
+    expect($style)
+        ->toContain('.elementor-edit-area.elementor-edit-area .button .elementor-button{background:var(--orange);border-radius:var(--button-radius);color:#fff}')
+        ->toContain('.elementor-edit-area.elementor-edit-area .button-light .elementor-button{background:#f6f1e6;color:var(--forest)}');
+
+    // Judul dan paragraf pita hanya mewarisi warna di markah; tanpa aturan ini
+    // warna kit Elementor menggantinya.
+    expect($style)->toContain(
+        '.siteflow-page .hero .elementor-heading-title,.siteflow-page .hero .elementor-widget-text-editor,'
+            . '.elementor-edit-area .hero .elementor-heading-title,.elementor-edit-area .hero .elementor-widget-text-editor{color:inherit}'
+    );
+
+    // SVG yang tingginya persentase butuh pembungkus widget ikut penuh.
+    expect($style)->toContain(
+        '.elementor-edit-area.elementor-edit-area .route-art>.elementor-widget>.elementor-widget-container{position:absolute;inset:0;width:100%;height:100%}'
+    );
+
+    // Kelas sumber tombol ikut disimpan ke pembungkus widget, tempat Elementor
+    // mengambilnya sebagai kelas elemen.
+    $payloads = glob($themeDir . '/content/*.json') ?: [];
+    $json = implode('', array_map(static fn (string $f): string => (string) file_get_contents($f), $payloads));
+
+    expect($json)->toContain('"_css_classes": "button"')
+        ->and($json)->toContain('"_css_classes": "button-light"');
+});

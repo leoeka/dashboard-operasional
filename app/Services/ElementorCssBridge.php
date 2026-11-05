@@ -37,7 +37,42 @@ class ElementorCssBridge
         '.elementor-edit-area.elementor-edit-area',
     ];
 
+    /**
+     * Lingkup satu kelas untuk aturan yang harus menang atas CSS bawaan
+     * Elementor (bobot dua kelas) tapi tetap kalah dari salinan jembatan
+     * (bobot tiga kelas) supaya warna yang ditulis markah tidak ditimpa.
+     */
+    private const SOFT_SCOPES = [
+        '.siteflow-page',
+        '.elementor-edit-area',
+    ];
+
     private const GLOBAL_SELECTORS = ['html', 'body', ':root', '*', 'main'];
+
+    /**
+     * Setelan awal Elementor yang harus dibatalkan sebelum gaya mockup dipakai.
+     *
+     * Ditulis sebagai metode tersendiri, bukan di dalam build(), karena
+     * stylesheet digabung dari dua sumber CSS (beranda dan halaman isi).
+     * Bobot setelan ini sama dengan bobot aturan tombol hasil jembatan, jadi
+     * kalau ia tersalin pada penggabungan kedua ia jatuh setelah aturan
+     * tombol beranda dan menang: radius serta huruf tombol kembali ke bawaan.
+     *
+     * @param list<string> $buttonClasses kelas tautan yang jadi widget tombol
+     */
+    public function resetRules(array $buttonClasses = []): string
+    {
+        $output = [];
+
+        foreach (self::SCOPES as $scope) {
+            if ($buttonClasses !== []) {
+                $output[] = $scope . ' .elementor-widget-button .elementor-button{font-family:inherit;font-size:inherit;line-height:inherit;font-weight:inherit;letter-spacing:inherit;text-transform:none;text-align:inherit;border-radius:0}';
+            }
+            $output[] = $scope . ' .siteflow-inline-link .elementor-widget-container>p{margin:0}';
+        }
+
+        return implode("\n", $output);
+    }
 
     /**
      * @param list<string> $buttonClasses kelas tautan yang jadi widget tombol
@@ -60,22 +95,82 @@ class ElementorCssBridge
         $output[] = '/* Jembatan Elementor: salinan aturan di atas dengan kekhususan lebih tinggi,';
         $output[] = '   supaya gaya mockup tidak kalah oleh CSS bawaan Elementor. */';
 
-        if ($buttonClasses !== []) {
-            foreach (self::SCOPES as $scope) {
-                $output[] = $scope . ' .elementor-widget-button .elementor-button{font-family:inherit;font-size:inherit;line-height:inherit;font-weight:inherit;letter-spacing:inherit;text-transform:none;text-align:inherit;border-radius:0}';
-                $output[] = $scope . ' .siteflow-inline-link .elementor-widget-container>p{margin:0}';
-            }
-        } else {
-            foreach (self::SCOPES as $scope) {
-                $output[] = $scope . ' .siteflow-inline-link .elementor-widget-container>p{margin:0}';
-            }
-        }
-
         foreach ($rules as $rule) {
             $output[] = $rule;
         }
 
         return implode("\n", $output);
+    }
+
+    /**
+     * Kembalikan warna yang di mockup diwarisi, tapi direbut Elementor.
+     *
+     * Pita gelap menulis warnanya pada kontainer (.hero{color:white}) dan
+     * judul di dalamnya tidak punya warna sendiri, jadi judul ikut putih.
+     * Di WordPress, CSS per-halaman Elementor menempelkan warna kit pada
+     * .elementor-heading-title (bobot dua kelas), dan warisan itu kalah.
+     *
+     * Aturan di sini berbobot tiga kelas: cukup untuk mengalahkan kit, masih
+     * di bawah salinan jembatan (empat kelas) sehingga warna yang memang
+     * ditulis di markah tetap menang. Yang dianggap pita hanya kelas yang
+     * menulis warna DAN latar; kelas tombol tidak dihitung karena tidak
+     * pernah memuat judul.
+     *
+     * @param list<string> $skipClasses kelas tombol, bukan permukaan pita
+     */
+    public function colourInheritanceRules(string $css, array $skipClasses = []): string
+    {
+        $bands = [];
+
+        foreach ($this->parseBlocks($css) as $block) {
+            $prelude = trim($block['prelude']);
+
+            if ($prelude === '' || $prelude[0] === '@') {
+                continue;
+            }
+
+            if (preg_match('/(?<![-\w])color\s*:/i', $block['body']) !== 1) {
+                continue;
+            }
+
+            if (preg_match('/(?<![-\w])background(-color|-image)?\s*:/i', $block['body']) !== 1) {
+                continue;
+            }
+
+            foreach ($this->splitSelectorList($prelude) as $selector) {
+                $selector = trim((string) preg_replace('/\s+/', ' ', $selector));
+
+                // Hanya pita yang berdiri sendiri (.hero, .coverage). Pemilih
+                // bersusun sudah menyebut induknya sendiri.
+                if (preg_match('/^\.[a-zA-Z][\w-]*(?:\.[a-zA-Z][\w-]*)*$/', $selector) !== 1) {
+                    continue;
+                }
+
+                if (array_intersect(explode('.', $selector), $skipClasses) !== []) {
+                    continue;
+                }
+
+                $bands[$selector] = true;
+            }
+        }
+
+        if ($bands === []) {
+            return '';
+        }
+
+        $selectors = [];
+
+        foreach (self::SOFT_SCOPES as $scope) {
+            foreach (array_keys($bands) as $band) {
+                foreach (['.elementor-heading-title', '.elementor-widget-text-editor'] as $target) {
+                    $selectors[] = $scope . ' ' . $band . ' ' . $target;
+                }
+            }
+        }
+
+        return "/* Warna pita: judul dan blok teks tidak punya warna sendiri di mockup,\n"
+            . "   jadi keduanya mewarisi lagi dari pita. */\n"
+            . implode(',', $selectors) . "{color:inherit}\n";
     }
 
     /**
@@ -149,6 +244,7 @@ class ElementorCssBridge
 
             $local = [];
             $root = [];
+            $lingkup = $this->splitSelectorList($scope);
 
             foreach ($this->splitSelectorList($prelude) as $selector) {
                 $selector = trim($selector);
@@ -159,8 +255,23 @@ class ElementorCssBridge
 
                 if ($this->isRootSelector($selector)) {
                     $root[] = $selector;
-                } else {
-                    $local[] = $scope . ' ' . $selector;
+                    continue;
+                }
+
+                // Setelan awal tanpa kelas sudah dibawa beranda dan berlaku
+                // untuk seluruh situs. Diberi awalan lingkup halaman, ia ikut
+                // membawa kelas lingkup dan mengalahkan aturan kelas di
+                // halaman yang sama (a{color:inherit} menelan .button).
+                if ($this->isElementReset($selector)) {
+                    continue;
+                }
+
+                // Satu aturan bisa dipakai beberapa halaman sekaligus, jadi
+                // tiap lingkup harus dikawinkan dengan tiap pemilih. Menempelkan
+                // daftar lingkup apa adanya hanya menyambung pemilih ke lingkup
+                // terakhir, dan halaman lainnya kehilangan aturannya.
+                foreach ($lingkup as $satu) {
+                    $local[] = $satu . ' ' . $selector;
                 }
             }
 
@@ -174,9 +285,102 @@ class ElementorCssBridge
         }
     }
 
+    /**
+     * Buang aturan yang kelasnya tidak muncul di markah halaman.
+     *
+     * Tiap halaman kandidat membawa salinan seluruh stylesheet situs, termasuk
+     * aturan bilah atas dan kaki. Tema merender keduanya dari templat sendiri,
+     * jadi salinan berlingkup halaman isi tidak akan pernah cocok dan hanya
+     * menambah berat style.css.
+     *
+     * @param list<string> $usedClasses
+     */
+    public function pruneUnusedClasses(string $css, array $usedClasses): string
+    {
+        return $this->pruneBlocks($this->parseBlocks($css), array_fill_keys($usedClasses, true));
+    }
+
+    /**
+     * @param list<array{prelude: string, body: string}> $blocks
+     * @param array<string, true> $used
+     */
+    private function pruneBlocks(array $blocks, array $used): string
+    {
+        $output = [];
+
+        foreach ($blocks as $block) {
+            $prelude = trim($block['prelude']);
+
+            if ($prelude === '') {
+                continue;
+            }
+
+            if ($prelude[0] === '@') {
+                if ($this->isNestedAtRule($prelude) && str_contains($block['body'], '{')) {
+                    $inner = $this->pruneBlocks($this->parseBlocks($block['body']), $used);
+
+                    if ($inner !== '') {
+                        $output[] = $prelude . '{' . $inner . '}';
+                    }
+
+                    continue;
+                }
+
+                $output[] = $prelude . (trim($block['body']) === '' ? '' : '{' . $block['body'] . '}');
+                continue;
+            }
+
+            // Daftar pemilih dipangkas per pemilih, bukan per aturan. Kalau
+            // tidak, satu pemilih yang kelasnya tidak muncul di halaman ini
+            // ikut membuang pemilih lain yang masih hidup: aturan
+            // ".nav-cta, .button{color:white}" hilang seluruhnya dari halaman
+            // isi karena .nav-cta hanya ada di kepala situs, padahal tombol di
+            // dalam halaman inilah yang memakai .button.
+            $pemilih = $this->splitSelectorList($prelude);
+            $hidup = array_values(array_filter(
+                $pemilih,
+                fn (string $satu): bool => $this->selectorUsesKnownClasses($satu, $used)
+            ));
+
+            if ($hidup !== []) {
+                $output[] = implode(',', $hidup) . '{' . trim($block['body']) . '}';
+            }
+        }
+
+        return implode("\n", $output);
+    }
+
+    /**
+     * Selector dipertahankan kalau setiap kelas yang disebutnya ada di markah.
+     * Selector tanpa kelas (h1, p, *) selalu dipertahankan.
+     *
+     * @param array<string, true> $used
+     */
+    private function selectorUsesKnownClasses(string $prelude, array $used): bool
+    {
+        preg_match_all('/\.([a-zA-Z_][a-zA-Z0-9_-]*)/', $prelude, $matches);
+
+        foreach ($matches[1] as $class) {
+            if (!isset($used[$class])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     private function isRootSelector(string $selector): bool
     {
         return preg_match('/^(?::root|html|body|\*)(?![\w-])/i', $selector) === 1;
+    }
+
+    /**
+     * Setelan awal stylesheet kandidat: pemilih yang hanya menyebut nama
+     * elemen (a, p, img, ul li) tanpa kelas, id, atau atribut.
+     */
+    private function isElementReset(string $selector): bool
+    {
+        return preg_match('/[.#\[]/', $selector) !== 1;
     }
 
     /**
@@ -347,22 +551,15 @@ class ElementorCssBridge
         }
 
         foreach ($buttonClasses as $class) {
-            if (!$this->hasClass($selector, $class)) {
+            // Kelas sumber tinggal pada pembungkus widget tombol, anchor-nya
+            // tetap .elementor-button, jadi aturannya perlu varian turun-tingkat.
+            // Tanpa varian itu .button dan .button-light menimpa pemilih yang
+            // sama dan warna tombol terakhir yang menang di seluruh halaman.
+            if (!$this->endsWithClass($selector, $class)) {
                 continue;
             }
 
-            // Kelas tombol kandidat berpindah ke <a class="elementor-button">.
-            // Satu kelas pengganti menjaga bobot selektor aslinya, jadi
-            // suntingan klien pada widget tombol tetap menang.
-            $replaced = (string) preg_replace(
-                '/(^|[\s>+~])\.' . preg_quote($class, '/') . '(?![\w-])/',
-                '$1.elementor-button',
-                $selector
-            );
-
-            if ($replaced !== $selector) {
-                $base[] = $replaced;
-            }
+            $base[] = $selector . ' .elementor-button';
         }
 
         $scoped = [];
@@ -377,11 +574,11 @@ class ElementorCssBridge
     }
 
     /**
-     * Gambar tema lazim mengisi kontainer bertinggi tetap (height:100%). Di
-     * Elementor, <img> bukan lagi anak langsung kontainer karena ada pembungkus
-     * widget, sehingga persentase tinggi tidak terdefinisi dan gambar mengecil.
-     * Pembungkusnya diberi tinggi 100% supaya persentase gambar tetap dihitung
-     * terhadap kontainer aslinya.
+     * Gambar dan seni latar tema lazim mengisi kontainer bertinggi tetap
+     * (height:100%). Di Elementor, img/svg bukan lagi anak langsung kontainer
+     * karena ada pembungkus widget, sehingga persentase tinggi tidak terdefinisi
+     * dan gambar mengecil sampai nol. Pembungkusnya diberi ukuran penuh supaya
+     * persentase anak dihitung terhadap kontainer aslinya.
      *
      * @return list<string>
      */
@@ -391,16 +588,27 @@ class ElementorCssBridge
             return [];
         }
 
-        if (preg_match('/(?:^|[\s>+~])img$/', $selector) !== 1) {
+        if (preg_match('/(?:^|[\s>+~])(?:img|svg)$/', $selector) !== 1) {
             return [];
         }
 
-        $parent = (string) preg_replace('/(?:\s+|>)\s*img$/', '', $selector);
+        $parent = (string) preg_replace('/(?:\s+|>)\s*(?:img|svg)$/', '', $selector);
 
         return [
             $parent . '>.elementor-widget',
             $parent . '>.elementor-widget>.elementor-widget-container',
         ];
+    }
+
+    /**
+     * Kelas disebut pada bagian terakhir pemilih (.hero .button, .button:hover),
+     * bukan di tengah (.button svg).
+     */
+    private function endsWithClass(string $selector, string $class): bool
+    {
+        $parts = preg_split('/[\s>+~]+/', trim($selector)) ?: [];
+
+        return (bool) preg_match('/\.' . preg_quote($class, '/') . '(?![\w-])/', (string) end($parts));
     }
 
     private function hasClass(string $selector, string $class): bool

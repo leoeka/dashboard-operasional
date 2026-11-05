@@ -113,7 +113,7 @@ class MockupCodexBrief
 
         // 05. WEBSITE
         $b[] = '## 05 — Implementasi `index.html`';
-        $b[] = 'Buat `index.html` lengkap: HTML5 semantik, CSS di `<style>` pada `<head>`, JavaScript seperlunya. Salin design tokens ke CSS variables di `:root`. Bangun section demi section sesuai urutan di desain acuan dan pertahankan komposisi, warna, serta hierarkinya.';
+        $b[] = 'Buat `index.html` lengkap: HTML5 semantik dan CSS di `<style>` pada `<head>`. Jangan menulis JavaScript atau tag `<script>`; tema hasil build tidak memuat JavaScript. Salin design tokens ke CSS variables di `:root`. Bangun section demi section sesuai urutan di desain acuan dan pertahankan komposisi, warna, serta hierarkinya.';
         $b[] = '';
         $b[] = 'Resep teknis:';
         $b[] = '- Container: `max-width` sesuai tokens, `margin-inline: auto`, padding horizontal `clamp(20px, 5vw, 80px)`.';
@@ -122,7 +122,7 @@ class MockupCodexBrief
         $b[] = '- Strip fitur berada di alur normal tepat di bawah hero, bukan `position: absolute` yang bisa menimpa konten.';
         $b[] = '- Kartu portofolio atau layanan: CSS Grid dengan `aspect-ratio` sama, tinggi baris seragam, caption konsisten dan cocok dengan isi foto.';
         $b[] = '- Ikon memakai SVG inline bergaya garis tipis.';
-        $b[] = '- Mobile (390px): hero ditumpuk, crop gambar disesuaikan, grid jadi 1-2 kolom, tombol tinggi minimal 44px, menu mobile berfungsi.';
+        $b[] = '- Mobile (390px): hero ditumpuk, crop gambar disesuaikan, grid jadi 1-2 kolom, tombol tinggi minimal 44px, dan tautan navigasi tetap terlihat dalam susunan yang mudah dibaca. Jangan gunakan hamburger yang memerlukan JavaScript.';
         $b[] = '- Konten spesifik untuk bisnis ini, headline maksimal 3 baris, tanpa teks generik.';
         $b[] = '';
         $b[] = 'Pasang setiap foto dengan token: `<img src="__EXITO_IMAGE:nama-slot" alt="Deskripsi gambar">`. Nama token sama persis dengan nama slot. Jangan menebak path atau memakai URL eksternal.';

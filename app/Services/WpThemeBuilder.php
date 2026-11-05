@@ -77,6 +77,8 @@ class WpThemeBuilder
             throw new RuntimeException('Berkas index.html pada kandidat kosong atau tidak dapat dibaca.');
         }
 
+        $html = $this->stripKnownMenuScript($html);
+
         $project = $build->project;
         $client = $project->client;
         $imageFiles = $this->imageFileIndex($candidateDir);
@@ -117,7 +119,12 @@ class WpThemeBuilder
         }
 
         $frontCss = $this->joinCssBlocks($frontCssBlocks);
-        $contentCss = $this->scopeContentCss($contentPages);
+
+        if ($this->hasStaticMobileMenu($html)) {
+            $frontCss .= "\n@media(max-width:800px){.menu-toggle{display:none!important}.navlinks{display:flex!important}}\n";
+        }
+
+        $contentCss = $this->scopeContentCss($contentPages, $pageMarkup);
         $flexClasses = $this->cssBridge->displayContainerClasses($frontCss . "\n" . $contentCss);
 
         $elementorData = [];
@@ -353,6 +360,8 @@ class WpThemeBuilder
                 continue;
             }
 
+            $raw = $this->stripKnownMenuScript($raw);
+
             $title = ucfirst(str_replace('-', ' ', $slug));
 
             if (preg_match('/<title\b[^>]*>(.*?)<\/title>/is', $raw, $titleMatch)) {
@@ -574,6 +583,26 @@ class WpThemeBuilder
         return $html;
     }
 
+    private function stripKnownMenuScript(string $html): string
+    {
+        return (string) preg_replace_callback('/<script\b[^>]*>(.*?)<\/script\s*>/is', function (array $match): string {
+            $script = strtolower(str_replace('"', "'", preg_replace('/\s+/', '', trim($match[1]))));
+            $menuToggle = strtolower("consttoggle=document.querySelector('.menu-toggle');constmenu=document.querySelector('.navlinks');toggle.addEventListener('click',()=>{constopen=menu.classList.toggle('open');toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'tutupmenu':'bukamenu')});menu.addEventListener('click',e=>{if(e.target.closest('a')){menu.classList.remove('open');toggle.setAttribute('aria-expanded','false')}});");
+
+            if ($script !== $menuToggle) {
+                throw new RuntimeException('Skrip kandidat tidak didukung; tema hasil build tidak boleh memuat JavaScript.');
+            }
+
+            return '';
+        }, $html);
+    }
+
+    private function hasStaticMobileMenu(string $html): bool
+    {
+        return preg_match('/class\s*=\s*(["\'])[^"\']*\bmenu-toggle\b[^"\']*\1/i', $html) === 1
+            && preg_match('/class\s*=\s*(["\'])[^"\']*\bnavlinks\b[^"\']*\1/i', $html) === 1;
+    }
+
     /**
      * Membuang chrome global halaman isi: <header> pertama dan <footer>
      * terakhir. Tema sudah punya keduanya dari index.html.
@@ -747,10 +776,20 @@ class WpThemeBuilder
         // itu sudah menang di halaman depan maupun kanvas, jadi menulis versi
         // satu lingkup lagi hanya menggandakan berat stylesheet.
         $bridge = trim(
-            $this->cssBridge->build($frontCss, $buttonClasses, $imageClasses, $headingClasses)
+            $this->cssBridge->resetRules($buttonClasses)
+            . "\n"
+            . $this->cssBridge->build($frontCss, $buttonClasses, $imageClasses, $headingClasses)
             . "\n"
             . $this->cssBridge->build($contentCss, $buttonClasses, $imageClasses, $headingClasses)
         );
+
+        // Kit warna Elementor memberi warna pada semua judul dan blok teks
+        // halaman (bobot dua kelas). Teks yang di markah tidak punya warna
+        // sendiri — hanya mewarisi dari pita gelap — jadi putihnya tertutup
+        // kit. Warisan dipulihkan dengan aturan berbobot tiga kelas, ditulis
+        // sebelum jembatan: salinan jembatan berbobot empat kelas sehingga
+        // warna yang memang ditulis di markah tetap menang.
+        $inherit = $this->cssBridge->colourInheritanceRules($frontCss . "\n" . $contentCss, $buttonClasses);
 
         $themeName = str_replace(['*/', "\n", "\r"], '', $project->name);
         $clientName = str_replace(['*/', "\n", "\r"], '', (string) ($project->client_name ?: $project->name));
@@ -777,10 +816,30 @@ CSS;
         file_put_contents(
             $themeDir . '/style.css',
             $header . "\n" . $css
+            . ($inherit !== '' ? "\n\n" . $inherit : '')
             . ($bridge !== '' ? "\n\n" . $bridge : '')
-            . "\n\n" . $this->photoBaselineCss()
+            . "\n\n" . $this->pageScopeBaselineCss()
+            . "\n\n" . $this->photoBaselineCss($frontCss . "\n" . $contentCss)
             . "\n"
         );
+    }
+
+    /**
+     * Kontainer akar hasil terjemahan ikut lebar konten kit Elementor (760px),
+     * bukan lebar layar seperti di markah aslinya. Kolom isi yang menghitung
+     * lebarnya dari induk (100% dikurangi tepi) jadi menyusut sampai teksnya
+     * saling menimpa. Pembungkus halaman dikembalikan ke alur blok penuh.
+     */
+    private function pageScopeBaselineCss(): string
+    {
+        $lingkup = [];
+
+        foreach (['.siteflow-page.siteflow-page', '.elementor-edit-area.elementor-edit-area'] as $scope) {
+            $lingkup[] = $scope . ' .siteflow-page-scope';
+        }
+
+        return implode(',', $lingkup)
+            . '{width:100%;max-width:none;min-width:0;display:block;align-items:stretch;padding:0}';
     }
 
     /**
@@ -804,13 +863,16 @@ CSS;
     /**
      * CSS halaman isi diberi awalan pembungkus halamannya. Aturan akar dan
      * at-rule global dari halaman isi dibuang: palet dan reset sudah dibawa
-     * beranda, dan menyalinnya lagi akan bocor ke seluruh situs.
+     * beranda, dan menyalinnya lagi akan bocor ke seluruh situs. Halaman yang
+     * CSS-nya identik berbagi satu aturan dengan daftar pemilih, bukan satu
+     * salinan per halaman.
      *
      * @param array<string, array{title: string, html: string, css: list<string>}> $contentPages
+     * @param array<string, string> $pageMarkup markah akhir tiap halaman isi, setelah chrome dibuang
      */
-    private function scopeContentCss(array $contentPages): string
+    private function scopeContentCss(array $contentPages, array $pageMarkup): string
     {
-        $parts = [];
+        $grup = [];
 
         foreach ($contentPages as $slug => $page) {
             $blocks = $this->joinCssBlocks($page['css']);
@@ -819,7 +881,25 @@ CSS;
                 continue;
             }
 
-            $scoped = $this->cssBridge->scopeCss($blocks, '.' . $this->pageScopeClass($slug));
+            $kunci = md5($blocks);
+            $grup[$kunci]['blocks'] = $blocks;
+            $grup[$kunci]['kelas'][] = '.' . $this->pageScopeClass($slug);
+            $grup[$kunci]['dipakai'] = array_merge(
+                $grup[$kunci]['dipakai'] ?? [],
+                $this->classesInMarkup($pageMarkup[$slug] ?? '')
+            );
+        }
+
+        $parts = [];
+
+        foreach ($grup as $grupCss) {
+            $hidup = $this->cssBridge->pruneUnusedClasses($grupCss['blocks'], array_unique($grupCss['dipakai']));
+
+            if (trim($hidup) === '') {
+                continue;
+            }
+
+            $scoped = $this->cssBridge->scopeCss($hidup, implode(', ', $grupCss['kelas']));
 
             foreach ([$scoped['at'], $scoped['scoped']] as $part) {
                 if ($part !== '') {
@@ -829,6 +909,26 @@ CSS;
         }
 
         return implode("\n", array_values($parts));
+    }
+
+    /**
+     * Nama kelas yang benar-benar dipakai sebuah markah halaman.
+     *
+     * @return list<string>
+     */
+    private function classesInMarkup(string $markup): array
+    {
+        $kelas = [];
+
+        foreach (preg_match_all('/\bclass\s*=\s*["\']([^"\']*)["\']/i', $markup, $cocok) ? $cocok[1] : [] as $nilai) {
+            foreach (preg_split('/\s+/', trim($nilai)) as $satu) {
+                if ($satu !== '' && preg_match('/^[a-zA-Z_][a-zA-Z0-9_-]*$/', $satu) === 1) {
+                    $kelas[$satu] = true;
+                }
+            }
+        }
+
+        return array_keys($kelas);
     }
 
     /**
@@ -1004,21 +1104,77 @@ CSS;
      * jembatan Elementor supaya aturan tampilan tiap halaman tidak lagi
      * menentukan tinggi piksel atau memotong foto dengan bingkai dekoratif.
      */
-    private function photoBaselineCss(): string
+    private function photoBaselineCss(string $sourceCss = ''): string
     {
         $lines = [
             '/* Foto klien: satu peran, satu rasio, satu titik fokus (rancangan 2026-11-02). */',
         ];
 
+        $cover = $this->coverPhotoSlots($sourceCss);
+
         foreach (self::PHOTO_RATIOS as $slot => $ratio) {
-            $lines[] = $this->photoSelectors($slot) . '{height:auto;min-height:0;max-height:none;overflow:visible;border-radius:0}';
+            $isCover = in_array($slot, $cover, true);
+
+            $lines[] = $this->photoSelectors($slot)
+                . ($isCover
+                    ? '{position:absolute;inset:0;width:100%;height:100%;min-height:0;max-height:none;overflow:hidden;border-radius:0}'
+                    : '{height:auto;min-height:0;max-height:none;overflow:visible;border-radius:0}');
             $lines[] = $this->photoSelectors($slot, '::before') . ',' . $this->photoSelectors($slot, '::after') . '{content:none;display:none;border:0;border-radius:0;background:none;box-shadow:none}';
-            $lines[] = $this->photoSelectors($slot, '>.elementor-widget') . ',' . $this->photoSelectors($slot, '>.elementor-widget>.elementor-widget-container') . '{height:auto;min-height:0;max-height:none}';
-            $lines[] = $this->photoSelectors($slot, ' img') . '{display:block;width:100%;height:auto;min-height:0;max-height:none;max-width:100%;aspect-ratio:' . $ratio . ';object-fit:cover;object-position:var(--siteflow-foto-fokus,50% 40%);border-radius:4px;filter:saturate(.94) contrast(1.04)}';
+            $lines[] = $this->photoSelectors($slot, '>.elementor-widget') . ',' . $this->photoSelectors($slot, '>.elementor-widget>.elementor-widget-container')
+                . ($isCover ? '{width:100%;height:100%;min-height:0;max-height:none}' : '{height:auto;min-height:0;max-height:none}');
+            $lines[] = $this->photoSelectors($slot, ' img') . '{display:block;width:100%;'
+                . ($isCover
+                    ? 'height:100%;min-height:0;max-height:none;max-width:100%;object-fit:cover;'
+                    : 'height:auto;min-height:0;max-height:none;max-width:100%;aspect-ratio:' . $ratio . ';object-fit:cover;')
+                . 'object-position:var(--siteflow-foto-fokus,50% 40%);border-radius:' . ($isCover ? '0' : '4px')
+                . ';filter:saturate(.94) contrast(1.04)}';
             $lines[] = $this->photoSelectors($slot, ' .photo-caption') . ',' . $this->photoSelectors($slot, ' figcaption') . '{position:static;inset:auto;display:block;width:auto;max-width:none;margin:10px 0 0;padding:10px 0 0;background:none;border:0;border-top:1px solid rgba(0,0,0,.16);border-top-color:color-mix(in srgb,currentColor 22%,transparent);border-radius:0;box-shadow:none;font-size:13px;line-height:1.5;letter-spacing:0;text-align:left;color:var(--siteflow-meta,var(--tinta,var(--ink,currentColor)))}';
         }
 
         return implode("\n", $lines) . "\n";
+    }
+
+    /**
+     * Slot foto yang di markah aslinya menutupi seluruh blok (position:absolute
+     * pada <img>): foto itu memang latar belakang, bukan gambar berbingkai.
+     * Aturan dasar foto tidak boleh memulangkannya ke alur biasa, kalau tidak
+     * bloknya kehilangan gambarnya dan lapisan di atasnya jadi percuma.
+     *
+     * @return list<string>
+     */
+    private function coverPhotoSlots(string $css): array
+    {
+        if (trim($css) === '') {
+            return [];
+        }
+
+        $slots = [];
+
+        foreach (preg_match_all('/([^{}]+)\{([^{}]*)\}/', $css, $cocok, PREG_SET_ORDER) ? $cocok : [] as $rule) {
+            $selector = trim((string) preg_replace('/\s+/', ' ', $rule[1]));
+
+            if (preg_match('/position\s*:\s*absolute/i', $rule[2]) !== 1) {
+                continue;
+            }
+
+            if (preg_match('/(?:^|[\s>+~])img$/i', $selector) !== 1) {
+                continue;
+            }
+
+            $induk = (string) preg_replace('/(?:\s+|>)\s*img$/i', '', $selector);
+
+            if (preg_match_all('/\.([a-zA-Z_][a-zA-Z0-9_-]*)/', $induk, $kelas) < 1) {
+                continue;
+            }
+
+            $pemilik = (string) end($kelas[1]);
+
+            if (isset(self::PHOTO_RATIOS[$pemilik])) {
+                $slots[$pemilik] = true;
+            }
+        }
+
+        return array_keys($slots);
     }
 
     /**
@@ -1273,7 +1429,11 @@ function siteflow_import_media(): array
         return [];
     }
 
-    $stored = get_option('siteflow_media_ids', []);
+    // Simpan lampiran per tema, bukan per situs. Nama berkas dua klien bisa
+    // sama (hero.png), jadi peta situs bersama akan membuat tema baru memakai
+    // ulang foto klien lama.
+    $opsi_lampiran = 'siteflow_media_ids_' . get_stylesheet();
+    $stored = get_option($opsi_lampiran, []);
     $stored = is_array($stored) ? $stored : [];
     $urls = [];
 
@@ -1333,7 +1493,7 @@ function siteflow_import_media(): array
         $urls[$filename] = (string) wp_get_attachment_url($attachment_id);
     }
 
-    update_option('siteflow_media_ids', $stored);
+    update_option($opsi_lampiran, $stored);
 
     return $urls;
 }

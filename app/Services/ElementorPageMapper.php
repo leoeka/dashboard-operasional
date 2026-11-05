@@ -38,7 +38,7 @@ class ElementorPageMapper
         'table', 'thead', 'tbody', 'tfoot', 'tr', 'td', 'th', 'caption',
         'form', 'input', 'textarea', 'select', 'option', 'button', 'label',
         'iframe', 'script', 'style', 'object', 'embed', 'video', 'audio',
-        'source', 'track', 'canvas', 'map', 'area', 'svg', 'picture',
+        'source', 'track', 'canvas', 'map', 'area', 'picture',
     ];
 
     private const HTML_TAGS = ['div', 'section', 'article', 'aside', 'header', 'footer', 'nav'];
@@ -149,6 +149,12 @@ class ElementorPageMapper
             }
 
             $tag = strtolower($node->nodeName);
+
+            if ($tag === 'svg') {
+                $flush();
+                $elements[] = $this->svgWidget((string) $this->doc->saveHTML($node), $node);
+                continue;
+            }
 
             if (in_array($tag, self::UNSUPPORTED, true)) {
                 throw new RuntimeException(
@@ -326,10 +332,36 @@ class ElementorPageMapper
      */
     private function inlineLink(DOMElement $element): array
     {
-        return $this->textEditor(
-            trim((string) $this->doc->saveHTML($element)),
-            'siteflow-inline-link'
-        );
+        $markup = trim((string) $this->doc->saveHTML($element));
+
+        if ($element->getElementsByTagName('svg')->length > 0) {
+            return $this->svgWidget($markup, $element);
+        }
+
+        return $this->textEditor($markup, 'siteflow-inline-link');
+    }
+
+    private function svgWidget(string $markup, DOMElement $element): array
+    {
+        $idPrefix = 'siteflow-' . $this->slug . '-' . $this->counter;
+        $safeMarkup = ElementorSvgMarkup::sanitize($markup, $idPrefix);
+
+        if ($safeMarkup === null) {
+            throw new RuntimeException('Markah SVG mengandung elemen atau atribut yang tidak aman untuk Elementor.');
+        }
+
+        return [
+            'id' => $this->nextId(),
+            'elType' => 'widget',
+            'widgetType' => 'html',
+            'settings' => $this->cleanSettings([
+                'html' => $safeMarkup,
+                '_element_width' => 'auto',
+                '_css_classes' => $this->attribute($element, 'class'),
+                '_element_id' => $this->attribute($element, 'id'),
+            ]),
+            'elements' => [],
+        ];
     }
 
     /**
@@ -399,7 +431,9 @@ class ElementorPageMapper
             return $this->textEditor(trim($this->innerHtml($element)));
         }
 
-        foreach (preg_split('/\s+/', $this->attribute($element, 'class')) ?: [] as $class) {
+        $cssClasses = $this->attribute($element, 'class');
+
+        foreach (preg_split('/\s+/', $cssClasses) ?: [] as $class) {
             if ($class !== '') {
                 $this->buttons[] = $class;
             }
@@ -409,12 +443,17 @@ class ElementorPageMapper
             'id' => $this->nextId(),
             'elType' => 'widget',
             'widgetType' => 'button',
+            // Kelas sumber ditulis ke pembungkus widget. Elementor memakainya
+            // sebagai kelas elemen (_css_classes ber-prefix kosong), jadi
+            // .button dan .button-light tetap dua sasaran berbeda; kalau kelas
+            // ini kosong keduanya jadi .elementor-button yang sama dan warna
+            // tombol terakhir menimpa seluruh halaman.
             'settings' => $this->cleanSettings([
                 'text' => $text,
                 'link' => $this->linkSettings($element),
                 'align' => 'left',
                 '_element_width' => 'auto',
-                '_css_classes' => '',
+                '_css_classes' => $cssClasses,
                 '_element_id' => $this->attribute($element, 'id'),
             ]),
             'elements' => [],
