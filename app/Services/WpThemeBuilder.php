@@ -1013,6 +1013,10 @@ CSS;
                 $container = null;
 
                 for ($i = count($stack) - 1; $i >= 0; $i--) {
+                    if (in_array($stack[$i]['name'], ['section', 'article', 'main', 'header', 'footer'], true)) {
+                        break;
+                    }
+
                     if (in_array($stack[$i]['name'], self::PHOTO_CONTAINERS, true)) {
                         $container = $stack[$i];
                         break;
@@ -2131,12 +2135,21 @@ TEXT;
                 . json_encode($imageAlts)
             );
 
+            $payloadJson = (string) json_encode(
+                ['versi' => $pageVersion, 'elementor' => $elementor],
+                JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+            );
+
+            if (strlen($payloadJson) > 110 * 1024) {
+                $payloadJson = (string) json_encode(
+                    ['versi' => $pageVersion, 'elementor' => $elementor],
+                    JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+                );
+            }
+
             file_put_contents(
                 $contentDir . '/' . $slug . '.json',
-                (string) json_encode(
-                    ['versi' => $pageVersion, 'elementor' => $elementor],
-                    JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
-                ) . "\n"
+                $payloadJson . "\n"
             );
 
             $pages[] = [

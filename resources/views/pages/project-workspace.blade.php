@@ -145,6 +145,8 @@
 
                                 fn ($candidate) => in_array($candidate->status, [
 
+                                    \App\Models\MockupCandidate::STATUS_AWAITING_REVIEW,
+
                                     \App\Models\MockupCandidate::STATUS_TEAM_APPROVED,
 
                                     \App\Models\MockupCandidate::STATUS_SENT,
@@ -153,7 +155,7 @@
 
                                     \App\Models\MockupCandidate::STATUS_REJECTED,
 
-                                ], true)
+                                ], true) && ! $candidate->hasFailed() && ! $candidate->isRunning()
 
                             ),
 

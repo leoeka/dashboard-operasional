@@ -120,10 +120,10 @@ function prpApprovedSet(Project $project): Collection
     );
 }
 
-it('refuses to build the proposal before all three candidates are approved', function () {
+it('refuses to build the proposal before all three candidates are ready', function () {
     $project = prpWebsiteProject();
     $set = prpApprovedSet($project);
-    $set->last()->update(['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
+    $set->last()->update(['status' => MockupCandidate::STATUS_DRAFT]);
 
     $this->actingAs(prpUser())
         ->post(route('pages.projects.proposals.store', $project))
@@ -186,9 +186,9 @@ it('renders one client tick box per candidate page', function () {
         ->and($html)->toContain(strtoupper($project->client_name));
 });
 
-it('marks the approved candidates as sent once the proposal is built', function () {
+it('marks the candidates as sent once the proposal is built', function () {
     $project = prpWebsiteProject();
-    prpApprovedSet($project);
+    prpReviewSet($project);
 
     $this->actingAs(prpUser())
         ->post(route('pages.projects.proposals.store', $project))
@@ -265,16 +265,16 @@ it('shows the proposal actions on the gate only when the set is fully reviewed',
         ->assertOk()
         ->assertDontSee('Buat proposal PDF');
 
-    // Baru disetujui dua dari tiga: tombol belum muncul.
+    // Baru siap dua dari tiga (satu masih draft): tombol belum muncul.
     $set = prpApprovedSet($project);
-    $set->last()->update(['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
+    $set->last()->update(['status' => MockupCandidate::STATUS_DRAFT]);
     $this->actingAs($user)
         ->get('/project-workspace?project=' . $project->id)
         ->assertOk()
         ->assertDontSee('Buat proposal PDF');
 
-    // Ketiganya disetujui: tombol buat muncul.
-    $set->last()->update(['status' => MockupCandidate::STATUS_TEAM_APPROVED]);
+    // Ketiganya siap: tombol buat muncul.
+    $set->last()->update(['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
     $this->actingAs($user)
         ->get('/project-workspace?project=' . $project->id)
         ->assertOk()

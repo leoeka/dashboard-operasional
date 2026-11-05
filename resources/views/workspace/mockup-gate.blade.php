@@ -6,14 +6,15 @@
     // PDF dibuat; 'rejected' hanya lahir setelah pilihan terkunci, jadi ikut
     // dihitung selesai supaya langkah tinjau tidak kebuka lagi.
     $beyondReview = [
+        MockupCandidate::STATUS_AWAITING_REVIEW,
         MockupCandidate::STATUS_TEAM_APPROVED,
         MockupCandidate::STATUS_SENT,
         MockupCandidate::STATUS_CHOSEN,
         MockupCandidate::STATUS_REJECTED,
     ];
     $ready = $mockupSet->filter(fn ($c) => $c->status === MockupCandidate::STATUS_AWAITING_REVIEW)->sortKeys();
-    $allApproved = $mockupSet->isNotEmpty()
-        && $mockupSet->every(fn ($c) => in_array($c->status, $beyondReview, true));
+    $allReady = $mockupSet->count() === 3
+        && $mockupSet->every(fn ($c) => in_array($c->status, $beyondReview, true) && ! $c->hasFailed() && ! $c->isRunning());
     $choiceLocked = $clientProposal && $clientProposal->chosen_candidate_id !== null;
     $chosenNumber = $choiceLocked ? $clientProposal->chosenCandidate?->candidate_number : null;
     $hasRunning = $mockupSet->contains(fn ($c) => $c->isRunning());
@@ -51,8 +52,8 @@
 
 <x-card class="mb-6">
     <h2 class="font-semibold text-slate-800">Gerbang tinjau mockup</h2>
-    <p class="text-sm text-slate-600">Periksa tiga kandidat buatan AI. Setujui kalau sudah layak
-        dikirim ke klien — kandidat yang disetujui lanjut ke proposal PDF.</p>
+    <p class="text-sm text-slate-600">Periksa tiga kandidat buatan AI. Kandidat yang selesai dirancang
+        bisa langsung dibuatkan proposal PDF untuk dikirim ke klien.</p>
     <p class="mt-2 text-xs text-slate-500">
         Desain dibuat di luar server memakai akun ChatGPT yang login di mesin ini.
         Proses berjalan di latar sekitar 13 menit per kandidat; halaman ini tidak perlu ditunggu.
@@ -180,10 +181,13 @@
                 </div>
             @endif
         </div>
-    @elseif ($allApproved)
+    @elseif ($allReady)
         <div class="mb-6 px-4 py-4 rounded-md bg-emerald-50 text-emerald-700 text-sm">
-            <p>Ketiga kandidat sudah disetujui tim. Proposal PDF berisi ketiganya plus
-                kotak centang untuk klien.</p>
+            @if ($clientProposal)
+                <p>Proposal PDF sudah dibuat dan berisi ketiga kandidat dengan kotak centang untuk klien.</p>
+            @else
+                <p>Ketiga kandidat siap dibuatkan proposal PDF untuk dikirim ke klien.</p>
+            @endif
             <div class="mt-3 flex flex-col sm:flex-row sm:items-center gap-3">
                 @if ($clientProposal)
                     <a href="{{ route('pages.projects.proposals.download', [$project, $clientProposal]) }}"
@@ -357,7 +361,7 @@
                             baru disetujui belum dilihat klien dan menunggu proposal baru.
                             Tombol disembunyikan juga selama ada anggota yang belum selesai
                             tinjaunya, supaya tim tak menemui tolakkan dari server. --}}
-                        @if ($clientProposal && ! $choiceLocked && $allApproved && $candidate->status === MockupCandidate::STATUS_SENT)
+                        @if ($clientProposal && ! $choiceLocked && $allReady && $candidate->status === MockupCandidate::STATUS_SENT)
                             <form method="POST"
                                 action="{{ route('pages.projects.proposals.choose', [$project, $clientProposal, $candidate]) }}"
                                 onsubmit="return confirm('Catat Kandidat {{ $candidate->candidate_number }} sebagai pilihan klien? Setelah tercatat, pilihan terkunci dan tidak bisa diganti.')">
@@ -401,21 +405,6 @@
                 </button>
             </form>
             <p class="text-sm text-slate-600">Kandidat yang sudah siap ditinjau tetap seperti sekarang.</p>
-        </div>
-    @endif
-
-    @if ($ready->isNotEmpty())
-        <div class="mt-6 flex flex-col sm:flex-row sm:items-center gap-3">
-            <form method="POST" action="{{ route('pages.projects.mockup.approve', $project) }}">
-                @csrf
-                <button type="submit"
-                    class="inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-brand-600 px-5 py-2 text-sm font-semibold text-white hover:bg-brand-700 transition">
-                    <i class='bx bx-check' aria-hidden="true"></i>
-                    Setujui {{ $ready->count() }} kandidat
-                </button>
-            </form>
-            <p class="text-sm text-slate-600">Kandidat yang disetujui lanjut ke proposal PDF untuk
-                dikirim ke klien.</p>
         </div>
     @endif
 

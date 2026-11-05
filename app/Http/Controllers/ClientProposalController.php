@@ -26,10 +26,13 @@ class ClientProposalController extends Controller
     {
         abort_unless(in_array('website', $project->serviceTypes()), 403);
 
-        $set = $this->gate->currentSet($project);        // Kandidat yang boleh masuk proposal: disetujui, atau sudah pernah
+        $set = $this->gate->currentSet($project);
+
+        // Kandidat yang boleh masuk proposal: siap ditinjau, disetujui, atau sudah pernah
         // dikirim (buat-ulang proposal setelah kirim tetap boleh).
         $eligible = $set->filter(
             fn ($candidate) => in_array($candidate->status, [
+                MockupCandidate::STATUS_AWAITING_REVIEW,
                 MockupCandidate::STATUS_TEAM_APPROVED,
                 MockupCandidate::STATUS_SENT,
                 MockupCandidate::STATUS_CHOSEN,
@@ -37,7 +40,7 @@ class ClientProposalController extends Controller
         );
 
         if ($set->count() !== 3 || $eligible->count() !== 3) {
-            return back()->with('error', 'Proposal PDF baru bisa dibuat setelah ketiga kandidat disetujui tim.');
+            return back()->with('error', 'Proposal PDF baru bisa dibuat setelah ketiga kandidat siap.');
         }
 
         // Pilihan klien yang sudah terkunci tidak boleh dijadikan yatim oleh
@@ -57,7 +60,10 @@ class ClientProposalController extends Controller
         }
 
         $eligible
-            ->filter(fn ($candidate) => $candidate->status === MockupCandidate::STATUS_TEAM_APPROVED)
+            ->filter(fn ($candidate) => in_array($candidate->status, [
+                MockupCandidate::STATUS_AWAITING_REVIEW,
+                MockupCandidate::STATUS_TEAM_APPROVED,
+            ], true))
             ->each->update(['status' => MockupCandidate::STATUS_SENT]);
 
         return back()->with(
@@ -99,7 +105,7 @@ class ClientProposalController extends Controller
         if ($stillInReview->isNotEmpty()) {
             return back()->with(
                 'error',
-                'Masih ada kandidat hasil buat-ulang yang belum disetujui tim. Setujui dulu, buat ulang proposal, baru catat pilihan klien.'
+                'Masih ada kandidat hasil buat-ulang yang belum masuk proposal. Buat ulang proposal dulu, baru catat pilihan klien.'
             );
         }
 

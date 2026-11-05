@@ -271,7 +271,7 @@ it('serves the stored preview image and 404s when it does not exist', function (
         ->assertHeader('Content-Type', 'image/png');
 });
 
-it('renders three cards with images and the approve button when all are ready', function () {
+it('renders three cards with images and the proposal action when all are ready', function () {
     $project = gateWebsiteProject();
 
     foreach ([1, 2, 3] as $number) {
@@ -290,7 +290,7 @@ it('renders three cards with images and the approve button when all are ready', 
         ->assertSee('Konsep nomor 2')
         ->assertSee('Konsep nomor 3')
         ->assertSee('Pratinjau ukuran penuh')
-        ->assertSee('Setujui 3 kandidat');
+        ->assertSee('Buat proposal PDF');
 });
 
 it('shows the failure reason and a retry button for a failed candidate', function () {
