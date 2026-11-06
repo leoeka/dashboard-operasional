@@ -93,6 +93,32 @@ function gateCandidate(Project $project, int $number, array $attributes = []): M
     return $candidate;
 }
 
+/**
+ * Tulis (atau bersihkan) berkas HTML satu kandidat. Baris uji memakai id yang
+ * berulang, jadi sisa berkas tes sebelumnya dihapus lebih dulu.
+ *
+ * @param  array<string, string>  $halaman  jalur relatif => isi
+ */
+function gateHalaman(MockupCandidate $candidate, array $halaman = []): string
+{
+    $folder = (new MockupWorkspace())->candidatePath($candidate);
+    File::ensureDirectoryExists($folder);
+
+    File::delete([
+        $folder . '/index.html',
+        $folder . '/hero.png',
+        $folder . '/pages/kontak.html',
+    ]);
+
+    foreach ($halaman as $relatif => $isi) {
+        $jalur = $folder . '/' . $relatif;
+        File::ensureDirectoryExists(dirname($jalur));
+        file_put_contents($jalur, $isi);
+    }
+
+    return $folder;
+}
+
 it('shows the empty gate with a generate button for a website project without candidates', function () {
     $project = gateWebsiteProject();
 
@@ -269,6 +295,69 @@ it('serves the stored preview image and 404s when it does not exist', function (
         ->get(route('pages.projects.mockup.preview', $candidate))
         ->assertOk()
         ->assertHeader('Content-Type', 'image/png');
+});
+
+it('opens the full-size preview as the real mockup pages, one tab per page', function () {
+    $project = gateWebsiteProject();
+    $candidate = gateCandidate($project, 1, ['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
+
+    gateHalaman($candidate, [
+        'index.html' => '<a href="pages/kontak.html">Kontak</a>',
+        'pages/kontak.html' => '<a href="../index.html">Beranda</a>',
+    ]);
+
+    $preview = $this->actingAs(gateUser())
+        ->get(route('pages.projects.mockup.preview-site', $candidate))
+        ->assertOk()
+        ->assertSee('Beranda')
+        ->assertSee('Kontak');
+
+    expect($preview->getContent())->toContain('preview-live');
+
+    gateHalaman($candidate);
+});
+
+it('serves a mockup subpage by name, inlines its photo, and points its links back to the preview', function () {
+    $project = gateWebsiteProject();
+    $candidate = gateCandidate($project, 1, ['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
+
+    gateHalaman($candidate, [
+        'index.html' => '<img src="__EXITO_IMAGE:hero" alt="Armada">',
+        'pages/kontak.html' => '<a href="../index.html">Beranda</a>',
+        'hero.png' => (string) base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='),
+    ]);
+
+    $live = route('pages.projects.mockup.preview-live', $candidate);
+
+    $beranda = $this->actingAs(gateUser())->get($live . '?page=index')->assertOk()->getContent();
+    $kontak = $this->actingAs(gateUser())->get($live . '?page=kontak')->assertOk()->getContent();
+
+    expect($beranda)->toContain('data:image/png;base64,')
+        ->and($kontak)->toContain('target="_top"')
+        ->and($kontak)->toContain('page=index')
+        ->and($kontak)->not->toContain('../index.html');
+
+    // Nama halaman di luar daftar kandidat tidak dilayani: yang tampil
+    // selalu salah satu berkas HTML kandidat.
+    $liar = $this->actingAs(gateUser())
+        ->get($live . '?page=../../../../windows/win.ini')
+        ->assertOk()
+        ->getContent();
+
+    expect($liar)->toBe($beranda);
+
+    gateHalaman($candidate);
+});
+
+it('404s the web preview when the candidate left no html behind', function () {
+    $project = gateWebsiteProject();
+    $candidate = gateCandidate($project, 1, ['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
+
+    gateHalaman($candidate);
+
+    $this->actingAs(gateUser())
+        ->get(route('pages.projects.mockup.preview-site', $candidate))
+        ->assertNotFound();
 });
 
 it('renders three cards with images and the proposal action when all are ready', function () {

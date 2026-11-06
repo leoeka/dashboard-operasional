@@ -13,6 +13,8 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use App\Support\MockupWorkspace;
+use App\Support\PageSnapshot;
 
 /**
  * Gerbang tim untuk kandidat mockup: memicu tiga kandidat pertama,
@@ -270,6 +272,144 @@ class MockupCandidateController extends Controller
         abort_unless(is_file($path), 404);
 
         return response()->file($path, ['Content-Type' => 'image/png']);
+    }
+
+    /**
+     * Layar pratinjau web: rangka dasbor dengan satu tab per halaman mockup
+     * dan bingkai berisi HTML kandidat yang sebenarnya.
+     */
+    public function previewSite(Request $request, MockupCandidate $candidate): \Illuminate\View\View
+    {
+        $pages = $this->livePages($candidate);
+
+        abort_if($pages === [], 404);
+
+        return view('workspace.mockup-preview', [
+            'candidate' => $candidate,
+            'project' => $candidate->project,
+            'pages' => $pages,
+            'current' => $this->livePageSlug((string) $request->query('page'), $pages),
+        ]);
+    }
+
+    /**
+     * Satu halaman mockup apa adanya: penanda foto diganti data URI base64
+     * sehingga berkas terbuka tanpa akses disk, dan tautan antar halaman
+     * diarahkan kembali ke layar pratinjau.
+     */
+    public function previewLive(Request $request, MockupCandidate $candidate): \Illuminate\Http\Response
+    {
+        $pages = $this->livePages($candidate);
+
+        abort_if($pages === [], 404);
+
+        $slug = $this->livePageSlug((string) $request->query('page'), $pages);
+        $dir = (new MockupWorkspace())->candidatePath($candidate);
+
+        $html = $this->rewritePageLinks(
+            $this->inlinePhotos((string) file_get_contents($pages[$slug]['path']), $dir),
+            $pages,
+            $candidate
+        );
+
+        return response($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
+    }
+
+    /**
+     * Halaman HTML hidup satu kandidat: index.html jadi beranda, sisanya
+     * pages/<slug>.html — sama seperti cara pembentuk tema membaca kandidat.
+     *
+     * @return array<string, array{label: string, path: string}>
+     */
+    private function livePages(MockupCandidate $candidate): array
+    {
+        $dir = (new MockupWorkspace())->candidatePath($candidate);
+        $pages = [];
+
+        foreach (array_merge(glob($dir . '/*.html') ?: [], glob($dir . '/pages/*.html') ?: []) as $path) {
+            $slug = $this->pageSlug(strtolower(pathinfo($path, PATHINFO_FILENAME)));
+
+            if (isset($pages[$slug]) || preg_match('/^[a-z0-9][a-z0-9-]*$/', $slug) !== 1) {
+                continue;
+            }
+
+            $pages[$slug] = [
+                'label' => $slug === 'index' ? 'Beranda' : ucfirst(str_replace('-', ' ', $slug)),
+                'path' => $path,
+            ];
+        }
+
+        return $pages;
+    }
+
+    /**
+     * @param  array<string, array{label: string, path: string}>  $pages
+     */
+    private function livePageSlug(string $slug, array $pages): string
+    {
+        $slug = $this->pageSlug($slug);
+
+        return isset($pages[$slug]) ? $slug : (string) array_key_first($pages);
+    }
+
+    private function pageSlug(string $name): string
+    {
+        return in_array($name, ['beranda', 'home'], true) ? 'index' : $name;
+    }
+
+    /**
+     * Tautan antar halaman mockup ("pages/kontak.html", "../index.html") tidak
+     * berlaku di luar folder kandidat. Ditujukan ke layar pratinjau dengan
+     * target _top supaya tab aktif ikut berpindah dan bingkai tak bersarang.
+     *
+     * @param  array<string, array{label: string, path: string}>  $pages
+     */
+    private function rewritePageLinks(string $html, array $pages, MockupCandidate $candidate): string
+    {
+        return (string) preg_replace_callback(
+            '/href="([^"#]+\.html)"/i',
+            function (array $match) use ($pages, $candidate): string {
+                $slug = $this->pageSlug(strtolower(pathinfo($match[1], PATHINFO_FILENAME)));
+
+                if (! isset($pages[$slug])) {
+                    return $match[0];
+                }
+
+                return 'href="' . route('pages.projects.mockup.preview-site', ['candidate' => $candidate, 'page' => $slug]) . '" target="_top"';
+            },
+            $html
+        );
+    }
+
+    private function inlinePhotos(string $html, string $folder): string
+    {
+        // Ganti setiap penanda __EXITO_IMAGE:* dengan data URI base64.
+        return (string) preg_replace_callback(
+            '/__EXITO_IMAGE:([a-zA-Z0-9_.\-]+)/',
+            function (array $match) use ($folder): string {
+                $slot = strtolower((string) preg_replace('/\.(jpe?g|png|webp|gif|svg)$/i', '', $match[1]));
+
+                foreach (glob($folder . '/*.{jpg,jpeg,png,webp,gif,svg}', GLOB_BRACE) ?: [] as $path) {
+                    $nama = basename($path);
+                    if ($nama === 'preview.png') {
+                        continue;
+                    }
+                    if (strtolower(pathinfo($nama, PATHINFO_FILENAME)) === $slot) {
+                        $mime = match (strtolower(pathinfo($nama, PATHINFO_EXTENSION))) {
+                            'jpg', 'jpeg' => 'image/jpeg',
+                            'webp'        => 'image/webp',
+                            'gif'         => 'image/gif',
+                            'svg'         => 'image/svg+xml',
+                            default       => 'image/png',
+                        };
+                        return 'data:' . $mime . ';base64,' . base64_encode((string) file_get_contents($path));
+                    }
+                }
+
+                return $match[0];
+            },
+            $html
+        );
     }
 
     /**

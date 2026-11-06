@@ -131,6 +131,10 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.mockup.approve');
     Route::get('/mockup-candidates/{candidate}/preview.png', [MockupCandidateController::class, 'preview'])
         ->name('pages.projects.mockup.preview');
+    Route::get('/mockup-candidates/{candidate}/preview-live', [MockupCandidateController::class, 'previewLive'])
+        ->name('pages.projects.mockup.preview-live');
+    Route::get('/mockup-candidates/{candidate}/pratinjau', [MockupCandidateController::class, 'previewSite'])
+        ->name('pages.projects.mockup.preview-site');
 
     // Proposal PDF untuk klien — dirakit dari tiga kandidat yang disetujui tim.
     Route::post('/projects/{project}/proposals', [ClientProposalController::class, 'store'])

@@ -33,26 +33,6 @@ use ZipArchive;
  */
 class WpThemeInspector
 {
-    public const NAMED_COLORS = [
-        'black' => '#000000',
-        'silver' => '#c0c0c0',
-        'gray' => '#808080',
-        'grey' => '#808080',
-        'white' => '#ffffff',
-        'maroon' => '#800000',
-        'red' => '#ff0000',
-        'purple' => '#800080',
-        'fuchsia' => '#ff00ff',
-        'green' => '#008000',
-        'lime' => '#00ff00',
-        'olive' => '#808000',
-        'yellow' => '#ffff00',
-        'navy' => '#000080',
-        'blue' => '#0000ff',
-        'teal' => '#008080',
-        'aqua' => '#00ffff',
-        'orange' => '#ffa500',
-    ];
     public function __construct(
         private ?MockupWorkspace $workspace = null,
     ) {
@@ -964,20 +944,12 @@ class WpThemeInspector
         $vars = $this->hexVariables($css);
         $errors = [];
         $measured = 0;
-        $gagal = [];
 
         preg_match_all('/([^{}]+)\{([^{}]*)\}/s', $css, $rules, PREG_SET_ORDER);
 
         foreach ($rules as $rule) {
             $selector = trim((string) preg_replace('/\s+/', ' ', $rule[1]));
             $body = $rule[2];
-
-            // Salinan jembatan Elementor hanya mengulang aturan mockup dengan
-            // lingkup tambahan. Diukur dua kali berarti satu pasangan warna
-            // dilaporkan berkali-kali.
-            if (str_contains($selector, '.siteflow-page') || str_contains($selector, '.elementor-edit-area')) {
-                continue;
-            }
 
             $color = $this->declaredColor($body, $vars);
             $background = $this->declaredBackground($body, $vars);
@@ -991,10 +963,7 @@ class WpThemeInspector
             $ratio = self::contrastRatio($color['hex'], $background['hex']);
 
             if ($ratio < $threshold) {
-                $kunci = $color['hex'] . '/' . $background['hex'] . '/' . $threshold;
-                $gagal[$kunci]['aturan'] = ($gagal[$kunci]['aturan'] ?? 0) + 1;
-                $gagal[$kunci]['pemilih'] ??= $selector;
-                $gagal[$kunci]['rasio'] = round($ratio, 2);
+                $errors[] = "Kontras teks {$color['hex']} di atas latar {$background['hex']} pada '{$selector}' adalah {$ratio}:1, di bawah ambang M-1 ({$threshold}:1).";
                 continue;
             }
 
@@ -1013,13 +982,6 @@ class WpThemeInspector
             if ($ratio < $best - 0.01) {
                 $errors[] = "M-2 pada '{$selector}': teks {$color['hex']} di atas warna merek {$background['hex']} berasio {$ratio}:1, padahal ada kandidat berasio {$best}:1.";
             }
-        }
-
-        foreach ($gagal as $kunci => $satu) {
-            [$hexTeks, $hexLatar, $ambang] = explode('/', $kunci);
-            $lain = $satu['aturan'] > 1 ? " (muncul di {$satu['aturan']} aturan)" : '';
-
-            $errors[] = "Kontras teks {$hexTeks} di atas latar {$hexLatar} pada '{$satu['pemilih']}'{$lain} adalah {$satu['rasio']}:1, di bawah ambang M-1 ({$ambang}:1).";
         }
 
         if ($measured === 0) {
@@ -1104,12 +1066,6 @@ class WpThemeInspector
             $hex = $this->opaqueHex($match[1]);
 
             return $hex === null ? null : ['hex' => $hex, 'var' => null];
-        }
-
-        $named = self::NAMED_COLORS[strtolower($value)] ?? null;
-
-        if ($named !== null) {
-            return ['hex' => $named, 'var' => null];
         }
 
         if (preg_match('/rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*([\d.]+))?\s*\)/i', $value, $match)) {

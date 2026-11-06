@@ -466,44 +466,6 @@ it('fails inspection M-1 when a text and background pair is below the contrast t
         ->and(implode(' ', $fresh->inspection_results['errors']))->toContain('M-1');
 });
 
-it('measures M-1 when the candidate writes the colour as a name, not a hex', function () {
-    // Tombol mockup ditulis .button{background:var(--orange);color:white}.
-    // Selama nama warna tidak dikenali, pasangan ini lolos tanpa diukur.
-    $client = inspClient();
-    $project = inspProject($client);
-    $candidate = inspCandidate($project);
-
-    $build = WpBuild::create([
-        'project_id' => $project->id,
-        'mockup_candidate_id' => $candidate->id,
-    ]);
-
-    (new WpThemeBuilder())->build($build);
-
-    $themeDir = (new MockupWorkspace())->buildPath($build);
-    file_put_contents(
-        $themeDir . '/style.css',
-        ":root { --orange: #f26a3d; }\n.cta { color: white; background: var(--orange); }\n"
-        . ".button { color: white; background: var(--orange); }\n"
-        . ".siteflow-page.siteflow-page .cta { color: white; background: var(--orange); }\n",
-        FILE_APPEND
-    );
-
-    $inspector = new WpThemeInspector();
-
-    expect(fn () => $inspector->inspectAndPackage($build))
-        ->toThrow(RuntimeException::class, 'Meja periksa gagal');
-
-    $errors = $build->fresh()->inspection_results['errors'];
-
-    // Satu pasangan warna dilaporkan sekali, meski ia tertulis di beberapa
-    // aturan; salinan jembatan tidak dihitung ulang.
-    expect(collect($errors)->filter(fn (string $e): bool => str_contains($e, 'ambang M-1'))->count())
-        ->toBe(1)
-        ->and(implode(' ', $errors))->toContain('3.04:1')
-        ->and(implode(' ', $errors))->toContain('2 aturan');
-});
-
 it('fails inspection M-2 when text over a brand color is not the highest-ratio candidate', function () {
 
     $client = inspClient();

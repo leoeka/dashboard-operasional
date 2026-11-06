@@ -322,9 +322,19 @@
                         </form>
                     </div>
                 @else
+                    @php
+                        // Pratinjau web hanya untuk kandidat yang HTML-nya benar-benar
+                        // ada di disk: kandidat yang berhenti di tengah cuma menyisakan
+                        // berkas kosong, dan potret PNG-nya tetap berguna sebagai jejak.
+                        $pratinjauWeb = $candidate->folder
+                            && (glob(storage_path('app/' . $candidate->folder . '/*.html')) ?: []) !== [];
+                        $urlPratinjau = $pratinjauWeb
+                            ? route('pages.projects.mockup.preview-site', $candidate)
+                            : route('pages.projects.mockup.preview', $candidate);
+                    @endphp
                     <div class="aspect-[16/10] bg-slate-50 border-b border-slate-100">
                         @if ($candidate->png_path)
-                            <a href="{{ route('pages.projects.mockup.preview', $candidate) }}"
+                            <a href="{{ $urlPratinjau }}"
                                 target="_blank" rel="noopener" class="block w-full h-full"
                                 title="Buka pratinjau ukuran penuh di tab baru">
                                 <img src="{{ route('pages.projects.mockup.preview', $candidate) }}"
@@ -349,8 +359,8 @@
                             @endif
                         </div>
                         <p class="text-sm text-slate-600 flex-1">{{ $candidate->idea_sentence }}</p>
-                        @if ($candidate->png_path)
-                            <a href="{{ route('pages.projects.mockup.preview', $candidate) }}"
+                        @if ($candidate->png_path || $pratinjauWeb)
+                            <a href="{{ $urlPratinjau }}"
                                 target="_blank" rel="noopener"
                                 class="min-h-11 inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
                                 <i class='bx bx-expand-alt' aria-hidden="true"></i> Pratinjau ukuran penuh
