@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
+use App\Http\Requests\StoreRequestOrderRequest;
 use App\Models\Client;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
+use App\Models\FinanceSubscription;
+use App\Models\Invoice;
+use App\Services\Finance\FinanceCycle;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class requestOrderController extends Controller
 {
@@ -18,74 +20,13 @@ class requestOrderController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreRequestOrderRequest $request)
     {
-        // FIX: service_type[] sekarang divalidasi & dibaca — sebelumnya
-        // checkbox ini cuma dipakai buat show/hide section di JS, nilainya
-        // tidak pernah divalidasi atau disimpan sama sekali.
-        $serviceTypes = (array) $request->input('service_type', []);
-        $wantsWebsite = in_array('website', $serviceTypes);
-        $wantsSeo = in_array('seo', $serviceTypes);
-        $wantsBacklink = in_array('backlink', $serviceTypes);
-        $existingClient = $request->filled('client_id');
-
-        // 1. Validasi Input Data
-        $validated = $request->validate([
-            // Data Klien
-            'client_id' => ['nullable', 'exists:clients,id'],
-            'client_name' => [Rule::requiredIf(!$existingClient), 'nullable', 'string', 'max:255'],
-            'company_name' => [Rule::requiredIf(!$existingClient), 'nullable', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:50'],
-            'address' => ['nullable', 'string', 'max:2000'],
-            'client_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-
-            'service_type' => ['required', 'array', 'min:1'],
-            'service_type.*' => ['in:website,seo,backlink'],
-
-            'project_name' => ['required', 'string', 'max:255'],
-
-            // FIX: field Website sebelumnya SELALU required di server,
-            // walau JS menandainya opsional saat checkbox "website" tidak
-            // dicentang — bikin submit gagal untuk client yang cuma mau
-            // SEO/Backlink saja. Sekarang wajib CUMA kalau service_type
-            // mengandung 'website'.
-            'user_story' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
-            // Isi/fitur yang diminta: ini yang menentukan daftar halaman di
-            // proposal, jadi wajib kalau website dipilih.
-            'website_features' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
-            // Cukup jawaban Ya/Tidak; aset-asetnya menyusul, tidak di-upload di sini.
-            'has_client_assets' => [Rule::requiredIf($wantsWebsite), 'nullable', 'boolean'],
-            // Type ditulis bebas oleh tim (dulu dropdown 4 pilihan, terlalu sempit
-            // untuk bahasa klien seperti "web katalog + booking").
-            'website_type' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string', 'max:255'],
-            // Never required: Gemini reads the audience out of the user story
-            // when the team did not type it separately. Filling this in is still
-            // the better option — a stated audience beats an inferred one.
-            'target_market' => ['nullable', 'string'],
-            'design_reference_type' => ['nullable', Rule::in(['none', 'image', 'zip', 'url'])],
-            'design_reference_url' => ['nullable', 'url', 'max:2048'],
-            'design_reference_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,zip', 'max:10240'],
-
-            // FIX (fitur SEO & Backlink otomatis): URL wajib diisi kalau
-            // SEO dipilih TAPI website tidak sekaligus dibuat baru (kalau
-            // website juga dibuat baru, URL belum ada — boleh kosong dulu).
-            // Keyword sekarang opsional, digali otomatis oleh AI.
-            'seo_target_url' => [Rule::requiredIf($wantsSeo && !$wantsWebsite), 'nullable', 'string', 'max:255'],
-            'seo_keywords' => ['nullable', 'string'],
-            'seo_location' => ['nullable', 'string', 'max:255'],
-            'seo_competitors' => ['nullable', 'string'],
-            'seo_cms_platform' => [Rule::requiredIf($wantsSeo), 'nullable', 'in:wordpress,shopify,wix,lainnya,baru'],
-
-            // Field Backlink — wajib cuma kalau service_type mengandung 'backlink'.
-            'backlink_target_url' => [Rule::requiredIf($wantsBacklink), 'nullable', 'string', 'max:255'],
-            'backlink_quantity' => [Rule::requiredIf($wantsBacklink), 'nullable', 'integer', 'min:1'],
-            'backlink_anchor_text' => ['nullable', 'string', 'max:255'],
-            'backlink_niche' => ['nullable', 'string', 'max:255'],
-            'backlink_anchor_type' => ['nullable', 'array'],
-            'backlink_anchor_type.*' => ['in:exact_match,partial_match,branding,generic'],
-            'backlink_priority' => ['nullable', 'in:quality,quantity'],
-        ]);
+        $validated = $request->validated();
+        $serviceTypes = $request->serviceTypes();
+        $wantsWebsite = $request->wantsWebsite();
+        $wantsSeo = $request->wantsSeo();
+        $wantsBacklink = $request->wantsBacklink();
 
         // 2. Transaksi Database
         DB::beginTransaction();
@@ -101,7 +42,7 @@ class requestOrderController extends Controller
                     'phone' => $validated['phone'] ?? null,
                     'whatsapp' => $validated['phone'] ?? null,
                     'address' => $request->input('address'),
-                    'created_by' => Auth::id(),
+                    'created_by' => $this->userId(),
                 ]);
 
             // B. Simpan Project
@@ -134,7 +75,16 @@ class requestOrderController extends Controller
                 // yang masih tertinggal di input (type = none/url) ikut disimpan
                 // dan jadi file yatim di storage.
                 if (in_array($referenceType, ['image', 'zip'], true) && $request->hasFile('design_reference_file')) {
-                    $referencePath = $request->file('design_reference_file')->store('design-references', 'public');
+                    $refFile = $request->file('design_reference_file');
+                    $referencePath = $refFile->store('design-references', 'public');
+
+                    $project->mockupAssets()->create([
+                        'category' => 'referensi',
+                        'original_name' => $refFile->getClientOriginalName(),
+                        'file_path' => $referencePath,
+                        'file_size' => $refFile->getSize(),
+                        'mime_type' => $refFile->getMimeType(),
+                    ]);
                 }
 
                 $project->update([
@@ -152,13 +102,39 @@ class requestOrderController extends Controller
                         : null,
                     'design_reference_path' => $referencePath,
                 ]);
+
+                // Simpan aset pendukung klien jika diunggah
+                if ($request->hasFile('client_asset_files')) {
+                    foreach ($request->file('client_asset_files') as $assetFile) {
+                        $assetPath = $assetFile->store('mockup-assets/' . $project->id, 'public');
+                        $mime = $assetFile->getMimeType() ?? '';
+                        $cat = str_starts_with($mime, 'image/') ? 'foto' : (str_contains($mime, 'pdf') || str_contains($mime, 'word') || str_contains($mime, 'document') || str_contains($mime, 'text') ? 'dokumen' : 'pendukung');
+
+                        $project->mockupAssets()->create([
+                            'category' => $cat,
+                            'original_name' => $assetFile->getClientOriginalName(),
+                            'file_path' => $assetPath,
+                            'file_size' => $assetFile->getSize(),
+                            'mime_type' => $mime,
+                        ]);
+                    }
+                }
             }
 
             // Brand asset is intentionally stored on Client, so every
             // website proposal for the same client uses their real logo.
             if ($request->hasFile('client_logo')) {
-                $logoPath = $request->file('client_logo')->store('client-logos', 'public');
+                $logoFile = $request->file('client_logo');
+                $logoPath = $logoFile->store('client-logos', 'public');
                 $client->update(['logo_path' => $logoPath]);
+
+                $project->mockupAssets()->create([
+                    'category' => 'logo',
+                    'original_name' => $logoFile->getClientOriginalName(),
+                    'file_path' => $logoPath,
+                    'file_size' => $logoFile->getSize(),
+                    'mime_type' => $logoFile->getMimeType(),
+                ]);
             }
 
             // D. Simpan Requirements SEO (kalau dicentang) — sebagai JSON
@@ -262,8 +238,29 @@ class requestOrderController extends Controller
 
     public function clientView(Client $client)
     {
-        $client->load(['projects']);
+        $client->load([
+            'projects' => fn ($q) => $q->latest(),
+        ]);
 
-        return view('pages.crm-view', compact('client'));
+        $subscriptions = FinanceSubscription::where('client_id', $client->id)
+            ->orWhereHas('project', fn ($p) => $p->where('client_id', $client->id))
+            ->with(['project:id,name'])
+            ->latest()
+            ->get();
+
+        $cycle = app(FinanceCycle::class);
+        $subscriptions->each(function ($sub) use ($cycle) {
+            if ($sub->next_renewal_date) {
+                $sub->setAttribute('days_until', $cycle->daysUntil($sub->next_renewal_date));
+            }
+        });
+
+        $invoices = Invoice::where('client_id', $client->id)
+            ->orWhereHas('project', fn ($p) => $p->where('client_id', $client->id))
+            ->with(['project:id,name', 'subscription:id,name'])
+            ->latest()
+            ->get();
+
+        return view('pages.crm-view', compact('client', 'subscriptions', 'invoices'));
     }
 }

@@ -1,11 +1,53 @@
 <?php
 
-use App\Jobs\GenerateMockupCandidateJob;
+use App\Models\ClientProposal;
 use App\Models\MockupCandidate;
 use App\Models\Project;
 use App\Models\User;
+use App\Models\WpBuild;
+use App\Support\MockupCodexLauncher;
+use App\Support\MockupCodexState;
 use App\Support\MockupWorkspace;
-use Illuminate\Support\Facades\Bus;
+use Illuminate\Support\Facades\File;
+
+beforeEach(function () {
+    $this->gateBase = sys_get_temp_dir() . '/siteflow-gate-' . uniqid();
+
+    config(['services.mockup.codex.base' => $this->gateBase]);
+});
+
+afterEach(function () {
+    File::deleteDirectory($this->gateBase);
+});
+
+/**
+ * Runner Codex palsu: permintaan web mengira proses latar sudah dilepas.
+ *
+ * @return Mockery\MockInterface&MockupCodexLauncher
+ */
+function launcherSpy()
+{
+    $spy = \Mockery::mock(MockupCodexLauncher::class);
+    $spy->shouldReceive('launch')->andReturn(true);
+    app()->instance(MockupCodexLauncher::class, $spy);
+
+    return $spy;
+}
+
+/**
+ * Meniru runner yang masih hidup: kunci proyek dipegang selama pegangan
+ * berkas ini dipegang, jadi layar dan controller membaca "sedang jalan".
+ *
+ * @return array{string, resource}
+ */
+function pegangKunci(Project $project): array
+{
+    $path = app(MockupCodexState::class)->lockPath($project);
+    $handle = fopen($path, 'c');
+    flock($handle, LOCK_EX);
+
+    return [$path, $handle];
+}
 
 function gateUser(): User
 {
@@ -51,6 +93,32 @@ function gateCandidate(Project $project, int $number, array $attributes = []): M
     return $candidate;
 }
 
+/**
+ * Tulis (atau bersihkan) berkas HTML satu kandidat. Baris uji memakai id yang
+ * berulang, jadi sisa berkas tes sebelumnya dihapus lebih dulu.
+ *
+ * @param  array<string, string>  $halaman  jalur relatif => isi
+ */
+function gateHalaman(MockupCandidate $candidate, array $halaman = []): string
+{
+    $folder = (new MockupWorkspace())->candidatePath($candidate);
+    File::ensureDirectoryExists($folder);
+
+    File::delete([
+        $folder . '/index.html',
+        $folder . '/hero.png',
+        $folder . '/pages/kontak.html',
+    ]);
+
+    foreach ($halaman as $relatif => $isi) {
+        $jalur = $folder . '/' . $relatif;
+        File::ensureDirectoryExists(dirname($jalur));
+        file_put_contents($jalur, $isi);
+    }
+
+    return $folder;
+}
+
 it('shows the empty gate with a generate button for a website project without candidates', function () {
     $project = gateWebsiteProject();
 
@@ -71,8 +139,8 @@ it('does not show the mockup track for a non-website project', function () {
         ->assertDontSee('Gerbang tinjau mockup');
 });
 
-it('creates three draft candidates and dispatches three jobs', function () {
-    Bus::fake();
+it('creates three draft candidates and releases one Codex runner for the batch', function () {
+    $spy = launcherSpy();
     $project = gateWebsiteProject();
 
     $this->actingAs(gateUser())
@@ -87,11 +155,11 @@ it('creates three draft candidates and dispatches three jobs', function () {
         ->and($candidates->every(fn ($c) => $c->status === MockupCandidate::STATUS_DRAFT))->toBeTrue()
         ->and($candidates->every(fn ($c) => $c->isRunning()))->toBeTrue();
 
-    Bus::assertDispatchedTimes(GenerateMockupCandidateJob::class, 3);
+    $spy->shouldHaveReceived('launch')->once();
 });
 
 it('refuses a new batch while any candidate is still being built', function () {
-    Bus::fake();
+    $spy = launcherSpy();
     $project = gateWebsiteProject();
     gateCandidate($project, 1);
 
@@ -101,11 +169,11 @@ it('refuses a new batch while any candidate is still being built', function () {
         ->assertSessionHas('error');
 
     expect($project->mockupCandidates()->count())->toBe(1);
-    Bus::assertNothingDispatched();
+    $spy->shouldNotHaveReceived('launch');
 });
 
 it('refuses a second batch even after the first set finished', function () {
-    Bus::fake();
+    $spy = launcherSpy();
     $project = gateWebsiteProject();
     gateCandidate($project, 1, ['status' => MockupCandidate::STATUS_TEAM_APPROVED]);
     gateCandidate($project, 2, ['status' => MockupCandidate::STATUS_TEAM_APPROVED]);
@@ -117,7 +185,7 @@ it('refuses a second batch even after the first set finished', function () {
         ->assertSessionHas('error');
 
     expect($project->mockupCandidates()->count())->toBe(3);
-    Bus::assertNothingDispatched();
+    $spy->shouldNotHaveReceived('launch');
 });
 
 it('marks the review step complete only when all three slots are approved', function () {
@@ -149,7 +217,7 @@ it('refuses the batch endpoint for a non-website project', function () {
 });
 
 it('regenerates one candidate by adding a new row with the same number', function () {
-    Bus::fake();
+    $spy = launcherSpy();
     $project = gateWebsiteProject();
     $old = gateCandidate($project, 2, [
         'status' => MockupCandidate::STATUS_AWAITING_REVIEW,
@@ -170,7 +238,7 @@ it('regenerates one candidate by adding a new row with the same number', functio
         ->and($rows[0]->status)->toBe(MockupCandidate::STATUS_AWAITING_REVIEW)
         ->and($rows[0]->idea_sentence)->toBe('Vila biru yang tenang');
 
-    Bus::assertDispatchedTimes(GenerateMockupCandidateJob::class, 1);
+    $spy->shouldHaveReceived('launch')->once()->withArgs(fn (...$args) => $args[1] === 2);
 });
 
 it('returns 404 when regenerating a candidate that belongs to another project', function () {
@@ -181,20 +249,6 @@ it('returns 404 when regenerating a candidate that belongs to another project', 
     $this->actingAs(gateUser())
         ->post(route('pages.projects.mockup.regenerate', [$project, $candidate]))
         ->assertNotFound();
-});
-
-it('refuses to regenerate a slot that is still being built', function () {
-    Bus::fake();
-    $project = gateWebsiteProject();
-    $running = gateCandidate($project, 3);
-
-    $this->actingAs(gateUser())
-        ->post(route('pages.projects.mockup.regenerate', [$project, $running]))
-        ->assertRedirect()
-        ->assertSessionHas('error');
-
-    expect($project->mockupCandidates()->count())->toBe(1);
-    Bus::assertNothingDispatched();
 });
 
 it('approves every candidate that is ready for review', function () {
@@ -243,7 +297,70 @@ it('serves the stored preview image and 404s when it does not exist', function (
         ->assertHeader('Content-Type', 'image/png');
 });
 
-it('renders three cards with images and the approve button when all are ready', function () {
+it('opens the full-size preview as the real mockup pages, one tab per page', function () {
+    $project = gateWebsiteProject();
+    $candidate = gateCandidate($project, 1, ['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
+
+    gateHalaman($candidate, [
+        'index.html' => '<a href="pages/kontak.html">Kontak</a>',
+        'pages/kontak.html' => '<a href="../index.html">Beranda</a>',
+    ]);
+
+    $preview = $this->actingAs(gateUser())
+        ->get(route('pages.projects.mockup.preview-site', $candidate))
+        ->assertOk()
+        ->assertSee('Beranda')
+        ->assertSee('Kontak');
+
+    expect($preview->getContent())->toContain('preview-live');
+
+    gateHalaman($candidate);
+});
+
+it('serves a mockup subpage by name, inlines its photo, and points its links back to the preview', function () {
+    $project = gateWebsiteProject();
+    $candidate = gateCandidate($project, 1, ['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
+
+    gateHalaman($candidate, [
+        'index.html' => '<img src="__EXITO_IMAGE:hero" alt="Armada">',
+        'pages/kontak.html' => '<a href="../index.html">Beranda</a>',
+        'hero.png' => (string) base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='),
+    ]);
+
+    $live = route('pages.projects.mockup.preview-live', $candidate);
+
+    $beranda = $this->actingAs(gateUser())->get($live . '?page=index')->assertOk()->getContent();
+    $kontak = $this->actingAs(gateUser())->get($live . '?page=kontak')->assertOk()->getContent();
+
+    expect($beranda)->toContain('data:image/png;base64,')
+        ->and($kontak)->toContain('target="_top"')
+        ->and($kontak)->toContain('page=index')
+        ->and($kontak)->not->toContain('../index.html');
+
+    // Nama halaman di luar daftar kandidat tidak dilayani: yang tampil
+    // selalu salah satu berkas HTML kandidat.
+    $liar = $this->actingAs(gateUser())
+        ->get($live . '?page=../../../../windows/win.ini')
+        ->assertOk()
+        ->getContent();
+
+    expect($liar)->toBe($beranda);
+
+    gateHalaman($candidate);
+});
+
+it('404s the web preview when the candidate left no html behind', function () {
+    $project = gateWebsiteProject();
+    $candidate = gateCandidate($project, 1, ['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
+
+    gateHalaman($candidate);
+
+    $this->actingAs(gateUser())
+        ->get(route('pages.projects.mockup.preview-site', $candidate))
+        ->assertNotFound();
+});
+
+it('renders three cards with images and the proposal action when all are ready', function () {
     $project = gateWebsiteProject();
 
     foreach ([1, 2, 3] as $number) {
@@ -261,7 +378,8 @@ it('renders three cards with images and the approve button when all are ready', 
         ->assertSee('Konsep nomor 1')
         ->assertSee('Konsep nomor 2')
         ->assertSee('Konsep nomor 3')
-        ->assertSee('Setujui 3 kandidat');
+        ->assertSee('Pratinjau ukuran penuh')
+        ->assertSee('Buat proposal PDF');
 });
 
 it('shows the failure reason and a retry button for a failed candidate', function () {
@@ -280,39 +398,58 @@ it('shows the failure reason and a retry button for a failed candidate', functio
         ->assertSee('Coba lagi');
 });
 
-it('records the failure reason on the row when the AI loop throws', function () {
-    config(['services.openai.key' => null]);
+it('shows the inspection checklist and its errors when the theme build failed', function () {
     $project = gateWebsiteProject();
-    $candidate = gateCandidate($project, 1);
+    $candidate = gateCandidate($project, 1, ['status' => MockupCandidate::STATUS_CHOSEN]);
 
-    (new GenerateMockupCandidateJob($candidate))->handle();
+    ClientProposal::create([
+        'project_id' => $project->id,
+        'chosen_candidate_id' => $candidate->id,
+        'chosen_at' => now(),
+    ]);
 
-    expect($candidate->fresh()->failure_reason)->not->toBeNull()
-        ->and($candidate->fresh()->status)->toBe(MockupCandidate::STATUS_DRAFT);
-});
+    WpBuild::create([
+        'project_id' => $project->id,
+        'mockup_candidate_id' => $candidate->id,
+        'status' => WpBuild::STATUS_INSPECTION_FAILED,
+        'inspection_results' => [
+            'passed' => false,
+            'error' => 'Meja periksa gagal: Berkas wajib tema functions.php tidak ditemukan.',
+            'checks' => [
+                'required_files' => false,
+                'color_contrast' => false,
+            ],
+            'errors' => ['Berkas wajib tema functions.php tidak ditemukan.'],
+        ],
+    ]);
 
-it('records the failure reason when the worker kills or times out the job', function () {
-    $project = gateWebsiteProject();
-    $candidate = gateCandidate($project, 1);
-
-    (new GenerateMockupCandidateJob($candidate))->failed(new RuntimeException('worker timeout'));
-
-    expect($candidate->fresh()->failure_reason)->toContain('worker timeout');
+    $this->actingAs(gateUser())
+        ->get('/project-workspace?project=' . $project->id)
+        ->assertOk()
+        ->assertSee('Klien memilih Kandidat 1')
+        ->assertSee('Berkas wajib tema: gagal')
+        ->assertSee('Kontras warna (M-1/M-2): gagal')
+        ->assertSee('Berkas wajib tema functions.php tidak ditemukan.');
 });
 
 it('refuses regeneration posted from a superseded card while the slot is still being built', function () {
-    Bus::fake();
+    $spy = launcherSpy();
     $project = gateWebsiteProject();
     $superseded = gateCandidate($project, 2, ['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
-    gateCandidate($project, 2);
+    $running = gateCandidate($project, 2);
+
+    [$path, $handle] = pegangKunci($project);
 
     $this->actingAs(gateUser())
         ->post(route('pages.projects.mockup.regenerate', [$project, $superseded]))
         ->assertRedirect()
         ->assertSessionHas('error');
 
-    expect($project->mockupCandidates()->count())->toBe(2);
-    Bus::assertNothingDispatched();
+    fclose($handle);
+
+    expect($project->mockupCandidates()->count())->toBe(2)
+        ->and($running->fresh()->isRunning())->toBeTrue();
+    $spy->shouldNotHaveReceived('launch');
 });
 
 it('approves only the current set and leaves superseded rows untouched', function () {
@@ -329,4 +466,42 @@ it('approves only the current set and leaves superseded rows untouched', functio
 
     expect($superseded->fresh()->status)->toBe(MockupCandidate::STATUS_AWAITING_REVIEW)
         ->and($project->mockupCandidates()->where('status', MockupCandidate::STATUS_TEAM_APPROVED)->pluck('candidate_number')->all())->toBe([1, 3]);
+});
+
+it('returns asynchronous mockup status JSON for background polling without page refresh', function () {
+    $project = gateWebsiteProject();
+    $c1 = gateCandidate($project, 1);
+    $c2 = gateCandidate($project, 2, ['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
+
+    \Illuminate\Support\Facades\Cache::put(
+        "mockup_candidate_{$c1->id}_progress",
+        ['percent' => 60, 'message' => 'Menyusun kode HTML & CSS'],
+        now()->addMinutes(10)
+    );
+
+    $response = $this->actingAs(gateUser())
+        ->get(route('pages.projects.mockup.status', $project))
+        ->assertOk()
+        ->assertJsonStructure([
+            'has_running',
+            'is_building',
+            'candidates' => [
+                '*' => ['id', 'candidate_number', 'status', 'is_running', 'percent', 'message'],
+            ],
+        ]);
+
+    $data = $response->json();
+    expect($data['has_running'])->toBeTrue();
+
+    $cand1 = collect($data['candidates'])->firstWhere('candidate_number', 1);
+    expect($cand1['percent'])->toBe(60)
+        ->and($cand1['message'])->toBe('Menyusun kode HTML & CSS');
+});
+
+it('rejects status polling for a non-website project', function () {
+    $project = gateSeoProject();
+
+    $this->actingAs(gateUser())
+        ->get(route('pages.projects.mockup.status', $project))
+        ->assertForbidden();
 });

@@ -20,8 +20,6 @@ class FinanceInvoiceController extends Controller
             'client',
             'project.client',
             'subscription',
-            'items',
-            'payments.recorder:id,name',
             'reminderLogs',
         ]);
 

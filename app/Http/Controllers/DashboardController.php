@@ -9,14 +9,6 @@ use App\Models\Project;
 
 class DashboardController extends Controller
 {
-    public static function middleware(): array
-    {
-        return [
-            'auth',
-            // atau dengan opsi khusus:
-            // new Middleware('auth', only: ['index']),
-        ];
-    }
     public function index()
     {
         $today = today()->toDateString();

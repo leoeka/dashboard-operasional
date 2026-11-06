@@ -8,7 +8,7 @@
  * Yang dijaga di sini jadi bukan warnanya, tapi dua aturan itu.
  */
 
-use App\Models\BillingReminderLog;
+use App\Models\FinanceReminderLog;
 use App\Models\Invoice;
 use App\Models\Project;
 use App\Models\User;
@@ -85,11 +85,11 @@ it('points the empty attention list at the next step', function () {
 
 it('counts reminders whose delivery failed', function () {
     $invoice = dbInvoice();
-    BillingReminderLog::create([
+    FinanceReminderLog::create([
         'invoice_id' => $invoice->id,
         'days_before' => 7,
         'scheduled_for' => today()->toDateString(),
-        'status' => BillingReminderLog::FAILED,
+        'status' => FinanceReminderLog::FAILED,
         'attempts' => 1,
     ]);
 

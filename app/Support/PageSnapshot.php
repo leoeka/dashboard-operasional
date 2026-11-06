@@ -30,8 +30,25 @@ class PageSnapshot
             mkdir($dir, 0775, true);
         }
 
+        // Berkas arsip tetap memuat penanda (dipakai pembangun tema), tetapi
+        // potret harus memperlihatkan fotonya. Salinan sementara di folder
+        // yang sama menjaga rujukan relatif tetap hidup.
+        $renderPath = $htmlPath;
+        $sementara = null;
+        $html = (string) file_get_contents($htmlPath);
+
+        if (str_contains($html, '__EXITO_IMAGE:')) {
+            $sementara = dirname($htmlPath) . '/.potret-' . uniqid() . '.html';
+
+            if (file_put_contents($sementara, $this->htmlUntukPotret($html, dirname($htmlPath))) === false) {
+                throw new RuntimeException('Berkas potret sementara tidak bisa ditulis.');
+            }
+
+            $renderPath = $sementara;
+        }
+
         try {
-            Browsershot::htmlFromFilePath($htmlPath)
+            Browsershot::htmlFromFilePath($renderPath)
                 ->windowSize(self::WIDTH, self::HEIGHT)
                 ->fullPage()
                 ->noSandbox()
@@ -39,8 +56,41 @@ class PageSnapshot
                 ->save($outputPath);
         } catch (Throwable $e) {
             throw new RuntimeException('Gagal memotret halaman: ' . mb_substr($e->getMessage(), 0, 200), 0, $e);
+        } finally {
+            if ($sementara !== null) {
+                @unlink($sementara);
+            }
         }
 
         return $outputPath;
+    }
+
+    /**
+     * Tukar tiap penanda foto dengan nama berkas nyata di folder yang sama.
+     * Slot tanpa berkas dibiarkan apa adanya supaya tidak diam-diam hilang.
+     */
+    public function htmlUntukPotret(string $html, string $folder): string
+    {
+        $berkas = [];
+
+        foreach (glob($folder . '/*.{jpg,jpeg,png,webp,gif,svg}', GLOB_BRACE) ?: [] as $path) {
+            $nama = basename($path);
+
+            if ($nama === 'preview.png') {
+                continue;
+            }
+
+            $berkas[strtolower(pathinfo($nama, PATHINFO_FILENAME))] = $nama;
+        }
+
+        return (string) preg_replace_callback(
+            '/__EXITO_IMAGE:([a-zA-Z0-9_.-]+)/',
+            function (array $match) use ($berkas): string {
+                $slot = strtolower((string) preg_replace('/\.(jpe?g|png|webp|gif|svg)$/i', '', $match[1]));
+
+                return $berkas[$slot] ?? $match[0];
+            },
+            $html
+        );
     }
 }

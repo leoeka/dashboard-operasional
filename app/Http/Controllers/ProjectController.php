@@ -2,10 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UpdateProjectRequest;
+use App\Models\MockupAsset;
 use App\Models\Project;
-use App\Models\ProjectFile;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 /**
@@ -59,12 +61,11 @@ class ProjectController extends Controller
             ->toArray();
     }
 
-    public function update(Request $request, Project $project)
+    public function update(UpdateProjectRequest $request, Project $project)
     {
-        $serviceTypes = (array) $request->input('service_type', []);
-        $wantsWebsite = in_array('website', $serviceTypes);
-        $wantsSeo = in_array('seo', $serviceTypes);
-        $wantsBacklink = in_array('backlink', $serviceTypes);
+        $wantsWebsite = $request->wantsWebsite();
+        $wantsSeo = $request->wantsSeo();
+        $wantsBacklink = $request->wantsBacklink();
 
         // FIX (fitur SEO & Backlink otomatis): tangkap URL LAMA sebelum
         // di-update, dipakai untuk deteksi "URL baru pertama kali terisi".
@@ -72,41 +73,7 @@ class ProjectController extends Controller
             ?? $project->backlink_requirements['target_url']
             ?? null;
 
-        $data = $request->validate([
-            'client_id' => 'nullable|exists:clients,id',
-            'name' => 'required|string|max:255',
-            'client_name' => 'required|string|max:255',
-            'status' => 'required|in:request,in_progress,completed',
-
-            // Bagian website meniru aturan form Request: wajib cuma kalau
-            // tile "Create Website" dicentang.
-            'type' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string', 'max:255'],
-            'user_story' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
-            'target_market' => ['nullable', 'string'],
-            'website_features' => [Rule::requiredIf($wantsWebsite), 'nullable', 'string'],
-            'has_client_assets' => [Rule::requiredIf($wantsWebsite), 'nullable', 'boolean'],
-
-            'client_logo' => ['nullable', 'image', 'mimes:jpg,jpeg,png,webp', 'max:2048'],
-            'design_reference_type' => ['nullable', Rule::in(['none', 'image', 'zip', 'url'])],
-            'design_reference_url' => ['nullable', 'url', 'max:2048'],
-            'design_reference_file' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,zip', 'max:10240'],
-
-            'service_type' => ['nullable', 'array'],
-            'service_type.*' => ['in:website,seo,backlink'],
-
-            'seo_target_url' => ['nullable', 'string', 'max:255'],
-            'seo_keywords' => ['nullable', 'string'],
-            'seo_location' => ['nullable', 'string', 'max:255'],
-            'seo_competitors' => ['nullable', 'string'],
-            'seo_cms_platform' => [Rule::requiredIf($wantsSeo), 'nullable', 'in:wordpress,lainnya,baru'],
-
-            'backlink_target_url' => [Rule::requiredIf($wantsBacklink), 'nullable', 'string', 'max:255'],
-            'backlink_quantity' => [Rule::requiredIf($wantsBacklink), 'nullable', 'integer', 'min:1'],
-            'backlink_anchor_text' => ['nullable', 'string', 'max:255'],
-            'backlink_niche' => ['nullable', 'string', 'max:255'],
-            'backlink_anchor_type' => ['nullable', 'array'],
-            'backlink_priority' => ['nullable', 'in:quality,quantity'],
-        ]);
+        $data = $request->validated();
 
         $data['wants_seo'] = $wantsSeo;
         $data['wants_backlink'] = $wantsBacklink;
@@ -146,15 +113,49 @@ class ProjectController extends Controller
         }
 
         if ($request->hasFile('design_reference_file') && in_array($project->design_reference_type, ['image', 'zip'], true)) {
+            $refFile = $request->file('design_reference_file');
+            $refPath = $refFile->store('design-references', 'public');
             $project->update([
-                'design_reference_path' => $request->file('design_reference_file')->store('design-references', 'public'),
+                'design_reference_path' => $refPath,
+            ]);
+            $project->mockupAssets()->create([
+                'category' => 'referensi',
+                'original_name' => $refFile->getClientOriginalName(),
+                'file_path' => $refPath,
+                'file_size' => $refFile->getSize(),
+                'mime_type' => $refFile->getMimeType(),
             ]);
         }
 
         if ($request->hasFile('client_logo') && $project->client) {
+            $logoFile = $request->file('client_logo');
+            $logoPath = $logoFile->store('client-logos', 'public');
             $project->client->update([
-                'logo_path' => $request->file('client_logo')->store('client-logos', 'public'),
+                'logo_path' => $logoPath,
             ]);
+            $project->mockupAssets()->create([
+                'category' => 'logo',
+                'original_name' => $logoFile->getClientOriginalName(),
+                'file_path' => $logoPath,
+                'file_size' => $logoFile->getSize(),
+                'mime_type' => $logoFile->getMimeType(),
+            ]);
+        }
+
+        if ($request->hasFile('client_asset_files')) {
+            foreach ($request->file('client_asset_files') as $assetFile) {
+                $assetPath = $assetFile->store('mockup-assets/' . $project->id, 'public');
+                $mime = $assetFile->getMimeType() ?? '';
+                $cat = str_starts_with($mime, 'image/') ? 'foto' : (str_contains($mime, 'pdf') || str_contains($mime, 'word') || str_contains($mime, 'document') || str_contains($mime, 'text') ? 'dokumen' : 'pendukung');
+
+                $project->mockupAssets()->create([
+                    'category' => $cat,
+                    'original_name' => $assetFile->getClientOriginalName(),
+                    'file_path' => $assetPath,
+                    'file_size' => $assetFile->getSize(),
+                    'mime_type' => $mime,
+                ]);
+            }
         }
 
         if ($wantsSeo) {
@@ -262,21 +263,36 @@ class ProjectController extends Controller
     {
         $request->validate([
             'file' => 'required|file|max:20480',
-            'category' => 'required|in:logo,company_profile,foto,dokumen,pendukung',
+            'category' => 'required|in:logo,company_profile,foto,dokumen,pendukung,referensi',
         ]);
 
-        $path = $request->file('file')->store('project-files', 'public');
+        $file = $request->file('file');
+        $path = $file->store('mockup-assets/' . $project->id, 'public');
 
-        ProjectFile::create([
-            'project_id' => $project->id,
-            'original_name' => $request->file('file')->getClientOriginalName(),
+        $asset = $project->mockupAssets()->create([
+            'original_name' => $file->getClientOriginalName(),
             'file_path' => $path,
+            'file_size' => $file->getSize(),
+            'mime_type' => $file->getMimeType(),
             'category' => $request->category,
         ]);
 
-        $label = ProjectFile::categoryLabels()[$request->category] ?? 'File';
-        $project->logActivity("File {$label} added");
+        $label = MockupAsset::categoryLabels()[$request->category] ?? 'Aset';
+        $project->logActivity("Aset mockup ({$label}) berhasil diunggah");
 
-        return back()->with('success', 'File uploaded successfully.');
+        return back()->with('success', 'Aset mockup berhasil diunggah.');
+    }
+
+    public function destroyFile(Project $project, MockupAsset $file)
+    {
+        if ($file->project_id !== $project->id) {
+            abort(404);
+        }
+
+        Storage::disk('public')->delete($file->file_path);
+        $file->delete();
+        $project->logActivity("Aset {$file->original_name} dihapus");
+
+        return back()->with('success', 'Aset mockup berhasil dihapus.');
     }
 }

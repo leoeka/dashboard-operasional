@@ -4,8 +4,6 @@ use App\Models\Client;
 use App\Models\FinanceReminderLog;
 use App\Models\FinanceSubscription;
 use App\Models\Invoice;
-use App\Models\InvoiceItem;
-use App\Models\Payment;
 use App\Models\Project;
 use App\Models\User;
 use App\Services\Finance\ReminderPolicy;
@@ -101,17 +99,6 @@ function fdLog(Invoice $invoice, int $daysBefore, array $overrides = []): Financ
     ], $overrides));
 }
 
-function fdPayment(Invoice $invoice, array $overrides = []): Payment
-{
-    return Payment::create(array_merge([
-        'invoice_id' => $invoice->id,
-        'paid_on' => today(),
-        'amount' => $invoice->amount,
-        'method' => 'bank_transfer',
-        'reference' => 'TRX-0001',
-    ], $overrides));
-}
-
 afterEach(fn () => Carbon::setTestNow());
 
 // --------------------------------------------------------- invoice detail ---
@@ -198,22 +185,22 @@ it('lists the invoice items with quantity, unit price and total', function () {
     $client = fdClient();
     $invoice = fdInvoice(['client_id' => $client->id, 'amount' => 3000000]);
 
-    InvoiceItem::create([
-        'invoice_id' => $invoice->id,
-        'description' => 'Perpanjangan hosting 1 tahun',
-        'quantity' => 1,
-        'unit_price' => 2500000,
-        'total' => 2500000,
-        'position' => 1,
-    ]);
-    InvoiceItem::create([
-        'invoice_id' => $invoice->id,
-        'description' => 'Domain .co.id',
-        'quantity' => 2,
-        'unit_price' => 250000,
-        'total' => 500000,
-        'position' => 2,
-    ]);
+    $invoice->update(['items' => [
+        [
+            'description' => 'Perpanjangan hosting 1 tahun',
+            'quantity' => 1,
+            'unit_price' => 2500000,
+            'total' => 2500000,
+            'position' => 1,
+        ],
+        [
+            'description' => 'Domain .co.id',
+            'quantity' => 2,
+            'unit_price' => 250000,
+            'total' => 500000,
+            'position' => 2,
+        ],
+    ]]);
 
     $this->actingAs(fdUser())
         ->get(route('pages.finance.invoices.show', $invoice))
@@ -244,28 +231,7 @@ it('shows the money summary including discount and tax', function () {
         ->assertSee('2.900.000');
 });
 
-it('lists the payments recorded against the invoice', function () {
-    $client = fdClient();
-    $recorder = User::factory()->create(['name' => 'Rina Kasir']);
-    $invoice = fdInvoice(['client_id' => $client->id, 'status' => 'paid', 'paid_at' => today()]);
-
-    fdPayment($invoice, [
-        'method' => 'qris',
-        'reference' => 'QR-99887',
-        'recorded_by' => $recorder->id,
-        'notes' => 'Masuk lewat QRIS merchant',
-    ]);
-
-    $this->actingAs(fdUser())
-        ->get(route('pages.finance.invoices.show', $invoice))
-        ->assertOk()
-        ->assertSee('QRIS')
-        ->assertSee('QR-99887')
-        ->assertSee('Rina Kasir')
-        ->assertSee('Masuk lewat QRIS merchant');
-});
-
-it('raises the subject of payment nowhere on an invoice with no payment history', function () {
+it('raises the subject of payment nowhere on an invoice', function () {
     // Payment is settled outside the system now, so there is no empty table to
     // explain — the page simply does not bring it up.
     $invoice = fdInvoice(['client_id' => fdClient()->id]);
@@ -744,8 +710,7 @@ it('removes manual invoice creation along with payment recording', function () {
 
     $invoice = fdInvoice(['client_id' => fdClient()->id]);
 
-    expect($invoice->status)->toBe('unpaid')
-        ->and(Payment::count())->toBe(0);
+    expect($invoice->status)->toBe('unpaid');
 });
 
 // ------------------------------------------------- timeline day semantics ---
@@ -754,7 +719,7 @@ it('does not call a threshold missed on the very day it falls due', function () 
     // H-30 of a 2026-06-01 renewal is 2026-05-02. The daily run fires at 09:00
     // in the billing zone, so at any hour of that day the threshold has either
     // not run yet or has only just run — neither is a miss.
-    Carbon::setTestNow(Carbon::parse('2026-05-02 00:30:00', config('billing.timezone'))->utc());
+    Carbon::setTestNow(Carbon::parse('2026-05-02 00:30:00', config('finance.timezone'))->utc());
 
     $invoice = fdRenewalInvoice(fdSubscription(fdClient()));
 
@@ -766,7 +731,7 @@ it('does not call a threshold missed on the very day it falls due', function () 
 });
 
 it('reports a threshold that passed yesterday unrecorded, while it is still unpaid', function () {
-    Carbon::setTestNow(Carbon::parse('2026-05-03 10:00:00', config('billing.timezone'))->utc());
+    Carbon::setTestNow(Carbon::parse('2026-05-03 10:00:00', config('finance.timezone'))->utc());
 
     $invoice = fdRenewalInvoice(fdSubscription(fdClient()));
 
@@ -780,7 +745,7 @@ it('reports a threshold that passed yesterday unrecorded, while it is still unpa
 });
 
 it('keeps a threshold still to come as upcoming', function () {
-    Carbon::setTestNow(Carbon::parse('2026-05-01 10:00:00', config('billing.timezone'))->utc());
+    Carbon::setTestNow(Carbon::parse('2026-05-01 10:00:00', config('finance.timezone'))->utc());
 
     $invoice = fdRenewalInvoice(fdSubscription(fdClient()));
 
@@ -794,7 +759,7 @@ it('keeps a threshold still to come as upcoming', function () {
 it('does not flag the thresholds an early payment made unnecessary', function () {
     // The case from the spec: renewal 2026-06-01, H-30 sent, client pays on
     // 2026-05-15, so H-7 (25 May) and H-3 (29 May) are never claimed.
-    Carbon::setTestNow(Carbon::parse('2026-06-05 10:00:00', config('billing.timezone'))->utc());
+    Carbon::setTestNow(Carbon::parse('2026-06-05 10:00:00', config('finance.timezone'))->utc());
 
     $subscription = fdSubscription(fdClient());
     $invoice = fdRenewalInvoice($subscription);
@@ -815,7 +780,7 @@ it('does not flag the thresholds an early payment made unnecessary', function ()
 it('still reports a threshold that passed before the payment arrived', function () {
     // H-30 fell on 2026-05-02 with nothing recorded; the invoice was not paid
     // until 2026-05-15. The payment cannot explain the earlier silence.
-    Carbon::setTestNow(Carbon::parse('2026-06-05 10:00:00', config('billing.timezone'))->utc());
+    Carbon::setTestNow(Carbon::parse('2026-06-05 10:00:00', config('finance.timezone'))->utc());
 
     $subscription = fdSubscription(fdClient());
     $invoice = fdRenewalInvoice($subscription);
@@ -832,7 +797,7 @@ it('still reports a threshold that passed before the payment arrived', function 
 });
 
 it('treats a payment landing exactly on a threshold as settling it', function () {
-    Carbon::setTestNow(Carbon::parse('2026-06-05 10:00:00', config('billing.timezone'))->utc());
+    Carbon::setTestNow(Carbon::parse('2026-06-05 10:00:00', config('finance.timezone'))->utc());
 
     $subscription = fdSubscription(fdClient());
     $invoice = fdRenewalInvoice($subscription);
@@ -847,7 +812,7 @@ it('treats a payment landing exactly on a threshold as settling it', function ()
 });
 
 it('claims nothing about old thresholds when auto reminder is switched off', function () {
-    Carbon::setTestNow(Carbon::parse('2026-05-01 10:00:00', config('billing.timezone'))->utc());
+    Carbon::setTestNow(Carbon::parse('2026-05-01 10:00:00', config('finance.timezone'))->utc());
 
     $subscription = fdSubscription(fdClient(), ['auto_reminder' => false]);
     $invoice = fdRenewalInvoice($subscription);
@@ -863,7 +828,7 @@ it('claims nothing about old thresholds when auto reminder is switched off', fun
 });
 
 it('derives every day-semantics state without writing a row', function () {
-    Carbon::setTestNow(Carbon::parse('2026-05-02 10:00:00', config('billing.timezone'))->utc());
+    Carbon::setTestNow(Carbon::parse('2026-05-02 10:00:00', config('finance.timezone'))->utc());
 
     $subscription = fdSubscription(fdClient());
     $invoice = fdRenewalInvoice($subscription);
@@ -885,7 +850,7 @@ it('agrees on overdue across the UTC and billing day boundary', function () {
     $instant = Carbon::parse('2026-10-22 16:30:00', 'UTC');
     Carbon::setTestNow($instant);
 
-    expect($instant->copy()->setTimezone(config('billing.timezone'))->toDateString())->toBe('2026-10-23');
+    expect($instant->copy()->setTimezone(config('finance.timezone'))->toDateString())->toBe('2026-10-23');
 
     $invoice = fdInvoice([
         'client_id' => fdClient()->id,

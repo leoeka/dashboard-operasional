@@ -5,7 +5,6 @@ use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\AiWorkspaceController;
 use App\Http\Controllers\SeoBacklinkController;
 use App\Http\Controllers\SeoUrlAnalysisController;
-use App\Http\Controllers\PageController;
 use App\Http\Controllers\requestOrderController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ProfileController;
@@ -49,8 +48,6 @@ Route::middleware(['auth'])->group(function () {
     Route::put('/projects/{project}', [ProjectController::class, 'update'])->name('pages.projects.update');
     Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->name('pages.projects.destroy');
     Route::post('/projects/{project}/files', [ProjectController::class, 'storeFile'])->name('pages.projects.files.store');
-    // NOTE: destroyFile has no controller method yet (already missing
-    // before this route split — pre-existing, not caused by it).
     Route::delete('/projects/{project}/files/{file}', [ProjectController::class, 'destroyFile'])->name('pages.projects.files.destroy');
 
     // 5. AI Workspace
@@ -126,14 +123,22 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.keywords.select');
 
     // Mockup pipeline — gerbang tim di Workspace. Generate berat lewat antrean.
+    Route::get('/projects/{project}/mockup-status', [MockupCandidateController::class, 'status'])
+        ->name('pages.projects.mockup.status');
     Route::post('/projects/{project}/mockup-candidates', [MockupCandidateController::class, 'store'])
         ->name('pages.projects.mockup.store');
     Route::post('/projects/{project}/mockup-candidates/{candidate}/regenerate', [MockupCandidateController::class, 'regenerate'])
         ->name('pages.projects.mockup.regenerate');
+    Route::post('/projects/{project}/mockup-candidates/regenerate-all', [MockupCandidateController::class, 'regenerateAll'])
+        ->name('pages.projects.mockup.regenerate-all');
     Route::post('/projects/{project}/mockup-candidates/approve', [MockupCandidateController::class, 'approve'])
         ->name('pages.projects.mockup.approve');
     Route::get('/mockup-candidates/{candidate}/preview.png', [MockupCandidateController::class, 'preview'])
         ->name('pages.projects.mockup.preview');
+    Route::get('/mockup-candidates/{candidate}/preview-live', [MockupCandidateController::class, 'previewLive'])
+        ->name('pages.projects.mockup.preview-live');
+    Route::get('/mockup-candidates/{candidate}/pratinjau', [MockupCandidateController::class, 'previewSite'])
+        ->name('pages.projects.mockup.preview-site');
 
     // Proposal PDF untuk klien — dirakit dari tiga kandidat yang disetujui tim.
     Route::post('/projects/{project}/proposals', [ClientProposalController::class, 'store'])
@@ -184,8 +189,6 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
     Route::post('/logout', [ProfileController::class, 'logout'])->name('logout');
-
-    Route::resource('service-packages', \App\Http\Controllers\ServicePackageController::class)->except(['show']);
 
 });
 

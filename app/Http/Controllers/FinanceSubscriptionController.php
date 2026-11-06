@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Client;
 use App\Models\FinanceSubscription;
 use App\Models\Project;
-use App\Models\ServicePackage;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -78,7 +77,6 @@ class FinanceSubscriptionController extends Controller
                     fn ($query) => $query->where('client_id', $request->input('client_id'))
                 ),
             ],
-            'service_package_id' => ['nullable', 'exists:service_packages,id'],
             'name' => ['required', 'string', 'max:255'],
             'service_type' => ['required', Rule::in(FinanceSubscription::SERVICE_TYPES)],
             'description' => ['nullable', 'string'],
@@ -102,7 +100,6 @@ class FinanceSubscriptionController extends Controller
         return [
             'clients' => Client::orderBy('company_name')->get(['id', 'company_name']),
             'projects' => Project::orderBy('name')->get(['id', 'name', 'client_id']),
-            'packages' => ServicePackage::orderBy('name')->get(['id', 'name', 'category', 'price', 'unit']),
         ];
     }
 }

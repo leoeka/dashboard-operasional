@@ -20,7 +20,6 @@
     <form method="POST"
         action="{{ $editing ? route('pages.finance.subscriptions.update', $subscription) : route('pages.finance.subscriptions.store') }}"
         x-data="{
-            packages: {{ Js::from($packages->keyBy('id')) }},
             projects: {{ Js::from($projects->map->only(['id', 'name', 'client_id'])->values()) }},
             clientId: '{{ old('client_id', $subscription->client_id) }}',
             projectId: '{{ old('project_id', $subscription->project_id) }}',
@@ -43,14 +42,6 @@
                 if (!this.clientProjects.some(p => String(p.id) === String(this.projectId))) {
                     this.projectId = '';
                 }
-            },
-            applyPackage(id) {
-                const p = this.packages[id];
-                if (!p) return;
-                // A package is a template, never a binding: everything it fills
-                // in stays editable, and a subscription can be built without one.
-                if (!this.$refs.name.value) this.$refs.name.value = p.name;
-                if (!this.$refs.amount.value) this.$refs.amount.value = Math.round(p.price);
             }
         }">
         @csrf
@@ -74,22 +65,6 @@
                                 @foreach ($clients as $client)
                                     <option value="{{ $client->id }}" @selected(old('client_id', $subscription->client_id) == $client->id)>
                                         {{ $client->company_name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div class="sm:col-span-2">
-                            <label class="block text-xs text-slate-500 mb-1">Paket Layanan
-                                <span class="text-slate-500">(opsional, hanya untuk mengisi form)</span>
-                            </label>
-                            <select name="service_package_id" @change="applyPackage($event.target.value)"
-                                class="min-h-11 w-full bg-slate-50 text-slate-700 rounded-md px-3 py-2 text-sm outline-none">
-                                <option value="">-- Tanpa paket / custom --</option>
-                                @foreach ($packages as $package)
-                                    <option value="{{ $package->id }}" @selected(old('service_package_id', $subscription->service_package_id) == $package->id)>
-                                        {{ $package->name }} · Rp{{ number_format((float) $package->price, 0, ',', '.') }}
-                                        {{ $package->unit ? '/ ' . $package->unit : '' }}
                                     </option>
                                 @endforeach
                             </select>

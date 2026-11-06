@@ -16,6 +16,7 @@ return new class extends Migration {
             $table->string('invoice_number')->unique();
             $table->enum('type', ['dp', 'pelunasan', 'full'])->default('full');
             $table->decimal('amount', 15, 2);
+            $table->json('items')->nullable();
             $table->date('due_date');
             $table->enum('status', ['unpaid', 'paid'])->default('unpaid');
             $table->date('paid_at')->nullable();

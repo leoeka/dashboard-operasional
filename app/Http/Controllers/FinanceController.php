@@ -144,6 +144,9 @@ class FinanceController extends Controller
     {
         $today = $this->clock->today()->toDateString();
         $status = $request->query('status');
+        $cycle = $request->query('cycle');
+        $startDate = $request->query('start_date');
+        $endDate = $request->query('end_date');
 
         $invoices = Invoice::query()
             ->when($status === 'unpaid', fn ($q) => $q->where('status', 'unpaid'))
@@ -151,6 +154,14 @@ class FinanceController extends Controller
             // Same derivation as the summary card and the model.
             ->when($status === 'overdue', fn ($q) => $q->where('status', 'unpaid')->whereDate('due_date', '<', $today))
             ->when($request->filled('purpose'), fn ($q) => $q->where('purpose', $request->query('purpose')))
+            ->when($cycle === 'monthly', function ($q) {
+                $q->whereHas('subscription', fn ($s) => $s->where('billing_cycle', 'monthly'));
+            })
+            ->when($cycle === 'yearly', function ($q) {
+                $q->whereHas('subscription', fn ($s) => $s->where('billing_cycle', 'yearly'));
+            })
+            ->when($startDate, fn ($q) => $q->whereDate('due_date', '>=', $startDate))
+            ->when($endDate, fn ($q) => $q->whereDate('due_date', '<=', $endDate))
             ->when($request->filled('client'), function ($q) use ($request) {
                 $clientId = $request->query('client');
 
@@ -159,7 +170,7 @@ class FinanceController extends Controller
                 $q->where(fn ($inner) => $inner->where('client_id', $clientId)
                     ->orWhereHas('project', fn ($p) => $p->where('client_id', $clientId)));
             })
-            ->with(['project:id,name,client_id', 'project.client:id,company_name', 'client:id,company_name', 'subscription:id,name,service_type'])
+            ->with(['project:id,name,client_id', 'project.client:id,company_name', 'client:id,company_name', 'subscription:id,name,service_type,billing_cycle'])
             ->latest()
             ->paginate(15)
             ->withQueryString();

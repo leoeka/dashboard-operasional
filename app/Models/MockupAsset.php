@@ -6,11 +6,20 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
-class ProjectFile extends Model
+class MockupAsset extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['project_id', 'original_name', 'file_path', 'category'];
+    protected $table = 'mockup_assets';
+
+    protected $fillable = [
+        'project_id',
+        'category',
+        'original_name',
+        'file_path',
+        'file_size',
+        'mime_type',
+    ];
 
     public function project()
     {
@@ -28,16 +37,18 @@ class ProjectFile extends Model
     public static function categoryLabels(): array
     {
         return [
-            'logo' => 'Logo',
+            'logo' => 'Logo Klien',
             'company_profile' => 'Company Profile',
-            'foto' => 'Foto',
+            'foto' => 'Foto / Gambar',
             'dokumen' => 'Dokumen',
             'pendukung' => 'File Pendukung',
+            'referensi' => 'Referensi Desain',
         ];
     }
 
     public function categoryLabel(): string
     {
-        return self::categoryLabels()[$this->category] ?? 'Lainnya';
+        return self::categoryLabels()[$this->category] ?? ucfirst($this->category);
     }
 }
+

@@ -18,6 +18,45 @@ class Project extends Model
                 $project->code = strtoupper(\Illuminate\Support\Str::random(3)) . '-' . random_int(1000, 9999);
             }
         });
+
+        static::saved(function (Project $project) {
+            if ($project->wants_seo || !empty($project->attributes['seo_requirements'])) {
+                $raw = $project->attributes['seo_requirements'] ?? null;
+                $data = is_string($raw) ? json_decode($raw, true) : ($raw ?? []);
+                if (!empty($data)) {
+                    ProjectSeo::updateOrCreate(
+                        ['project_id' => $project->id],
+                        [
+                            'target_url' => $data['target_url'] ?? null,
+                            'location' => $data['location'] ?? null,
+                            'keywords' => is_array($data['keywords'] ?? null) ? implode(', ', $data['keywords']) : ($data['keywords'] ?? null),
+                            'competitors' => is_array($data['competitors'] ?? null) ? implode("\n", $data['competitors']) : ($data['competitors'] ?? null),
+                            'cms_platform' => $data['cms_platform'] ?? null,
+                            'data' => $data,
+                        ]
+                    );
+                }
+            }
+
+            if ($project->wants_backlink || !empty($project->attributes['backlink_requirements'])) {
+                $raw = $project->attributes['backlink_requirements'] ?? null;
+                $data = is_string($raw) ? json_decode($raw, true) : ($raw ?? []);
+                if (!empty($data)) {
+                    ProjectBacklink::updateOrCreate(
+                        ['project_id' => $project->id],
+                        [
+                            'target_url' => $data['target_url'] ?? null,
+                            'quantity' => isset($data['quantity']) ? (string) $data['quantity'] : null,
+                            'anchor_text' => is_array($data['anchor_text'] ?? null) ? implode(', ', $data['anchor_text']) : ($data['anchor_text'] ?? null),
+                            'niche' => $data['niche'] ?? null,
+                            'anchor_type' => $data['anchor_type'] ?? null,
+                            'priority' => $data['priority'] ?? null,
+                            'data' => $data,
+                        ]
+                    );
+                }
+            }
+        });
     }
 
     protected $fillable = [
@@ -55,14 +94,24 @@ class Project extends Model
         return $this->belongsTo(Client::class);
     }
 
-    public function tasks()
+    public function seo()
     {
-        return $this->hasMany(ProjectTask::class)->orderBy('position');
+        return $this->hasOne(ProjectSeo::class);
+    }
+
+    public function backlink()
+    {
+        return $this->hasOne(ProjectBacklink::class);
+    }
+
+    public function mockupAssets()
+    {
+        return $this->hasMany(MockupAsset::class)->latest();
     }
 
     public function files()
     {
-        return $this->hasMany(ProjectFile::class)->latest();
+        return $this->mockupAssets();
     }
 
     public function activityLogs()
@@ -83,6 +132,84 @@ class Project extends Model
     public function wpBuild()
     {
         return $this->hasOne(WpBuild::class)->latestOfMany();
+    }
+
+    public function getSeoRequirementsAttribute($value)
+    {
+        // Project belum tersimpan → tidak ada baris relasi untuk dibaca, jadi
+        // pakai nilai kolom langsung tanpa memicu query ke tabel.
+        $seo = !$this->exists
+            ? null
+            : ($this->relationLoaded('seo') ? $this->getRelation('seo') : $this->seo()->first());
+        if ($seo) {
+            $data = $seo->data ?? [];
+            if ($seo->target_url !== null) $data['target_url'] = $seo->target_url;
+            if ($seo->keywords !== null && !isset($data['keywords'])) $data['keywords'] = $seo->keywords;
+            if ($seo->location !== null && !isset($data['location'])) $data['location'] = $seo->location;
+            if ($seo->competitors !== null && !isset($data['competitors'])) $data['competitors'] = $seo->competitors;
+            if ($seo->cms_platform !== null && !isset($data['cms_platform'])) $data['cms_platform'] = $seo->cms_platform;
+            return $data;
+        }
+
+        return is_string($value) ? json_decode($value, true) : ($value ?? []);
+    }
+
+    public function setSeoRequirementsAttribute($value)
+    {
+        $data = is_string($value) ? json_decode($value, true) : ($value ?? []);
+        $this->attributes['seo_requirements'] = is_array($value) ? json_encode($value) : $value;
+
+        if ($this->exists && is_array($data) && !empty($data)) {
+            ProjectSeo::updateOrCreate(
+                ['project_id' => $this->id],
+                [
+                    'target_url' => $data['target_url'] ?? null,
+                    'location' => $data['location'] ?? null,
+                    'keywords' => is_array($data['keywords'] ?? null) ? implode(', ', $data['keywords']) : ($data['keywords'] ?? null),
+                    'competitors' => is_array($data['competitors'] ?? null) ? implode("\n", $data['competitors']) : ($data['competitors'] ?? null),
+                    'cms_platform' => $data['cms_platform'] ?? null,
+                    'data' => $data,
+                ]
+            );
+        }
+    }
+
+    public function getBacklinkRequirementsAttribute($value)
+    {
+        $bl = $this->relationLoaded('backlink') ? $this->getRelation('backlink') : $this->backlink()->first();
+        if ($bl) {
+            $data = $bl->data ?? [];
+            if ($bl->target_url !== null) $data['target_url'] = $bl->target_url;
+            if ($bl->quantity !== null && !isset($data['quantity'])) $data['quantity'] = is_numeric($bl->quantity) ? (int) $bl->quantity : $bl->quantity;
+            if ($bl->anchor_text !== null && !isset($data['anchor_text'])) $data['anchor_text'] = $bl->anchor_text;
+            if ($bl->niche !== null && !isset($data['niche'])) $data['niche'] = $bl->niche;
+            if ($bl->anchor_type !== null && !isset($data['anchor_type'])) $data['anchor_type'] = $bl->anchor_type;
+            if ($bl->priority !== null && !isset($data['priority'])) $data['priority'] = $bl->priority;
+            return $data;
+        }
+
+        return is_string($value) ? json_decode($value, true) : ($value ?? []);
+    }
+
+    public function setBacklinkRequirementsAttribute($value)
+    {
+        $data = is_string($value) ? json_decode($value, true) : ($value ?? []);
+        $this->attributes['backlink_requirements'] = is_array($value) ? json_encode($value) : $value;
+
+        if ($this->exists && is_array($data) && !empty($data)) {
+            ProjectBacklink::updateOrCreate(
+                ['project_id' => $this->id],
+                [
+                    'target_url' => $data['target_url'] ?? null,
+                    'quantity' => isset($data['quantity']) ? (string) $data['quantity'] : null,
+                    'anchor_text' => is_array($data['anchor_text'] ?? null) ? implode(', ', $data['anchor_text']) : ($data['anchor_text'] ?? null),
+                    'niche' => $data['niche'] ?? null,
+                    'anchor_type' => $data['anchor_type'] ?? null,
+                    'priority' => $data['priority'] ?? null,
+                    'data' => $data,
+                ]
+            );
+        }
     }
 
     public function statusColor(): string

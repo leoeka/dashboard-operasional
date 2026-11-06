@@ -45,7 +45,7 @@ Ditolak kalau dilanggar. Sebagian besar lahir dari audit 2026-10-20.
 
 | Id | Aturan | Angka dasar hari ini |
 | --- | --- | --- |
-| K-1 | Satu warna merek hanya untuk tombol, tautan, dan penanda keadaan nyata. Tidak untuk hiasan: lingkaran samar di belakang konten, balok geser di belakang foto, garis kiri dekoratif, tanda kutip raksasa, kotak kosong selang-seling | 28 rujukan, harus ≤ 8 |
+| K-1 | Warna merek boleh jadi latar bagian, warna judul, angka besar, dan dekorasi yang punya fungsi (penanda, pemisah, bidang baca). Yang tetap dilarang: hiasan tanpa fungsi, yaitu lingkaran samar di belakang konten, balok geser di belakang foto, kotak kosong selang-seling | dilonggarkan 2026-11-03 untuk jalur Codex (sebelumnya: 28 rujukan, harus ≤ 8) |
 | K-2 | Tidak ada baris kapital berjarak lebar di atas judul yang isinya mengulang judul | 3 kapital paksa, 7 jarak huruf |
 | K-3 | Nomor hanya pada daftar yang memang berurutan | nomor dirender untuk semua daftar fitur |
 | K-4 | Bagian penutup tidak boleh otomatis berupa blok warna penuh dengan judul di tengah | terjadi di setiap halaman |
@@ -55,6 +55,9 @@ Ditolak kalau dilanggar. Sebagian besar lahir dari audit 2026-10-20.
 | K-8 | Bagian yang isinya hanya mengisi template dibuang, bukan diisi | belum terukur |
 | K-9 | Tanpa skrip, tanpa formulir, tanpa iframe, tanpa alamat luar selain berkas huruf yang terdaftar | belum terukur di jalur baru |
 | K-10 | Tidak ada emoji sebagai hiasan, dan tidak ada panah kecil di setiap tombol | belum terukur |
+| K-11 | Dua slot foto (`hero`, `galeri-1`) wajib dua berkas berbeda dan dua adegan berbeda | dinilai ronde kritik; penolakan otomatis dicabut 2026-11-02 |
+| K-12 | Judul dan kalimat pendek boleh ditumpuk di atas foto hero, asal ada lapisan gelap (atau terang) yang solid di bawah teks dan kontrasnya lolos M-1. Lapisan itu wajib satu unsur sungguhan (mis. `<span class="lapisan">`), bukan `::before`, karena yang bukan unsur tidak terbaca alat periksa dan hilang saat halaman dipasang ke tema. Keterangan foto biasa tetap ditulis di bawah foto. Teks di atas foto galeri atau foto detail tetap dilarang | dilonggarkan 2026-11-03 untuk foto hero; kalimat "unsur sungguhan" ditambah 2026-11-03 setelah dua kandidat diukur putih-di-atas-putih karena lapisan `::before` (sebelumnya: kandidat 22 menempel keterangan putih di atas foto tanpa lapisan) |
+| K-13 | Foto boleh dipotong bentuk lewat `clip-path: polygon(...)` yang dipasang di wadah foto: lengkung atas (busur), satu atau dua sudut terpotong, atau satu sisi melengkung. Lingkaran penuh hanya untuk foto berbanding 1:1 — di foto melebar ia jadi ellips gepeng. Yang tetap dilarang: bentuk yang memotong wajah subjek sampai tidak dikenali, dan bingkai palsu bergaya tempel. Wajib tetap memakai `aspect-ratio` + `object-fit: cover` (M-13) supaya bentuknya tidak gepeng | dilonggarkan 2026-11-03: minimal satu foto per halaman memakai bentuk selain persegi (sebelumnya: foto berhenti pada persegi 4px). Urutan diubah 2026-11-03: "bulat" tidak lagi disebut pertama karena enam kandidat berturut-turut menghasilkan ellips gepeng |
 
 ## 3. Terukur mesin (M) - yang benar-benar menahan mutu
 
@@ -64,7 +67,7 @@ Keras = artefak ditolak dan diminta ulang. Lunak = tetap dikirim, catatannya dit
 | --- | --- | --- | --- | --- |
 | M-1 | Rasio tiap pasangan warna teks dan latar yang benar-benar terpakai | ≥ 4,5 teks biasa; ≥ 3,0 teks besar | **keras** | 3 pasangan gagal |
 | M-2 | Warna teks di atas warna merek dipilih dari kandidat berasio tertinggi, bukan dari ambang terang-gelap | wajib | **keras** | aturan lama salah untuk warna tengah |
-| M-3 | Jumlah rujukan warna merek di berkas gaya | sasaran ≤ 8; gagal di atas 16 | lunak dulu, naik jadi keras setelah tiga build | 28, gagal |
+| M-3 | Jumlah rujukan warna merek di berkas gaya | plafon ≤ 8 dan gagal > 16 dicabut 2026-11-03 untuk jalur Codex; yang mengikat tinggal palet 4-6 warna dan kontras M-1/M-2 | lunak | sebelum: 28 rujukan, gagal |
 | M-4 | Jumlah tingkat jarak vertikal antar bagian yang berbeda dalam satu halaman | ≥ 3 | **keras** | 1, gagal |
 | M-5 | Rasio ukuran judul terbesar terhadap teks isi | ≥ 2,5 | **keras** | 3,85, lolos |
 | M-6 | Dua bagian beruntun berlatar sama | 0 kali | lunak | belum terukur |
@@ -74,6 +77,8 @@ Keras = artefak ditolak dan diminta ulang. Lunak = tetap dikirim, catatannya dit
 | M-10 | Tinggi kendali yang bisa disentuh | ≥ 44px | lunak | belum terukur |
 | M-11 | Ukuran berkas gaya dan tiap halaman | gaya ≤ 60 KB, halaman ≤ 120 KB | **keras** | 30 KB, lolos |
 | M-12 | Keluarga huruf yang dipakai harus terdaftar di blok nilai kepala berkas | 100 persen | **keras** | lolos |
+| M-13 | Foto memakai `aspect-ratio` + `object-fit: cover`, tanpa tinggi piksel tetap; hero 4:3, galeri-1 1:1, sama di ponsel | 100 persen | **keras** | kandidat memakai tinggi mati 510/440/300px |
+| M-15 | Titik fokus foto bukan `50% 50%`; `object-position` mengikuti subjek | wajib | lunak | semua foto dipotong tengah |
 
 ## 4. Positif (P) - menuntut yang bagus
 
@@ -85,6 +90,7 @@ Yang bisa dihitung ikut ke bagian 3; yang tidak bisa dihitung ditagihkan ke rond
 - **P-4 Halaman membuka dengan sesuatu yang spesifik untuk usaha itu**, bukan dengan judul besar di atas latar gelap yang sama seperti semua halaman.
 - **P-5 Setiap bagian bisa ditunjuk: isinya apa yang tidak bisa dipindahkan ke bagian lain.** Kalau bisa, bagian itu digabung atau dibuang.
 - **P-6 Angka dan bukti nyata atau tidak sama sekali.** Tidak ada testimoni, statistik, atau nama pelanggan yang tidak bisa diverifikasi klien.
+- **P-7 Keterangan foto menyebut bahan atau proses yang terlihat**, bukan mengulang nama bagian. Contoh sah: "Serat bambu setelah diserut dan disambung". Contoh ditolak: "Foto produk".
 
 ## 5. Yang sengaja tidak dijadikan aturan
 

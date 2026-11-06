@@ -26,8 +26,8 @@ class InvoiceController extends Controller
      * no method, no row in `payments`. Nominal is the dangerous thing to type
      * by hand, and the invoice already carries the amount it asked for.
      *
-     * The date is compared through BillingClock, not today(). The app runs on
-     * UTC while the business runs on config('billing.timezone'), so a WIB
+     * The date is compared through FinanceClock, not today(). The app runs on
+     * UTC while the business runs on config('finance.timezone'), so a WIB
      * operator at 03.00 on the 18th would have had "the 18th" rejected as a
      * future date by a UTC check.
      *
