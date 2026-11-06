@@ -94,6 +94,10 @@ Route::middleware(['auth'])->group(function () {
         ->name('pages.projects.content-extractability.analyze');
     Route::get('/projects/{project}/content-extractability/status', [SeoBacklinkController::class, 'contentExtractabilityStatus'])
         ->name('pages.projects.content-extractability.status');
+    Route::post('/projects/{project}/aeo/analyze', [SeoBacklinkController::class, 'analyzeAeo'])
+        ->name('pages.projects.aeo.analyze');
+    Route::get('/projects/{project}/aeo/status', [SeoBacklinkController::class, 'aeoStatus'])
+        ->name('pages.projects.aeo.status');
     Route::get('/projects/{project}/seo-sxo-geo/report/download', [SeoBacklinkController::class, 'downloadSeoSxoGeoReport'])
         ->name('pages.projects.seo-sxo-geo.report.download');
     Route::post('/projects/{project}/search-console/analyze', [SeoBacklinkController::class, 'analyzeSearchConsole'])

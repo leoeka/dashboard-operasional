@@ -32,6 +32,9 @@ return [
             'extractability' => 0.22,    // konten terstruktur untuk dikutip AI (penilaian Gemini)
             'llms_txt' => 0.10,          // ada /llms.txt?
         ],
+        'aeo' => [
+            'answer_readiness' => 1.0,   // jawaban langsung, FAQ, sumber, dan kebaruan konten
+        ],
     ],
 
     // Ambang label status untuk nilai akhir tiap lapis.

@@ -6,6 +6,7 @@
         'seo' => 'Ditemukan di hasil Google — teknis & on-page.',
         'sxo' => 'Pengunjung dari pencarian puas & menyelesaikan tujuannya.',
         'geo' => 'Siap dibaca & dikutip mesin jawaban AI.',
+        'aeo' => 'Konten terstruktur untuk menjawab pertanyaan secara langsung.',
     ];
     $fmtPct = fn ($v) => $v === null ? '-' : round($v * 100, 1) . '%';
 @endphp
@@ -13,7 +14,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Laporan SEO / SXO / GEO - {{ $project->client_name }}</title>
+<title>Laporan SEO / SXO / GEO / AEO - {{ $project->client_name }}</title>
 <style>
     @page { margin: 32px 34px 40px; }
     body { font-family: Helvetica, Arial, sans-serif; color: #2f3945; font-size: 11px; line-height: 1.6; margin: 0; }
@@ -24,7 +25,7 @@
     .muted { color: #6b7280; }
     .head-meta { color: #6b7280; font-size: 10px; margin-top: 2px; }
     table { border-collapse: collapse; width: 100%; }
-    .scorecards td { width: 33.33%; vertical-align: top; padding: 0 6px; }
+    .scorecards td { width: 25%; vertical-align: top; padding: 0 5px; }
     .scorecards td:first-child { padding-left: 0; }
     .scorecards td:last-child { padding-right: 0; }
     .card { border: 1px solid #d7dbe2; border-radius: 6px; padding: 12px 14px; }
@@ -45,7 +46,7 @@
 </head>
 <body>
 
-<h1>Laporan SEO / SXO / GEO</h1>
+<h1>Laporan SEO / SXO / GEO / AEO</h1>
 <div class="head-meta">
     {{ $project->client_name }} &middot; Proyek {{ $project->code }}
     @php $url = $project->seo_requirements['target_url'] ?? $project->backlink_requirements['target_url'] ?? null; @endphp
@@ -59,7 +60,7 @@
 
 <table class="scorecards" style="margin-top:16px">
     <tr>
-        @foreach (['seo' => 'SEO', 'sxo' => 'SXO', 'geo' => 'GEO'] as $key => $name)
+        @foreach (['seo' => 'SEO', 'sxo' => 'SXO', 'geo' => 'GEO', 'aeo' => 'AEO'] as $key => $name)
             @php $s = $scores[$key]; $st = $s['status']; @endphp
             <td>
                 <div class="card">
@@ -241,6 +242,27 @@
     </table>
 @else
     <p class="empty">Penilaian extractability konten (AI) belum dijalankan.</p>
+@endif
+
+{{-- ---------- AEO ---------- --}}
+<h2>AEO (Answer Engine Optimization)</h2>
+@include('pdf.partials.seo-sxo-geo-parts', ['parts' => $scores['aeo']['parts']])
+
+@if ($aeo)
+    <h3>Kesiapan menjawab pertanyaan ({{ $aeo['summary']['pages_checked'] }} halaman &middot; skor rata-rata {{ $aeo['summary']['avg_score'] ?? '-' }})</h3>
+    <p class="muted">{{ $aeo['recommendation'] }}</p>
+    <table class="data-table" style="margin-top:6px">
+        <tr><th>Halaman</th><th class="num">Skor</th><th>Pemeriksaan yang perlu ditindaklanjuti</th></tr>
+        @foreach ($aeo['pages'] as $p)
+            <tr>
+                <td>{{ $p['url'] }}</td>
+                <td class="num">{{ $p['score'] ?? '-' }}</td>
+                <td class="note">{{ $p['status'] === 'ok' ? (implode(' · ', $p['issues']) ?: '—') : 'gagal diambil' }}</td>
+            </tr>
+        @endforeach
+    </table>
+@else
+    <p class="empty">Audit AEO belum dijalankan.</p>
 @endif
 
 <div class="foot">

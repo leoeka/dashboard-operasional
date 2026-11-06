@@ -60,10 +60,31 @@ class AnalyzeCtrGapJob implements ShouldQueue
             return;
         }
 
-        $rows = $console->getTopQueries($url);
+        // Prefer the report already fetched through the Search Console step.
+        // That report is the project's linked data and avoids a second OAuth/API
+        // request when the connection has already succeeded.
+        $storedRows = $this->project->seo_requirements['search_console']['top_queries'] ?? [];
+        $rows = collect($storedRows)
+            ->filter(fn ($row) => is_array($row))
+            ->map(fn ($row) => [
+                'keyword' => $row['keyword'] ?? ($row['keys'][0] ?? null),
+                'clicks' => (int) ($row['clicks'] ?? 0),
+                'impressions' => (int) ($row['impressions'] ?? 0),
+                'ctr' => isset($row['ctr']) ? (float) $row['ctr'] : 0.0,
+                'position' => isset($row['position']) ? (float) $row['position'] : 0.0,
+            ])
+            ->filter(fn ($row) => filled($row['keyword']))
+            ->values()
+            ->all();
+
+        if ($rows !== []) {
+            $this->report('running', 45, 'Menggunakan data Search Console yang sudah terhubung...');
+        } else {
+            $rows = $console->getTopQueries($url);
+        }
 
         if ($rows === []) {
-            $this->report('failed', 0, 'Belum ada data Search Console untuk situs ini — situs baru / belum terindeks / belum terverifikasi di akun kantor.');
+            $this->report('failed', 0, 'Data query Search Console belum tersedia. Jalankan Laporan traffic > Search Console, pastikan refresh token memiliki scope webmasters.readonly dan akun kantor punya akses ke property situs ini.');
             return;
         }
 

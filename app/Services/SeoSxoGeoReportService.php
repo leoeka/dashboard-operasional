@@ -28,6 +28,9 @@ class SeoSxoGeoReportService
         $onpage = is_array($seo['onpage_audit'] ?? null) ? $seo['onpage_audit'] : null;
         $technical = is_array($seo['technical_seo'] ?? null) ? $seo['technical_seo'] : null;
         $extract = is_array($seo['content_extractability'] ?? null) ? $seo['content_extractability'] : null;
+        $aeo = is_array($seo['aeo_audit'] ?? null) && (int) ($seo['aeo_audit']['schema_version'] ?? 0) >= 2
+            ? $seo['aeo_audit']
+            : null;
         $byLandingPage = $seo['google_analytics']['by_landing_page'] ?? [];
         $scorecard = !empty($byLandingPage) ? $this->sxoScorecard->build($byLandingPage) : null;
 
@@ -38,6 +41,7 @@ class SeoSxoGeoReportService
                 'seo' => $this->seoScore($pagespeed, $structured, $onpage, $technical),
                 'sxo' => $this->sxoScore($pagespeed, $ctr, $scorecard),
                 'geo' => $this->geoScore($crawler, $structured, $extract),
+                'aeo' => $this->aeoScore($aeo),
             ],
             'pagespeed' => $pagespeed,
             'structured' => $structured,
@@ -46,9 +50,10 @@ class SeoSxoGeoReportService
             'onpage' => $onpage,
             'technical' => $technical,
             'extract' => $extract,
+            'aeo' => $aeo,
             'scorecard' => $scorecard,
-            'actions' => $this->actionList($pagespeed, $structured, $crawler, $ctr, $scorecard, $onpage, $technical, $extract),
-            'analysedNothing' => !$pagespeed && !$structured && !$crawler && !$ctr && !$scorecard && !$onpage && !$technical && !$extract,
+            'actions' => $this->actionList($pagespeed, $structured, $crawler, $ctr, $scorecard, $onpage, $technical, $extract, $aeo),
+            'analysedNothing' => !$pagespeed && !$structured && !$crawler && !$ctr && !$scorecard && !$onpage && !$technical && !$extract && !$aeo,
         ];
     }
 
@@ -111,6 +116,16 @@ class SeoSxoGeoReportService
         }
         if ($extract !== null) {
             $parts[] = $this->part('Konten mudah dikutip AI', $extract['summary']['avg_score'] ?? null, $w['extractability']);
+        }
+
+        return $this->rollUp($parts);
+    }
+
+    private function aeoScore(?array $aeo): array
+    {
+        $parts = [];
+        if ($aeo !== null) {
+            $parts[] = $this->part('Kesiapan jawaban langsung', $aeo['summary']['avg_score'] ?? null, config('seo_scoring.weights.aeo.answer_readiness'));
         }
 
         return $this->rollUp($parts);
@@ -197,7 +212,7 @@ class SeoSxoGeoReportService
     // ---- daftar perbaikan prioritas ------------------------------------
 
     /** @return list<array{text:string,layer:string,impact:int}> */
-    private function actionList(?array $pagespeed, ?array $structured, ?array $crawler, ?array $ctr, ?array $scorecard, ?array $onpage = null, ?array $technical = null, ?array $extract = null): array
+    private function actionList(?array $pagespeed, ?array $structured, ?array $crawler, ?array $ctr, ?array $scorecard, ?array $onpage = null, ?array $technical = null, ?array $extract = null, ?array $aeo = null): array
     {
         $actions = [];
         $add = function (string $layer, string $text, int|float $impact) use (&$actions) {
@@ -292,6 +307,15 @@ class SeoSxoGeoReportService
             }
             foreach (array_slice($page['suggestions'] ?? [], 0, 2) as $s) {
                 $add('GEO', "Konten {$page['url']}: {$s}", max(20, 60 - (int) ($page['score'] ?? 0) / 2));
+            }
+        }
+
+        foreach ($aeo['pages'] ?? [] as $page) {
+            if (($page['status'] ?? '') !== 'ok') {
+                continue;
+            }
+            foreach (array_slice($page['issues'] ?? [], 0, 3) as $issue) {
+                $add('AEO', "Konten {$page['url']}: {$issue}", max(20, 70 - (int) ($page['score'] ?? 0) / 2));
             }
         }
 

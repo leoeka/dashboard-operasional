@@ -28,7 +28,9 @@ class SearchConsoleService
             return null;
         }
 
-        return Cache::remember('gsc_access_token', now()->addMinutes(50), function () use ($refreshToken, $clientId, $clientSecret) {
+        $tokenCacheKey = 'gsc_access_token:' . hash('sha256', $clientId . '|' . $refreshToken);
+
+        return Cache::remember($tokenCacheKey, now()->addMinutes(50), function () use ($refreshToken, $clientId, $clientSecret) {
             try {
                 $response = Http::asForm()->timeout(15)->post('https://oauth2.googleapis.com/token', [
                     'client_id' => $clientId,

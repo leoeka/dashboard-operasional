@@ -241,6 +241,16 @@ class SeoBacklinkController extends Controller
         return $this->seoJobStatus($project, \App\Jobs\AnalyzeContentExtractabilityJob::class);
     }
 
+    public function analyzeAeo(Project $project)
+    {
+        return $this->dispatchSeoJob($project, \App\Jobs\AnalyzeAeoJob::class);
+    }
+
+    public function aeoStatus(Project $project)
+    {
+        return $this->seoJobStatus($project, \App\Jobs\AnalyzeAeoJob::class);
+    }
+
     /** @param class-string $jobClass */
     private function dispatchSeoJob(Project $project, string $jobClass)
     {
@@ -633,7 +643,7 @@ class SeoBacklinkController extends Controller
         $pdf = Pdf::loadView('pdf.seo-sxo-geo-report', $data);
         $clientSlug = Str::slug($project->client_name);
 
-        return $pdf->download("Laporan-SEO-SXO-GEO-{$clientSlug}-{$project->code}.pdf");
+        return $pdf->download("Laporan-SEO-SXO-GEO-AEO-{$clientSlug}-{$project->code}.pdf");
     }
 
     public function competitorPageSpeedStatus(Project $project)

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Jobs\AnalyzeAiCrawlerAccessJob;
+use App\Jobs\AnalyzeAeoJob;
 use App\Jobs\AnalyzeContentExtractabilityJob;
 use App\Jobs\AnalyzeOnPageJob;
 use App\Jobs\AnalyzePageSpeedJob;
@@ -54,7 +55,7 @@ class SeoUrlAnalysisController extends Controller
         });
 
         if (!$project) {
-            $client = Client::get()->first(fn (Client $candidate) =>
+            $client = Client::query()->get()->first(fn ($candidate) =>
                 filled($candidate->website) && $this->normalizedHost($candidate->website) === $host
             );
 
@@ -100,6 +101,7 @@ class SeoUrlAnalysisController extends Controller
             AnalyzeOnPageJob::class,
             AnalyzeTechnicalSeoJob::class,
             AnalyzeContentExtractabilityJob::class,
+            AnalyzeAeoJob::class,
         ];
 
         foreach ($jobs as $jobClass) {

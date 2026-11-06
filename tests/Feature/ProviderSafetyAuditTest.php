@@ -100,7 +100,7 @@ it('sanitises Gemini helper exceptions', function () {
 
 it('does not let Google property discovery propagate raw transport errors', function (string $provider) {
     Http::fake(fn () => throw new RuntimeException('Connection failed; token=audit-private-value'));
-    Cache::put('gsc_access_token', 'fake-access-token');
+    Cache::put('gsc_access_token:' . hash('sha256', 'id|refresh'), 'fake-access-token');
     config(['services.google_ads.client_id' => 'id', 'services.google_ads.client_secret' => 'secret',
         'services.google_search_console.refresh_token' => 'refresh']);
     try {

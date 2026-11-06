@@ -1,9 +1,9 @@
 @extends('layouts.app')
-@section('title', 'Analisa SEO / SXO / GEO')
+@section('title', 'Analisa SEO / SXO / GEO / AEO')
 
 @section('content')
     <div class="max-w-3xl mx-auto">
-        <x-page-header title="Analisa SEO / SXO / GEO" />
+        <x-page-header title="Analisa SEO / SXO / GEO / AEO" />
 
         <x-card class="mt-5">
             <div class="mb-6">
@@ -13,7 +13,7 @@
                 <h2 class="text-lg font-bold text-slate-800">Analisa website client dari URL</h2>
                 <p class="mt-2 text-sm text-slate-600">
                     Masukkan URL website publik. Sistem akan membuat atau mencocokkan project berdasarkan domain,
-                    menjalankan pemeriksaan SEO teknis/on-page, SXO berbasis performa, dan GEO, lalu menyimpan hasilnya di Workspace.
+                    menjalankan pemeriksaan SEO teknis/on-page, SXO berbasis performa, GEO, dan kesiapan Answer Engine (AEO), lalu menyimpan hasilnya di Workspace.
                 </p>
             </div>
 
