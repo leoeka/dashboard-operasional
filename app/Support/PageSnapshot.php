@@ -66,6 +66,38 @@ class PageSnapshot
     }
 
     /**
+     * Potret satu situs luar ukuran penuh, dipakai sebagai gambar acuan waktu
+     * klien cuma mengirim tautan. Codex tidak punya akses internet, jadi
+     * tautan harus jadi berkas gambar lebih dulu.
+     */
+    public function captureUrl(string $url, string $outputPath): string
+    {
+        $dir = dirname($outputPath);
+
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+
+        try {
+            Browsershot::url($url)
+                ->windowSize(self::WIDTH, self::HEIGHT)
+                ->waitUntilNetworkIdle()
+                ->fullPage()
+                ->noSandbox()
+                ->timeout(90)
+                ->save($outputPath);
+        } catch (Throwable $e) {
+            throw new RuntimeException('Gagal memotret situs: ' . mb_substr($e->getMessage(), 0, 200), 0, $e);
+        }
+
+        if (!is_file($outputPath)) {
+            throw new RuntimeException('Gagal memotret situs: Chromium tidak menulis berkas gambar.');
+        }
+
+        return $outputPath;
+    }
+
+    /**
      * Tukar tiap penanda foto dengan nama berkas nyata di folder yang sama.
      * Slot tanpa berkas dibiarkan apa adanya supaya tidak diam-diam hilang.
      */

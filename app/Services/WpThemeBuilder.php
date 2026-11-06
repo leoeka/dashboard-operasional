@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Client;
 use App\Models\Project;
 use App\Models\WpBuild;
+use App\Support\MockupCodexText;
 use App\Support\MockupWorkspace;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -71,9 +72,9 @@ class WpThemeBuilder
             throw new RuntimeException('Berkas index.html tidak ditemukan pada folder kandidat: ' . $candidate->folder);
         }
 
-        $html = file_get_contents($indexHtmlPath);
+        $html = MockupCodexText::baca($indexHtmlPath);
 
-        if ($html === false || trim($html) === '') {
+        if (trim($html) === '') {
             throw new RuntimeException('Berkas index.html pada kandidat kosong atau tidak dapat dibaca.');
         }
 
@@ -354,9 +355,9 @@ class WpThemeBuilder
                 continue;
             }
 
-            $raw = file_get_contents($file);
+            $raw = MockupCodexText::baca($file);
 
-            if ($raw === false || trim($raw) === '') {
+            if (trim($raw) === '') {
                 continue;
             }
 

@@ -2,6 +2,9 @@
 
 namespace App\Services;
 
+use App\Support\MockupCodexText;
+use Illuminate\Support\Facades\Log;
+
 /**
  * Penyalin foto jalur Codex. Model hanya mencatat jalur berkas; kelas ini
  * yang menyalin, memeriksa keutuhan PNG, dan mengambil dari cache Codex
@@ -82,6 +85,9 @@ class MockupCodexPhotos
 
                 if ($this->salin($cache[$i], $target)) {
                     $found[$slot] = $target;
+
+                    // Slot tanpa catatan manifest: kegagalan baca tidak boleh tertutup diam-diam.
+                    Log::info('Foto kandidat dipulihkan dari cache Codex', ['slot' => $slot, 'kandidat' => $candidateDir]);
                 }
             }
         }
@@ -104,7 +110,7 @@ class MockupCodexPhotos
      */
     private function hashRancangan(string $berkas, string $candidateDir): array
     {
-        $isi = is_file($berkas) ? (string) file_get_contents($berkas) : '';
+        $isi = MockupCodexText::baca($berkas);
 
         if (!preg_match('/^\s*design\s*[:=]\s*(.+?)\s*$/im', $isi, $cocok)) {
             return [];
@@ -169,13 +175,9 @@ class MockupCodexPhotos
      */
     private function bacaManifest(string $path): array
     {
-        if (!is_file($path)) {
-            return [];
-        }
-
         $hasil = [];
 
-        foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $baris) {
+        foreach (explode("\n", MockupCodexText::baca($path)) as $baris) {
             if (!preg_match('/^\s*([a-z0-9][a-z0-9-]*)\s*[:=]\s*(.+?)\s*$/i', $baris, $cocok)) {
                 continue;
             }

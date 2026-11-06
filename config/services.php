@@ -73,6 +73,16 @@ return [
     ],
 
     'mockup' => [
+        'openai' => [
+            'model' => env('OPENAI_MOCKUP_MODEL', 'gpt-6-astra'),
+            'image_model' => env('OPENAI_MOCKUP_IMAGE_MODEL', 'gpt-image-2.5-sunburst'),
+            'timeout' => (int) env('OPENAI_MOCKUP_TIMEOUT', 2100),
+            'max_output_tokens' => (int) env('OPENAI_MOCKUP_MAX_OUTPUT_TOKENS', 50000),
+            'max_input_image_bytes' => (int) env('OPENAI_MOCKUP_MAX_INPUT_IMAGE_BYTES', 12000000),
+            'max_generated_image_bytes' => (int) env('OPENAI_MOCKUP_MAX_GENERATED_IMAGE_BYTES', 20000000),
+        ],
+        'base' => env('MOCKUP_BASE'),
+        'work' => env('MOCKUP_WORK'),
         'codex' => [
             // Jalur penuh, jangan bergantung pada PATH milik proses web.
             'node' => env('MOCKUP_CODEX_NODE', 'node'),

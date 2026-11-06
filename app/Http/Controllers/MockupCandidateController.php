@@ -5,8 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\ClientProposal;
 use App\Models\MockupCandidate;
 use App\Models\Project;
-use App\Support\MockupCodexLauncher;
 use App\Support\MockupCodexState;
+use App\Support\MockupOpenAiLauncher;
+use App\Support\MockupCodexText;
 use App\Support\MockupGate;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -20,13 +21,13 @@ use App\Support\PageSnapshot;
  * Gerbang tim untuk kandidat mockup: memicu tiga kandidat pertama,
  * membuat ulang satu atau beberapa kandidat, menyetujui yang siap, dan
  * menyajikan gambar pratinjau. Pembuatan kandidat selalu dilepas sebagai
- * proses Codex di latar, tidak pernah dikerjakan di dalam request web.
+ * proses OpenAI di latar, tidak pernah dikerjakan di dalam request web.
  */
 class MockupCandidateController extends Controller
 {
     public function __construct(
         private MockupGate $gate,
-        private MockupCodexLauncher $codex,
+        private MockupOpenAiLauncher $openAi,
         private MockupCodexState $codexState,
     ) {
     }
@@ -61,8 +62,8 @@ class MockupCandidateController extends Controller
 
         $this->tulisPesanan($project, null);
 
-        if (!$this->codex->launch($project)) {
-            $pesan = $this->codexState->masalahMesin() ?: 'Runner Codex tidak bisa dilepas.';
+        if (!$this->openAi->launch($project)) {
+            $pesan = $this->openAi->masalahMesin() ?: 'Runner OpenAI tidak bisa dilepas.';
             $batch->each(fn (MockupCandidate $candidate) => $candidate->update(['failure_reason' => $pesan]));
 
             if ($request->expectsJson()) {
@@ -72,7 +73,7 @@ class MockupCandidateController extends Controller
             return back()->with('error', $pesan);
         }
 
-        $pesan = 'Tiga kandidat sedang dibuat lewat Codex. Proses berjalan di latar, halaman ini boleh ditutup.';
+        $pesan = 'Tiga kandidat sedang dibuat melalui OpenAI. Proses berjalan di latar, halaman ini boleh ditutup.';
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'message' => $pesan]);
@@ -140,8 +141,8 @@ class MockupCandidateController extends Controller
 
         $this->tulisPesanan($project, $candidate->candidate_number);
 
-        if (!$this->codex->launch($project, $candidate->candidate_number)) {
-            $pesan = $this->codexState->masalahMesin() ?: 'Runner Codex tidak bisa dilepas.';
+        if (!$this->openAi->launch($project, $candidate->candidate_number)) {
+            $pesan = $this->openAi->masalahMesin() ?: 'Runner OpenAI tidak bisa dilepas.';
             $replacement->update(['failure_reason' => $pesan]);
 
             if ($request->expectsJson()) {
@@ -151,7 +152,7 @@ class MockupCandidateController extends Controller
             return back()->with('error', $pesan);
         }
 
-        $pesan = 'Kandidat ' . $candidate->candidate_number . ' sedang dibuat ulang lewat Codex. Proses berjalan di latar.';
+        $pesan = 'Kandidat ' . $candidate->candidate_number . ' sedang dibuat ulang melalui OpenAI. Proses berjalan di latar.';
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'message' => $pesan]);
@@ -223,8 +224,8 @@ class MockupCandidateController extends Controller
 
         $this->tulisPesanan($project, null);
 
-        if (!$this->codex->launch($project)) {
-            $pesan = $this->codexState->masalahMesin() ?: 'Runner Codex tidak bisa dilepas.';
+        if (!$this->openAi->launch($project)) {
+            $pesan = $this->openAi->masalahMesin() ?: 'Runner OpenAI tidak bisa dilepas.';
             $pengganti->each(fn (MockupCandidate $c) => $c->update(['failure_reason' => $pesan]));
 
             if ($request->expectsJson()) {
@@ -234,7 +235,7 @@ class MockupCandidateController extends Controller
             return back()->with('error', $pesan);
         }
 
-        $pesan = $nomor->count() . ' kandidat sedang dibuat ulang lewat Codex. Kandidat yang sudah siap tidak disentuh.';
+        $pesan = $nomor->count() . ' kandidat sedang dibuat ulang melalui OpenAI. Kandidat yang sudah siap tidak disentuh.';
 
         if ($request->expectsJson()) {
             return response()->json(['success' => true, 'message' => $pesan]);
@@ -307,7 +308,7 @@ class MockupCandidateController extends Controller
         $dir = (new MockupWorkspace())->candidatePath($candidate);
 
         $html = $this->rewritePageLinks(
-            $this->inlinePhotos((string) file_get_contents($pages[$slug]['path']), $dir),
+            $this->inlinePhotos(MockupCodexText::baca($pages[$slug]['path']), $dir),
             $pages,
             $candidate
         );

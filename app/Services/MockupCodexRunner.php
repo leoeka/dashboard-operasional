@@ -4,7 +4,10 @@ namespace App\Services;
 
 use App\Models\MockupCandidate;
 use App\Models\Project;
+use App\Support\MockupCodexAssets;
+use App\Support\MockupCodexReference;
 use App\Support\MockupCodexState;
+use App\Support\MockupCodexText;
 use App\Support\MockupGate;
 use App\Support\MockupWorkspace;
 use App\Support\PageSnapshot;
@@ -43,6 +46,8 @@ class MockupCodexRunner
         private MockupGate $gate,
         private MockupCodexPhotos $photos,
         private PageSnapshot $snapshot,
+        private MockupCodexAssets $aset,
+        private MockupCodexReference $acuan,
     ) {
     }
 
@@ -183,6 +188,7 @@ class MockupCodexRunner
         try {
             $this->updateProgress($candidate, 15, 'Menyiapkan brief kandidat ' . $nomor);
             $this->tulisBrief($project, $candidate, $kerja, $dir);
+            $this->aset->letakan($project, $kerja);
             @unlink($kerja . '/foto-slot.txt');
 
             $mulai = now();
@@ -253,7 +259,20 @@ class MockupCodexRunner
             ->values()
             ->all();
 
-        $brief = MockupCodexBrief::build($project, $candidate, 3, $lain);
+        // Acuan yang rusak bukan alasan kandidat gagal dikerjakan: tanpa
+        // acuan Codex kembali ke arah desain biasa, jadi cukup dicatat.
+        try {
+            $acuan = $this->acuan->letakan($project, $kerja);
+        } catch (Throwable $e) {
+            Log::warning('Acuan desain tidak bisa disiapkan', [
+                'project' => $project->id,
+                'sebab' => $e->getMessage(),
+            ]);
+
+            $acuan = null;
+        }
+
+        $brief = MockupCodexBrief::build($project, $candidate, 3, $lain, $acuan);
 
         if (file_put_contents($kerja . '/brief.txt', $brief) === false) {
             throw new RuntimeException('Brief kandidat tidak bisa ditulis.');
@@ -504,7 +523,11 @@ class MockupCodexRunner
             $perintah[] = $model;
         }
 
-        $perintah[] = 'Baca berkas brief.txt di folder kerja ini, lalu kerjakan seluruh isinya sampai selesai. Jangan bertanya.';
+        // Daftar bahan klien hanya ditulis kalau proyek memang punya aset,
+        // jadi kandidat untuk proyek tanpa aset jalannya persis seperti dulu.
+        $baca = is_file($dir . '/aset.txt') ? 'brief.txt dan aset.txt' : 'brief.txt';
+
+        $perintah[] = 'Baca berkas ' . $baca . ' di folder kerja ini, lalu kerjakan seluruh isinya sampai selesai. Jangan bertanya.';
 
         return $perintah;
     }
@@ -538,7 +561,7 @@ class MockupCodexRunner
         $markah = '';
 
         foreach ($this->berkasHalaman($dir) as $path) {
-            $markah .= (string) file_get_contents($path);
+            $markah .= MockupCodexText::baca($path);
         }
 
         $telanjang = [];
@@ -565,7 +588,7 @@ class MockupCodexRunner
         $nama = [];
 
         foreach ($this->berkasHalaman($dir) as $path) {
-            preg_match_all('/__EXITO_IMAGE:([A-Za-z0-9][A-Za-z0-9_-]*)/', (string) file_get_contents($path), $cocok);
+            preg_match_all('/__EXITO_IMAGE:([A-Za-z0-9][A-Za-z0-9_-]*)/', MockupCodexText::baca($path), $cocok);
 
             foreach ($cocok[1] as $slot) {
                 $nama[$slot] = true;
@@ -594,15 +617,15 @@ class MockupCodexRunner
 
     private function bacaIde(string $dir): string
     {
-        $ide = @file_get_contents($dir . '/ide.txt');
+        $ide = MockupCodexText::baca($dir . '/ide.txt');
 
-        if (is_string($ide) && trim($ide) !== '') {
+        if (trim($ide) !== '') {
             return mb_substr(trim(strtok($ide, "\n") ?: $ide), 0, 300);
         }
 
-        $html = @file_get_contents($dir . '/index.html');
+        $html = MockupCodexText::baca($dir . '/index.html');
 
-        if (is_string($html) && preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $cocok)) {
+        if (preg_match('/<title[^>]*>(.*?)<\/title>/is', $html, $cocok)) {
             return mb_substr(trim(strip_tags($cocok[1])), 0, 300);
         }
 
