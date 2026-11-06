@@ -3,6 +3,7 @@
 use App\Models\MockupCandidate;
 use App\Models\Project;
 use App\Models\User;
+use App\Jobs\GenerateMockupCandidate;
 use App\Services\MockupCodexBrief;
 use App\Services\MockupCodexPhotos;
 use App\Services\MockupCodexRunner;
@@ -10,6 +11,7 @@ use App\Support\MockupCodexAssets;
 use App\Support\MockupOpenAiLauncher;
 use App\Support\MockupCodexState;
 use App\Support\MockupWorkspace;
+use Illuminate\Support\Facades\Bus;
 use App\Support\PageSnapshot;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
@@ -287,6 +289,49 @@ it('mencatat kegagalan status bila API key belum dikonfigurasi', function () {
             'keadaan' => MockupCodexState::KEADAAN_GAGAL,
             'pesan' => 'OPENAI_API_KEY belum diatur pada server.',
         ]);
+});
+
+it('memasukkan kandidat ke queue satu per satu tanpa menjalankan proses dari request web', function () {
+    config([
+        'services.openai.key' => 'test-openai-key',
+        'queue.default' => 'database',
+    ]);
+    Bus::fake();
+
+    $project = codexProject();
+    $candidates = collect([1, 2, 3])->map(fn (int $number) => codexCandidate($project, $number));
+
+    expect(app(MockupOpenAiLauncher::class)->launch($project))->toBeTrue();
+
+    Bus::assertDispatchedTimes(GenerateMockupCandidate::class, 3);
+    Bus::assertDispatched(GenerateMockupCandidate::class, fn (GenerateMockupCandidate $job) =>
+        $job->projectId === $project->id
+        && $job->candidateId === $candidates[0]->id
+        && $job->candidateNumber === 1
+        && $job->queuedCandidates === 3
+    );
+
+    expect(app(MockupCodexState::class)->read($project))
+        ->toMatchArray([
+            'keadaan' => MockupCodexState::KEADAAN_MENUNGGU,
+            'queued_candidate_ids' => $candidates->pluck('id')->all(),
+        ]);
+});
+
+it('menolak queue sync agar generasi panjang tidak berjalan dalam request web', function () {
+    config([
+        'services.openai.key' => 'test-openai-key',
+        'queue.default' => 'sync',
+    ]);
+    Bus::fake();
+
+    $project = codexProject();
+
+    expect(app(MockupOpenAiLauncher::class)->masalahMesin())
+        ->toBe('Queue belum memakai worker latar. Atur QUEUE_CONNECTION=database dan aktifkan worker agar mockup tidak berjalan di request web.')
+        ->and(app(MockupOpenAiLauncher::class)->launch($project))->toBeFalse();
+
+    Bus::assertNothingDispatched();
 });
 
 it('melaporkan berhenti lewat endpoint status saat denyut runner basi', function () {

@@ -102,6 +102,12 @@ return [
         ],
     ],
 
+    'browsershot' => [
+        'node_binary' => env('BROWSERSHOT_NODE_BINARY', 'node'),
+        'node_module_path' => env('BROWSERSHOT_NODE_MODULE_PATH', base_path('node_modules')),
+        'chrome_path' => env('BROWSERSHOT_CHROME_PATH'),
+    ],
+
     'pagespeed' => [
         'api_key' => env('PAGESPEED_API_KEY'),
     ],

@@ -97,7 +97,7 @@ class MockupCandidateController extends Controller
             return back()->with('error', 'Pilihan klien sudah terkunci. Kandidat tidak bisa dibuat ulang.');
         }
 
-        if ($this->codexState->terkunci($project)) {
+        if ($this->codexState->sedangDiproses($project)) {
             $pesan = 'Masih ada proses pembuatan kandidat lain. Coba lagi setelah proses itu selesai.';
 
             if ($request->expectsJson()) {
@@ -181,7 +181,7 @@ class MockupCandidateController extends Controller
         $perlu = $set->filter(fn (MockupCandidate $c) => $c->hasFailed());
         $draf = $set->filter(fn (MockupCandidate $c) => $c->isRunning());
 
-        if ($this->codexState->terkunci($project)) {
+        if ($this->codexState->sedangDiproses($project)) {
             $pesan = 'Masih ada proses pembuatan kandidat lain. Coba lagi setelah proses itu selesai.';
 
             if ($request->expectsJson()) {
@@ -456,7 +456,7 @@ class MockupCandidateController extends Controller
                 'heartbeat_seconds' => $this->codexState->heartbeatAgeSeconds($project),
                 'tokens' => $status['token'] ?? 0,
                 'message' => $status['pesan'] ?? '',
-                'alive' => $this->codexState->terkunci($project),
+                'alive' => $this->codexState->sedangDiproses($project),
             ];
 
             if ($runnerStopped) {

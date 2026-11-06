@@ -712,6 +712,7 @@
             const statusUrl = "{{ route('pages.projects.mockup.status', $project) }}";
             let pollTimer = null;
             let isChecking = false;
+            let wasGenerating = {{ $hasRunning ? 'true' : 'false' }};
             let wasBuilding = {{ $isBuilding ? 'true' : 'false' }};
 
             function runnerNote(runner) {
@@ -910,13 +911,16 @@
                             });
                         }
 
-                        // Jika seluruh antrean selesai dan ada kandidat yang berhasil dibuat
+                        // Muat ulang setelah antrean selesai agar tombol aksi kembali normal.
                         if (!data.has_running && !data.is_building) {
                             clearInterval(pollTimer);
                             pollTimer = null;
-                            if (needsReload) {
+                            if (needsReload || wasGenerating) {
+                                wasGenerating = false;
                                 window.location.reload();
                             }
+                        } else if (data.has_running) {
+                            wasGenerating = true;
                         }
                     })
                     .catch(function() {
@@ -972,9 +976,11 @@
                         window.location.reload();
                         return;
                     }
+                    wasGenerating = true;
                     startMockupPolling();
                 })
                 .catch(function() {
+                    wasGenerating = true;
                     startMockupPolling();
                 });
             });

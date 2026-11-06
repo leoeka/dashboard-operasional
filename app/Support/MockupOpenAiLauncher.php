@@ -2,11 +2,18 @@
 
 namespace App\Support;
 
+use App\Jobs\GenerateMockupCandidate;
+use App\Models\MockupCandidate;
 use App\Models\Project;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class MockupOpenAiLauncher
 {
-    public function __construct(private MockupCodexState $state) {}
+    public function __construct(
+        private MockupCodexState $state,
+        private MockupGate $gate,
+    ) {}
 
     public function launch(Project $project, ?int $candidateNumber = null): bool
     {
@@ -18,49 +25,52 @@ class MockupOpenAiLauncher
             return false;
         }
 
+        $candidates = $this->gate->currentSet($project)
+            ->filter(fn (MockupCandidate $candidate) => $candidate->isRunning())
+            ->when($candidateNumber !== null, fn ($set) => $set->filter(
+                fn (MockupCandidate $candidate) => $candidate->candidate_number === $candidateNumber
+            ))
+            ->values();
+
+        if ($candidates->isEmpty()) {
+            $this->markFailed($project, 'Tidak ada kandidat yang siap dimasukkan ke antrean.');
+
+            return false;
+        }
+
         $this->state->write($project, [
-            'keadaan' => MockupCodexState::KEADAAN_JALAN,
+            'keadaan' => MockupCodexState::KEADAAN_MENUNGGU,
             'kandidat_ke' => 0,
-            'jumlah' => $candidateNumber === null ? 3 : 1,
-            'tahap' => 'menunggu runner API',
+            'jumlah' => $candidates->count(),
+            'tahap' => 'menunggu worker queue',
             'token' => 0,
             'pesan' => '',
             'mulai' => now()->toIso8601String(),
             'selesai' => null,
             'proyek' => $project->name,
+            'queued_candidate_ids' => $candidates->pluck('id')->all(),
         ]);
 
-        $command = [
-            PHP_BINARY,
-            base_path('artisan'),
-            'mockup:openai',
-            (string) $project->id,
-        ];
-
-        if ($candidateNumber !== null) {
-            $command[] = '--candidate=' . $candidateNumber;
-        }
-
-        $log = $this->state->logPath($project);
-        $nullDevice = DIRECTORY_SEPARATOR === '\\' ? 'NUL' : '/dev/null';
-        $descriptors = [
-            0 => ['file', $nullDevice, 'r'],
-            1 => ['file', $log, 'a'],
-            2 => ['file', $log, 'a'],
-        ];
-
-        $process = @proc_open($command, $descriptors, $pipes, base_path(), null, ['bypass_shell' => true]);
-
-        if (!is_resource($process)) {
-            $this->markFailed($project, 'Runner OpenAI tidak bisa dilepas.');
+        try {
+            foreach ($candidates as $candidate) {
+                GenerateMockupCandidate::dispatch(
+                    $project->id,
+                    $candidate->id,
+                    $candidate->candidate_number,
+                    $candidates->count(),
+                );
+            }
+        } catch (Throwable $exception) {
+            Log::error('Gagal memasukkan kandidat mockup ke queue.', [
+                'project_id' => $project->id,
+                'exception' => $exception->getMessage(),
+            ]);
+            $this->markFailed($project, 'Kandidat tidak bisa dimasukkan ke antrean: ' . $exception->getMessage());
+            $candidates->each(fn (MockupCandidate $candidate) => $candidate->update([
+                'failure_reason' => 'Kandidat tidak bisa dimasukkan ke antrean.',
+            ]));
 
             return false;
-        }
-
-        $pid = (int) (proc_get_status($process)['pid'] ?? 0);
-
-        if ($pid > 0) {
-            file_put_contents($this->state->lockPath($project), (string) $pid);
         }
 
         return true;
@@ -84,8 +94,8 @@ class MockupOpenAiLauncher
             return 'OPENAI_API_KEY belum diatur pada server.';
         }
 
-        if (!function_exists('proc_open')) {
-            return 'Server tidak mengizinkan proses background (proc_open).';
+        if (in_array(config('queue.connections.' . config('queue.default') . '.driver'), ['sync', 'null'], true)) {
+            return 'Queue belum memakai worker latar. Atur QUEUE_CONNECTION=database dan aktifkan worker agar mockup tidak berjalan di request web.';
         }
 
         return null;

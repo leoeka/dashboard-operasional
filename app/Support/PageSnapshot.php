@@ -48,7 +48,7 @@ class PageSnapshot
         }
 
         try {
-            Browsershot::htmlFromFilePath($renderPath)
+            $this->configureBrowser(Browsershot::htmlFromFilePath($renderPath))
                 ->windowSize(self::WIDTH, self::HEIGHT)
                 ->fullPage()
                 ->noSandbox()
@@ -79,7 +79,7 @@ class PageSnapshot
         }
 
         try {
-            Browsershot::url($url)
+            $this->configureBrowser(Browsershot::url($url))
                 ->windowSize(self::WIDTH, self::HEIGHT)
                 ->waitUntilNetworkIdle()
                 ->fullPage()
@@ -124,5 +124,35 @@ class PageSnapshot
             },
             $html
         );
+    }
+
+    private function configureBrowser(Browsershot $browser): Browsershot
+    {
+        $nodeBinary = $this->setting('services.browsershot.node_binary', 'node');
+        if (is_string($nodeBinary) && trim($nodeBinary) !== '') {
+            $browser->setNodeBinary($nodeBinary);
+        }
+
+        $nodeModulePath = $this->setting(
+            'services.browsershot.node_module_path',
+            dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'node_modules'
+        );
+        if (is_string($nodeModulePath) && trim($nodeModulePath) !== '') {
+            $browser->setNodeModulePath($nodeModulePath);
+        }
+
+        $chromePath = $this->setting('services.browsershot.chrome_path');
+        if (is_string($chromePath) && trim($chromePath) !== '') {
+            $browser->setChromePath($chromePath);
+        }
+
+        return $browser;
+    }
+
+    private function setting(string $key, mixed $default = null): mixed
+    {
+        return function_exists('app') && app()->bound('config')
+            ? config($key, $default)
+            : $default;
     }
 }

@@ -205,6 +205,15 @@ class MockupCodexState
         return true;
     }
 
+    public function sedangDiproses(Project $project): bool
+    {
+        $status = $this->read($project) ?? [];
+
+        return $this->terkunci($project)
+            || (($status['keadaan'] ?? null) === self::KEADAAN_MENUNGGU
+                && !empty($status['queued_candidate_ids']));
+    }
+
     public function codexHome(): string
     {
         $configured = config('services.mockup.codex.home');

@@ -30,7 +30,7 @@ class MockupOpenAiRunner
     ) {
     }
 
-    public function run(Project $project, ?int $onlyCandidate = null): int
+    public function run(Project $project, ?int $onlyCandidate = null, ?int $onlyCandidateId = null): int
     {
         $lock = $this->lock($project);
 
@@ -41,7 +41,7 @@ class MockupOpenAiRunner
         }
 
         try {
-            $candidates = $this->candidates($project, $onlyCandidate);
+            $candidates = $this->candidates($project, $onlyCandidate, $onlyCandidateId);
 
             if ($candidates->isEmpty()) {
                 $this->state->write($project, [
@@ -131,14 +131,16 @@ class MockupOpenAiRunner
     /**
      * @return \Illuminate\Support\Collection<int, MockupCandidate>
      */
-    private function candidates(Project $project, ?int $onlyCandidate)
+    private function candidates(Project $project, ?int $onlyCandidate, ?int $onlyCandidateId = null)
     {
         $set = $this->gate->currentSet($project);
 
         if ($onlyCandidate !== null) {
             $candidate = $set->get($onlyCandidate);
 
-            return $candidate !== null && $candidate->isRunning()
+            return $candidate !== null
+                && ($onlyCandidateId === null || $candidate->id === $onlyCandidateId)
+                && $candidate->isRunning()
                 ? collect([$candidate])
                 : collect();
         }
