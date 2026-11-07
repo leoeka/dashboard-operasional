@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\AnalyzeCtrGapJob;
+use App\Http\Controllers\SeoBacklinkController;
 use App\Models\Client;
 use App\Models\Project;
 use App\Services\CtrGapAnalyzer;
@@ -61,4 +62,39 @@ it('includes the AEO score and recommendations in the SEO SXO GEO report', funct
     expect($report['scores']['aeo']['value'])->toBe(67)
         ->and($report['aeo']['recommendation'])->toBe('Tambahkan jawaban langsung.')
         ->and(collect($report['actions'])->pluck('layer'))->toContain('AEO');
+});
+
+it('computes CTR gaps when the traffic report fetches Search Console data', function () {
+    $client = Client::create(['company_name' => 'Automatic CTR Gap Test']);
+    $project = Project::create([
+        'client_id' => $client->id,
+        'name' => 'Automatic CTR Gap Test',
+        'client_name' => $client->company_name,
+        'status' => 'in_progress',
+        'wants_seo' => true,
+        'seo_requirements' => ['target_url' => 'https://example.test'],
+    ]);
+
+    $console = Mockery::mock(SearchConsoleService::class);
+    $console->shouldReceive('getPerformance')->once()->with('https://example.test')->andReturn([
+        'top_queries' => [],
+        'ctr_gap_queries' => [[
+            'keyword' => 'high-impression query',
+            'clicks' => 20,
+            'impressions' => 4000,
+            'ctr' => 0.005,
+            'position' => 1.4,
+        ]],
+    ]);
+
+    $response = app(SeoBacklinkController::class)->analyzeSearchConsole(
+        $project,
+        $console,
+        new CtrGapAnalyzer(),
+    );
+
+    expect($response->getData(true)['success'])->toBeTrue();
+    $project->refresh();
+    expect($project->seo_requirements['ctr_gaps']['summary']['opportunity_count'])->toBe(1)
+        ->and($project->seo_requirements['ctr_gaps']['opportunities'][0]['keyword'])->toBe('high-impression query');
 });

@@ -92,8 +92,9 @@
         </a>
     </div>
     <p class="text-xs text-slate-600 mt-2">
-        Skor SXO (engagement) &amp; CTR gap ikut terisi setelah analisis Search Console
-        dan GA4 di langkah <span class="font-semibold">Laporan traffic</span> dijalankan.
+        CTR gap dihitung otomatis setelah Search Console berhasil dianalisis. Skor SXO
+        (engagement) tersedia setelah analisis GA4 berhasil; muat ulang halaman jika
+        hasilnya belum terlihat. Tombol <span class="font-semibold">Cek CTR gap</span> untuk menjalankan ulang analisis.
     </p>
     <p class="geo-msg hidden text-xs mt-2"></p>
 
