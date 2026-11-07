@@ -116,8 +116,8 @@ class SeoUrlAnalysisController extends Controller
         $project->logActivity('Analisa SEO / SXO / GEO dimulai dari URL website');
 
         return redirect()
-            ->route('pages.project-workspace')
-            ->with('success', 'Project analisa sudah disiapkan dan pemeriksaan berjalan. Pilih URL website tersebut dari dropdown Workspace untuk melihat hasilnya.');
+            ->route('pages.project-workspace', ['project' => $project->id])
+            ->with('success', 'Project analisa sudah disiapkan dan pemeriksaan berjalan.');
     }
 
     private function normalizeUrl(string $url): ?string
