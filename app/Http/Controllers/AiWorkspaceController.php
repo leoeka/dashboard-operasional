@@ -31,7 +31,7 @@ class AiWorkspaceController extends Controller
 
                 if (is_array($codexStatus)) {
                     $codexStatus['heartbeat_seconds'] = $codexState->heartbeatAgeSeconds($project);
-                    $codexStatus['alive'] = $codexState->terkunci($project);
+                    $codexStatus['alive'] = $codexState->sedangDiproses($project);
                 }
             }
         }
@@ -47,4 +47,3 @@ class AiWorkspaceController extends Controller
         ] : []);
     }
 }
-

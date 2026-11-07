@@ -32,7 +32,9 @@ class MockupCodexState
 
     public function projectDir(Project $project): string
     {
-        $base = config('services.mockup.codex.base') ?: $this->workspace->basePath();
+        $base = config('services.mockup.base')
+            ?: config('services.mockup.codex.base')
+            ?: $this->workspace->basePath();
         $path = rtrim((string) $base, '/\\') . '/' . $project->id . '/codex';
 
         if (!is_dir($path)) {
@@ -70,7 +72,7 @@ class MockupCodexState
      */
     public function kerjaDir(Project $project, MockupCandidate $candidate): string
     {
-        $base = config('services.mockup.codex.work');
+        $base = config('services.mockup.work') ?: config('services.mockup.codex.work');
 
         if (!is_string($base) || $base === '') {
             $base = rtrim(sys_get_temp_dir(), '/\\') . '/siteflow-codex-work';
@@ -153,7 +155,7 @@ class MockupCodexState
 
         $age = $this->heartbeatAgeSeconds($project);
 
-        return $age !== null && $age > self::DENYUT_BASI;
+        return $age !== null && $age > self::DENYUT_BASI && !$this->terkunci($project);
     }
 
     /**
@@ -201,6 +203,15 @@ class MockupCodexState
         fclose($handle);
 
         return true;
+    }
+
+    public function sedangDiproses(Project $project): bool
+    {
+        $status = $this->read($project) ?? [];
+
+        return $this->terkunci($project)
+            || (($status['keadaan'] ?? null) === self::KEADAAN_MENUNGGU
+                && !empty($status['queued_candidate_ids']));
     }
 
     public function codexHome(): string

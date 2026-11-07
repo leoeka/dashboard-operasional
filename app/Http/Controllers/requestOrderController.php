@@ -77,14 +77,6 @@ class requestOrderController extends Controller
                 if (in_array($referenceType, ['image', 'zip'], true) && $request->hasFile('design_reference_file')) {
                     $refFile = $request->file('design_reference_file');
                     $referencePath = $refFile->store('design-references', 'public');
-
-                    $project->mockupAssets()->create([
-                        'category' => 'referensi',
-                        'original_name' => $refFile->getClientOriginalName(),
-                        'file_path' => $referencePath,
-                        'file_size' => $refFile->getSize(),
-                        'mime_type' => $refFile->getMimeType(),
-                    ]);
                 }
 
                 $project->update([

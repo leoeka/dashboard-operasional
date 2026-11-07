@@ -23,12 +23,13 @@ it('shows the standalone URL-only SEO analysis form', function () {
 it('creates a client project from a public website URL and queues its analysis', function () {
     Queue::fake();
 
-    $this->actingAs(User::factory()->create())
-        ->post(route('pages.seo-analysis.analyze'), ['url' => 'client-example.test'])
-        ->assertRedirect(route('pages.project-workspace'));
+    $response = $this->actingAs(User::factory()->create())
+        ->post(route('pages.seo-analysis.analyze'), ['url' => 'client-example.test']);
 
     $client = Client::sole();
     $project = Project::sole();
+
+    $response->assertRedirect(route('pages.project-workspace', ['project' => $project->id]));
 
     expect($client->website)->toBe('https://client-example.test')
         ->and($project->client_id)->toBe($client->id)
@@ -44,13 +45,10 @@ it('creates a client project from a public website URL and queues its analysis',
     Queue::assertPushed(AnalyzeTechnicalSeoJob::class);
     Queue::assertPushed(AnalyzeContentExtractabilityJob::class);
 
-    $this->get(route('pages.project-workspace'))
-        ->assertOk()
-        ->assertSee('https://client-example.test')
-        ->assertSee('Pilih project di atas');
-
     $this->get(route('pages.project-workspace', ['project' => $project->id]))
         ->assertOk()
+        ->assertSee('https://client-example.test')
+        ->assertSee($project->name)
         ->assertSee('SEO Requirements')
         ->assertSee('Location');
 });

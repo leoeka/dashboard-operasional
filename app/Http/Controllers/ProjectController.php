@@ -5,10 +5,14 @@ namespace App\Http\Controllers;
 use App\Http\Requests\UpdateProjectRequest;
 use App\Models\MockupAsset;
 use App\Models\Project;
+use App\Support\MockupAssetZip;
+use App\Support\PageSnapshot;
 use Illuminate\Http\Request;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use RuntimeException;
 
 /**
  * Project CRUD only. See SeoBacklinkController for SEO/backlink
@@ -117,13 +121,6 @@ class ProjectController extends Controller
             $refPath = $refFile->store('design-references', 'public');
             $project->update([
                 'design_reference_path' => $refPath,
-            ]);
-            $project->mockupAssets()->create([
-                'category' => 'referensi',
-                'original_name' => $refFile->getClientOriginalName(),
-                'file_path' => $refPath,
-                'file_size' => $refFile->getSize(),
-                'mime_type' => $refFile->getMimeType(),
             ]);
         }
 
@@ -259,17 +256,32 @@ class ProjectController extends Controller
         return redirect()->route('pages.projects')->with('success', 'Project deleted successfully.');
     }
 
-    public function storeFile(Request $request, Project $project)
+    public function storeFile(Request $request, Project $project, MockupAssetZip $zip)
     {
         $request->validate([
-            'file' => 'required|file|max:20480',
-            'category' => 'required|in:logo,company_profile,foto,dokumen,pendukung,referensi',
+            'file' => 'required|file|max:2097152',
+            'category' => 'required|in:logo,company_profile,foto,dokumen,pendukung',
         ]);
 
+        /** @var UploadedFile $file */
         $file = $request->file('file');
+
+        if (strtolower((string) $file->getClientOriginalExtension()) === 'zip') {
+            try {
+                $hasil = $zip->masukkan($project, $file, $request->category);
+            } catch (RuntimeException $e) {
+                return back()->with('error', $e->getMessage());
+            }
+
+            $pesan = $zip->ringkas($hasil);
+            $project->logActivity('Aset mockup dari ZIP: ' . $pesan);
+
+            return back()->with($hasil['masuk'] > 0 ? 'success' : 'error', $pesan);
+        }
+
         $path = $file->store('mockup-assets/' . $project->id, 'public');
 
-        $asset = $project->mockupAssets()->create([
+        $project->mockupAssets()->create([
             'original_name' => $file->getClientOriginalName(),
             'file_path' => $path,
             'file_size' => $file->getSize(),
@@ -294,5 +306,76 @@ class ProjectController extends Controller
         $project->logActivity("Aset {$file->original_name} dihapus");
 
         return back()->with('success', 'Aset mockup berhasil dihapus.');
+    }
+
+    /**
+     * Acuan desain dari klien: gambar, ZIP template, atau tautan situs/web.
+     * Khusus acuan, dipisah dari daftar bahan klien karena acuan tidak pernah
+     * dipasang ke website.
+     */
+    public function storeReference(Request $request, Project $project, PageSnapshot $potret)
+    {
+        $data = $request->validate([
+            'type' => 'required|in:none,image,zip,url',
+            'file' => 'nullable|required_if:type,image,zip|file|max:2097152',
+            'url' => 'nullable|required_if:type,url|url:http,https|max:2048',
+        ]);
+
+        if ($data['type'] === 'none') {
+            $project->update([
+                'design_reference_type' => 'none',
+                'design_reference_url' => null,
+                'design_reference_path' => null,
+            ]);
+            $project->logActivity('Referensi desain dihapus');
+
+            return back()->with('success', 'Referensi desain dikosongkan.');
+        }
+
+        if ($data['type'] === 'url') {
+            // Codex tidak punya akses internet, jadi tautan harus jadi gambar
+            // lebih dulu. Tautannya tetap disimpan walaupun potret gagal,
+            // supaya pemilik tinggal menekan "Ambil ulang potret".
+            $relatif = 'design-references/' . $project->id . '/potret-' . substr(uniqid(), -6) . '.png';
+            $gagal = null;
+
+            try {
+                $potret->captureUrl($data['url'], Storage::disk('public')->path($relatif));
+            } catch (RuntimeException $e) {
+                $gagal = $e->getMessage();
+                $relatif = null;
+            }
+
+            $project->update([
+                'design_reference_type' => 'url',
+                'design_reference_url' => $data['url'],
+                'design_reference_path' => $relatif,
+            ]);
+            $project->logActivity('Referensi desain: tautan ' . $data['url']);
+
+            return $gagal === null
+                ? back()->with('success', 'Situs berhasil dipotret dan dipakai sebagai acuan.')
+                : back()->with('error', 'Tautan tersimpan, tapi situsnya gagal dipotret: ' . $gagal);
+        }
+
+        /** @var UploadedFile $file */
+        $file = $data['file'];
+        $boleh = $data['type'] === 'zip' ? ['zip'] : ['png', 'jpg', 'jpeg', 'webp', 'svg'];
+        $ekstensi = strtolower((string) $file->getClientOriginalExtension());
+
+        if (!in_array($ekstensi, $boleh, true)) {
+            return back()->with('error', 'Berkas referensi harus berformat ' . implode(', ', $boleh) . '.');
+        }
+
+        $path = $file->store('design-references/' . $project->id, 'public');
+
+        $project->update([
+            'design_reference_type' => $data['type'],
+            'design_reference_url' => null,
+            'design_reference_path' => $path,
+        ]);
+        $project->logActivity('Referensi desain: berkas ' . $file->getClientOriginalName());
+
+        return back()->with('success', 'Berkas referensi tersimpan.');
     }
 }

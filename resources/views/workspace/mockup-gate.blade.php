@@ -419,33 +419,42 @@
     @endif
 
     {{-- Section Aset & Materi Klien (Mockup Assets) --}}
+    @php($bahan = $project->mockupAssets->reject(fn ($asset) => $asset->category === 'referensi'))
     <div class="mt-8 border border-slate-200 rounded-xl bg-white p-5">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
             <div>
                 <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
                     <i class='bx bx-folder text-brand-600 text-lg' aria-hidden="true"></i>
-                    Aset &amp; Materi Desain Klien
+                    Aset &amp; Materi Klien
                 </h3>
                 <p class="text-xs text-slate-500 mt-0.5">
-                    Logo, gambar, dokumen, dan materi pendukung dari klien untuk perancangan website.
+                    Logo, gambar, dokumen, dan materi pendukung dari klien. Boleh satu berkas atau satu ZIP isi arsipnya.
                 </p>
             </div>
             <div>
                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
-                    {{ $project->mockupAssets->count() }} File tersimpan
+                    {{ $bahan->count() }} File tersimpan
                 </span>
             </div>
         </div>
 
+        {{-- Balasan unggah --}}
+        @if (session('success'))
+            <div class="mt-4 px-4 py-3 rounded-md bg-emerald-50 text-emerald-700 text-sm">{{ session('success') }}</div>
+        @endif
+        @if (session('error'))
+            <div class="mt-4 px-4 py-3 rounded-md bg-red-50 text-red-700 text-sm">{{ session('error') }}</div>
+        @endif
+
         {{-- Daftar File --}}
-        @if ($project->mockupAssets->isEmpty())
+        @if ($bahan->isEmpty())
             <div class="py-6 text-center">
                 <i class='bx bx-cloud-upload text-3xl text-slate-400 mb-1' aria-hidden="true"></i>
-                <p class="text-xs text-slate-500">Belum ada aset khusus yang diunggah untuk proyek ini.</p>
+                <p class="text-xs text-slate-500">Belum ada bahan klien yang diunggah untuk proyek ini.</p>
             </div>
         @else
             <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                @foreach ($project->mockupAssets as $asset)
+                @foreach ($bahan as $asset)
                     <div class="border border-slate-200 rounded-lg p-3 flex items-start justify-between gap-3 bg-slate-50/50 hover:bg-slate-50 transition">
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2 mb-1">
@@ -503,21 +512,27 @@
                 <form method="POST" action="{{ route('pages.projects.files.store', $project) }}" enctype="multipart/form-data" class="mt-3 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
                     @csrf
                     <div class="sm:col-span-5">
-                        <label for="mockup_file_input" class="block text-xs font-semibold text-slate-700 mb-1">Pilih File</label>
+                        <label for="mockup_file_input" class="block text-xs font-semibold text-slate-700 mb-1">Berkas atau ZIP</label>
                         <input type="file" id="mockup_file_input" name="file" required
+                            accept=".zip,image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.rtf"
                             class="min-h-10 block w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 border border-slate-300 rounded-md">
+                        <p class="text-[11px] text-slate-500 mt-1">
+                            ZIP dengan folder <code>logo/</code>, <code>foto/</code>, <code>dokumen/</code> dibaca isinya sekaligus.
+                        </p>
                     </div>
                     <div class="sm:col-span-4">
-                        <label for="mockup_category_select" class="block text-xs font-semibold text-slate-700 mb-1">Kategori File</label>
+                        <label for="mockup_category_select" class="block text-xs font-semibold text-slate-700 mb-1">Kategori</label>
                         <select id="mockup_category_select" name="category" required
                             class="min-h-10 block w-full text-xs border border-slate-300 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
                             <option value="logo">Logo Klien</option>
                             <option value="foto">Foto / Gambar</option>
                             <option value="dokumen">Dokumen</option>
                             <option value="company_profile">Company Profile</option>
-                            <option value="referensi">Referensi Desain</option>
                             <option value="pendukung" selected>File Pendukung</option>
                         </select>
+                        <p class="text-[11px] text-slate-500 mt-1">
+                            Dipakai bila folder di dalam ZIP tidak dikenali.
+                        </p>
                     </div>
                     <div class="sm:col-span-3">
                         <button type="submit"
@@ -531,11 +546,173 @@
         </div>
     </div>
 
+    {{-- Section Referensi Desain Klien (acuan, bukan bahan) --}}
+    <div class="mt-6 border border-slate-200 rounded-xl bg-white p-5">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-4 border-b border-slate-100">
+            <div>
+                <h3 class="text-base font-semibold text-slate-800 flex items-center gap-2">
+                    <i class='bx bx-color-fill text-brand-600 text-lg' aria-hidden="true"></i>
+                    Referensi Desain Klien
+                </h3>
+                <p class="text-xs text-slate-500 mt-0.5">
+                    Acuan tampilan yang dikirim klien: tautan situs, gambar, atau ZIP template. Bukan bahan yang dipasang ke website.
+                </p>
+            </div>
+            <div>
+                @if ($project->design_reference_type && $project->design_reference_type !== 'none')
+                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                        @switch($project->design_reference_type)
+                            @case('url') {{ $project->design_reference_path ? 'Tautan + potret' : 'Tautan, potret gagal' }} @break
+                            @case('image') Gambar tersimpan @break
+                            @case('zip') ZIP tersimpan @break
+                        @endswitch
+                    </span>
+                @endif
+            </div>
+        </div>
+
+        <div class="mt-4">
+            @if ($project->design_reference_type === 'url' && $project->design_reference_url)
+                <div class="flex flex-col sm:flex-row sm:items-start gap-3">
+                    @if ($project->design_reference_path)
+                        <img src="{{ Storage::disk('public')->url($project->design_reference_path) }}"
+                            alt="Potret situs referensi"
+                            class="h-24 w-32 shrink-0 object-cover object-top rounded-md border border-slate-200">
+                    @else
+                        <span class="inline-flex h-24 w-32 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500">
+                            <i class='bx bx-camera-off text-2xl' aria-hidden="true"></i>
+                            <span class="sr-only">Potret belum ada</span>
+                        </span>
+                    @endif
+                    <div class="min-w-0">
+                        <a href="{{ $project->design_reference_url }}" target="_blank" rel="noopener"
+                            class="inline-flex items-center gap-2 text-sm font-medium text-brand-700 hover:text-brand-600 underline underline-offset-2">
+                            <i class='bx bx-link' aria-hidden="true"></i>
+                            <span class="break-all">{{ $project->design_reference_url }}</span>
+                        </a>
+                        <p class="text-xs text-slate-500 mt-1">
+                            {{ $project->design_reference_path
+                                ? 'Potret situs ini dipakai sebagai acuan desain.'
+                                : 'Potret belum berhasil diambil. Sistem belum punya gambar acuan untuk tautan ini.' }}
+                        </p>
+                        <form method="POST" action="{{ route('pages.projects.reference.store', $project) }}" class="mt-2">
+                            @csrf
+                            <input type="hidden" name="type" value="url">
+                            <input type="hidden" name="url" value="{{ $project->design_reference_url }}">
+                            <button type="submit"
+                                class="min-h-11 inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:text-brand-700 hover:border-brand-500 transition">
+                                <i class='bx bx-camera' aria-hidden="true"></i>
+                                Ambil ulang potret
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            @elseif ($project->design_reference_path)
+                <div class="flex items-start gap-3">
+                    @if ($project->design_reference_type === 'image')
+                        <img src="{{ Storage::disk('public')->url($project->design_reference_path) }}"
+                            alt="Gambar referensi desain"
+                            class="h-24 w-32 object-cover rounded-md border border-slate-200">
+                    @else
+                        <span class="inline-flex h-24 w-32 items-center justify-center rounded-md border border-slate-200 bg-slate-50 text-slate-500">
+                            <i class='bx bx-zip text-2xl' aria-hidden="true"></i>
+                            <span class="sr-only">Berkas ZIP template</span>
+                        </span>
+                    @endif
+                    <div class="min-w-0">
+                        <p class="text-xs font-medium text-slate-800 truncate" title="{{ basename($project->design_reference_path) }}">
+                            {{ basename($project->design_reference_path) }}
+                        </p>
+                        <a href="{{ Storage::disk('public')->url($project->design_reference_path) }}" target="_blank" rel="noopener"
+                            class="mt-2 inline-flex min-h-11 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:text-brand-700 hover:border-brand-500 transition">
+                            <i class='bx bx-show' aria-hidden="true"></i>
+                            Buka / Unduh
+                        </a>
+                    </div>
+                </div>
+            @else
+                <p class="text-xs text-slate-500">Belum ada acuan desain untuk proyek ini.</p>
+            @endif
+        </div>
+
+        <div class="mt-5 pt-4 border-t border-slate-100">
+            <details class="group">
+                <summary class="flex items-center gap-2 text-xs font-semibold text-brand-600 hover:text-brand-700 cursor-pointer select-none">
+                    <i class='bx bx-plus-circle text-sm group-open:rotate-45 transition-transform' aria-hidden="true"></i>
+                    <span>{{ $project->design_reference_type && $project->design_reference_type !== 'none' ? 'Ganti Referensi' : 'Isi Referensi' }}</span>
+                </summary>
+                <form method="POST" action="{{ route('pages.projects.reference.store', $project) }}"
+                    enctype="multipart/form-data" class="mt-3 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end"
+                    data-referensi-form>
+                    @csrf
+                    <div class="sm:col-span-3">
+                        <label for="reference_type_select" class="block text-xs font-semibold text-slate-700 mb-1">Bentuk acuan</label>
+                        <select id="reference_type_select" name="type" required
+                            class="min-h-11 block w-full text-xs border border-slate-300 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
+                            <option value="url" @selected(old('type', $project->design_reference_type ?: 'url') === 'url')>Tautan situs / web</option>
+                            <option value="image" @selected(old('type') === 'image')>Gambar acuan</option>
+                            <option value="zip" @selected(old('type') === 'zip')>ZIP template</option>
+                            <option value="none" @selected(old('type') === 'none')>Kosongkan</option>
+                        </select>
+                    </div>
+                    <div class="sm:col-span-5" data-referensi-url>
+                        <label for="reference_url_input" class="block text-xs font-semibold text-slate-700 mb-1">Tautan</label>
+                        <input type="url" id="reference_url_input" name="url"
+                            value="{{ old('url', $project->design_reference_url) }}" placeholder="https://situs-contoh.com"
+                            class="min-h-11 block w-full text-xs border border-slate-300 rounded-md p-2 focus:ring-brand-500 focus:border-brand-500">
+                    </div>
+                    <div class="sm:col-span-4" data-referensi-file>
+                        <label for="reference_file_input" class="block text-xs font-semibold text-slate-700 mb-1">Berkas acuan</label>
+                        <input type="file" id="reference_file_input" name="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.zip"
+                            class="min-h-11 block w-full text-xs text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100 border border-slate-300 rounded-md">
+                    </div>
+                    <div class="sm:col-span-12">
+                        <p class="text-[11px] text-slate-500">
+                            Aplikasi memotret tautan lalu mengirim gambarnya ke OpenAI sebagai acuan. Jika potret gagal, unggah gambar tampilannya.
+                        </p>
+                    </div>
+                    <div class="sm:col-span-12">
+                        <button type="submit"
+                            class="min-h-11 inline-flex items-center justify-center gap-1.5 rounded-md bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 transition">
+                            <i class='bx bx-save' aria-hidden="true"></i>
+                            Simpan referensi
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            const form = document.querySelector('[data-referensi-form]');
+            if (form) {
+                const jenis = form.querySelector('select[name="type"]');
+                const berkas = form.querySelector('[data-referensi-file]');
+                const tautan = form.querySelector('[data-referensi-url]');
+
+                const tampilkan = function() {
+                    const perluBerkas = ['image', 'zip'].includes(jenis.value);
+                    const perluTautan = jenis.value === 'url';
+
+                    berkas.classList.toggle('hidden', !perluBerkas);
+                    tautan.classList.toggle('hidden', !perluTautan);
+                    form.querySelector('[name="file"]').required = perluBerkas;
+                    form.querySelector('[name="url"]').required = perluTautan;
+                };
+
+                jenis.addEventListener('change', tampilkan);
+                tampilkan();
+            }
+        })();
+    </script>
+
     <script>
         (function() {
             const statusUrl = "{{ route('pages.projects.mockup.status', $project) }}";
             let pollTimer = null;
             let isChecking = false;
+            let wasGenerating = {{ $hasRunning ? 'true' : 'false' }};
             let wasBuilding = {{ $isBuilding ? 'true' : 'false' }};
 
             function runnerNote(runner) {
@@ -734,13 +911,16 @@
                             });
                         }
 
-                        // Jika seluruh antrean selesai dan ada kandidat yang berhasil dibuat
+                        // Muat ulang setelah antrean selesai agar tombol aksi kembali normal.
                         if (!data.has_running && !data.is_building) {
                             clearInterval(pollTimer);
                             pollTimer = null;
-                            if (needsReload) {
+                            if (needsReload || wasGenerating) {
+                                wasGenerating = false;
                                 window.location.reload();
                             }
+                        } else if (data.has_running) {
+                            wasGenerating = true;
                         }
                     })
                     .catch(function() {
@@ -767,7 +947,7 @@
                 }
 
                 if (slotNum) {
-                    renderRunningCard(slotNum, 15, 'Melepas proses Codex...');
+                    renderRunningCard(slotNum, 15, 'Melepas proses OpenAI...');
                 }
 
                 const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content ||
@@ -796,9 +976,11 @@
                         window.location.reload();
                         return;
                     }
+                    wasGenerating = true;
                     startMockupPolling();
                 })
                 .catch(function() {
+                    wasGenerating = true;
                     startMockupPolling();
                 });
             });

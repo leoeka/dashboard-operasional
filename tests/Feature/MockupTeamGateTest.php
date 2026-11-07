@@ -5,7 +5,7 @@ use App\Models\MockupCandidate;
 use App\Models\Project;
 use App\Models\User;
 use App\Models\WpBuild;
-use App\Support\MockupCodexLauncher;
+use App\Support\MockupOpenAiLauncher;
 use App\Support\MockupCodexState;
 use App\Support\MockupWorkspace;
 use Illuminate\Support\Facades\File;
@@ -21,15 +21,15 @@ afterEach(function () {
 });
 
 /**
- * Runner Codex palsu: permintaan web mengira proses latar sudah dilepas.
+ * Runner API palsu: permintaan web mengira proses latar sudah dilepas.
  *
- * @return Mockery\MockInterface&MockupCodexLauncher
+ * @return Mockery\MockInterface&MockupOpenAiLauncher
  */
 function launcherSpy()
 {
-    $spy = \Mockery::mock(MockupCodexLauncher::class);
+    $spy = \Mockery::mock(MockupOpenAiLauncher::class);
     $spy->shouldReceive('launch')->andReturn(true);
-    app()->instance(MockupCodexLauncher::class, $spy);
+    app()->instance(MockupOpenAiLauncher::class, $spy);
 
     return $spy;
 }
@@ -139,7 +139,7 @@ it('does not show the mockup track for a non-website project', function () {
         ->assertDontSee('Gerbang tinjau mockup');
 });
 
-it('creates three draft candidates and releases one Codex runner for the batch', function () {
+it('creates three draft candidates and releases one OpenAI runner for the batch', function () {
     $spy = launcherSpy();
     $project = gateWebsiteProject();
 

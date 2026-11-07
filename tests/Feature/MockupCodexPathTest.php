@@ -3,14 +3,18 @@
 use App\Models\MockupCandidate;
 use App\Models\Project;
 use App\Models\User;
+use App\Jobs\GenerateMockupCandidate;
 use App\Services\MockupCodexBrief;
 use App\Services\MockupCodexPhotos;
 use App\Services\MockupCodexRunner;
-use App\Support\MockupCodexLauncher;
+use App\Support\MockupCodexAssets;
+use App\Support\MockupOpenAiLauncher;
 use App\Support\MockupCodexState;
 use App\Support\MockupWorkspace;
+use Illuminate\Support\Facades\Bus;
 use App\Support\PageSnapshot;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     $this->codexBase = sys_get_temp_dir() . '/siteflow-codex-' . uniqid();
@@ -57,6 +61,22 @@ function codexPng(int $padding = 60000): string
     return "\x89PNG\r\n\x1a\n" . str_repeat("\0", $padding) . 'IEND';
 }
 
+/** Simpan satu berkas aset klien di disk public + baris mockup_assets-nya. */
+function codexAset(Project $project, string $kategori, string $nama, string $isi): void
+{
+    $jalur = 'mockup-assets/' . $project->id . '/' . $nama;
+
+    Storage::disk('public')->put($jalur, $isi);
+
+    $project->mockupAssets()->create([
+        'category' => $kategori,
+        'original_name' => $nama,
+        'file_path' => $jalur,
+        'file_size' => strlen($isi),
+        'mime_type' => str_ends_with($nama, '.pdf') ? 'application/pdf' : 'image/png',
+    ]);
+}
+
 it('menyusun brief Codex dengan alur rancangan visual lebih dulu', function () {
     $project = codexProject();
     $candidate = codexCandidate($project, 2);
@@ -77,6 +97,55 @@ it('menyusun brief Codex dengan alur rancangan visual lebih dulu', function () {
     // Visual dibuat sebelum berkas apa pun ditulis, halaman sesudahnya.
     expect(strpos($brief, 'SATU gambar mockup'))
         ->toBeLessThan(strpos($brief, 'Buat `index.html` lengkap'));
+});
+
+it('memasukkan acuan desain klien ke bagian 03 brief saat potretnya ada', function () {
+    Storage::fake('public');
+    $project = codexProject();
+    $candidate = codexCandidate($project, 1);
+
+    Storage::disk('public')->put('design-references/acuan.png', codexPng(2000));
+    $project->update([
+        'design_reference_type' => 'url',
+        'design_reference_url' => 'https://situs-klien.com',
+        'design_reference_path' => 'design-references/acuan.png',
+    ]);
+
+    $dir = $this->codexBase . '/brief-' . uniqid();
+    File::ensureDirectoryExists($dir . '/kerja');
+    File::ensureDirectoryExists($dir . '/arsip');
+
+    $tulis = new ReflectionMethod(MockupCodexRunner::class, 'tulisBrief');
+    $tulis->setAccessible(true);
+    $tulis->invoke(app(MockupCodexRunner::class), $project, $candidate, $dir . '/kerja', $dir . '/arsip');
+
+    $brief = File::get($dir . '/arsip/brief.txt');
+
+    // Berkasan acuan ikut tersalin ke folder kerja, bukan cuma disebut.
+    expect($brief)
+        ->toContain('## 03 — Desain referensi (acuan mengikat)')
+        ->toContain('`acuan/acuan.png`')
+        ->toContain('design: acuan/acuan.png')
+        ->not->toContain('Buat SATU gambar mockup halaman utama')
+        ->and(File::exists($dir . '/kerja/acuan/acuan.png'))->toBeTrue();
+});
+
+it('tetap memakai arah desain biasa saat proyek belum punya acuan', function () {
+    Storage::fake('public');
+    $project = codexProject();
+    $candidate = codexCandidate($project, 1);
+
+    $dir = $this->codexBase . '/brief-' . uniqid();
+    File::ensureDirectoryExists($dir . '/kerja');
+    File::ensureDirectoryExists($dir . '/arsip');
+
+    $tulis = new ReflectionMethod(MockupCodexRunner::class, 'tulisBrief');
+    $tulis->setAccessible(true);
+    $tulis->invoke(app(MockupCodexRunner::class), $project, $candidate, $dir . '/kerja', $dir . '/arsip');
+
+    expect(File::get($dir . '/arsip/brief.txt'))
+        ->toContain('## 03 — Arah desain dan design tokens')
+        ->and(File::exists($dir . '/kerja/acuan'))->toBeFalse();
 });
 
 it('menyalin foto dari catatan model lalu memulihkan sisanya dari cache', function () {
@@ -176,8 +245,8 @@ it('menulis status, membaca denyut basi sebagai berhenti, dan mengenali kunci', 
     expect($state->terkunci($project))->toBeFalse();
 });
 
-it('melepas runner Codex saat tombol buat 3 kandidat ditekan', function () {
-    $this->mock(MockupCodexLauncher::class)
+it('melepas runner OpenAI saat tombol buat 3 kandidat ditekan', function () {
+    $this->mock(MockupOpenAiLauncher::class)
         ->shouldReceive('launch')
         ->once()
         ->andReturn(true);
@@ -193,11 +262,12 @@ it('melepas runner Codex saat tombol buat 3 kandidat ditekan', function () {
         ->and($project->mockupCandidates()->pluck('status')->unique()->all())->toBe([MockupCandidate::STATUS_DRAFT]);
 });
 
-it('menandai kandidat gagal kalau runner Codex tidak bisa dilepas', function () {
-    $this->mock(MockupCodexLauncher::class)
-        ->shouldReceive('launch')
+it('menandai kandidat gagal kalau runner OpenAI tidak bisa dilepas', function () {
+    $launcher = $this->mock(MockupOpenAiLauncher::class);
+    $launcher->shouldReceive('launch')
         ->once()
         ->andReturn(false);
+    $launcher->shouldReceive('masalahMesin')->andReturn(null);
 
     $project = codexProject();
 
@@ -207,6 +277,61 @@ it('menandai kandidat gagal kalau runner Codex tidak bisa dilepas', function () 
         ->assertSessionHas('error');
 
     expect($project->mockupCandidates()->whereNotNull('failure_reason')->count())->toBe(3);
+});
+
+it('mencatat kegagalan status bila API key belum dikonfigurasi', function () {
+    config(['services.openai.key' => null]);
+    $project = codexProject();
+
+    expect(app(MockupOpenAiLauncher::class)->launch($project))->toBeFalse()
+        ->and(app(MockupCodexState::class)->read($project))
+        ->toMatchArray([
+            'keadaan' => MockupCodexState::KEADAAN_GAGAL,
+            'pesan' => 'OPENAI_API_KEY belum diatur pada server.',
+        ]);
+});
+
+it('memasukkan kandidat ke queue satu per satu tanpa menjalankan proses dari request web', function () {
+    config([
+        'services.openai.key' => 'test-openai-key',
+        'queue.default' => 'database',
+    ]);
+    Bus::fake();
+
+    $project = codexProject();
+    $candidates = collect([1, 2, 3])->map(fn (int $number) => codexCandidate($project, $number));
+
+    expect(app(MockupOpenAiLauncher::class)->launch($project))->toBeTrue();
+
+    Bus::assertDispatchedTimes(GenerateMockupCandidate::class, 3);
+    Bus::assertDispatched(GenerateMockupCandidate::class, fn (GenerateMockupCandidate $job) =>
+        $job->projectId === $project->id
+        && $job->candidateId === $candidates[0]->id
+        && $job->candidateNumber === 1
+        && $job->queuedCandidates === 3
+    );
+
+    expect(app(MockupCodexState::class)->read($project))
+        ->toMatchArray([
+            'keadaan' => MockupCodexState::KEADAAN_MENUNGGU,
+            'queued_candidate_ids' => $candidates->pluck('id')->all(),
+        ]);
+});
+
+it('menolak queue sync agar generasi panjang tidak berjalan dalam request web', function () {
+    config([
+        'services.openai.key' => 'test-openai-key',
+        'queue.default' => 'sync',
+    ]);
+    Bus::fake();
+
+    $project = codexProject();
+
+    expect(app(MockupOpenAiLauncher::class)->masalahMesin())
+        ->toBe('Queue belum memakai worker latar. Atur QUEUE_CONNECTION=database dan aktifkan worker agar mockup tidak berjalan di request web.')
+        ->and(app(MockupOpenAiLauncher::class)->launch($project))->toBeFalse();
+
+    Bus::assertNothingDispatched();
 });
 
 it('melaporkan berhenti lewat endpoint status saat denyut runner basi', function () {
@@ -239,7 +364,7 @@ it('melaporkan berhenti lewat endpoint status saat denyut runner basi', function
 });
 
 it('melepas draf basi dan melepas runner lagi saat kandidat dibuat ulang', function () {
-    $this->mock(MockupCodexLauncher::class)
+    $this->mock(MockupOpenAiLauncher::class)
         ->shouldReceive('launch')
         ->once()
         ->andReturn(true);
@@ -262,8 +387,8 @@ it('melepas draf basi dan melepas runner lagi saat kandidat dibuat ulang', funct
         ->and($rows[1]->candidate_number)->toBe(2);
 });
 
-it('menolak buat ulang selama runner Codex masih memegang kunci', function () {
-    $this->mock(MockupCodexLauncher::class)->shouldNotReceive('launch');
+it('menolak buat ulang selama runner masih memegang kunci', function () {
+    $this->mock(MockupOpenAiLauncher::class)->shouldNotReceive('launch');
 
     $project = codexProject();
     $candidate = codexCandidate($project, 1, ['status' => MockupCandidate::STATUS_AWAITING_REVIEW]);
@@ -286,7 +411,7 @@ it('menolak buat ulang selama runner Codex masih memegang kunci', function () {
 });
 
 it('membuat ulang semua kandidat gagal lewat satu tombol tanpa menyentuh yang siap', function () {
-    $this->mock(MockupCodexLauncher::class)
+    $this->mock(MockupOpenAiLauncher::class)
         ->shouldReceive('launch')
         ->once()
         ->andReturn(true);
@@ -310,8 +435,8 @@ it('membuat ulang semua kandidat gagal lewat satu tombol tanpa menyentuh yang si
         ->and($rows->where('candidate_number', 3)->last()->isRunning())->toBeTrue();
 });
 
-it('menolak buat ulang semua selama runner Codex masih memegang kunci', function () {
-    $this->mock(MockupCodexLauncher::class)->shouldNotReceive('launch');
+it('menolak buat ulang semua selama runner masih memegang kunci', function () {
+    $this->mock(MockupOpenAiLauncher::class)->shouldNotReceive('launch');
 
     $project = codexProject();
     codexCandidate($project, 1, ['failure_reason' => 'gagal.']);
@@ -407,4 +532,96 @@ it('melewati tahap foto ketika halaman tidak memakai foto sama sekali', function
     } finally {
         File::deleteDirectory($dir);
     }
+});
+
+it('menyalin logo dan foto klien ke folder kerja Codex beserta daftarnya', function () {
+    Storage::fake('public');
+    $project = codexProject();
+
+    codexAset($project, 'logo', 'logo-klien.png', codexPng(2000));
+    codexAset($project, 'foto', 'gudang.jpg', codexPng(2000));
+
+    $kerja = $this->codexBase . '/aset-' . uniqid();
+    File::ensureDirectoryExists($kerja);
+
+    $berkas = (new MockupCodexAssets)->letakan($project, $kerja);
+
+    expect($berkas)->toBe([
+        ['jalur' => 'aset/logo-1.png', 'kategori' => 'logo', 'asal' => 'logo-klien.png'],
+        ['jalur' => 'aset/foto-1.jpg', 'kategori' => 'foto', 'asal' => 'gudang.jpg'],
+    ])->and(File::exists($kerja . '/aset/logo-1.png'))->toBeTrue();
+
+    $daftar = (string) file_get_contents($kerja . '/aset.txt');
+
+    expect($daftar)->toContain('ASET MILIK KLIEN')
+        ->toContain('`aset/logo-1.png` — Logo Klien (nama asli: logo-klien.png)')
+        ->toContain('mengurangi satu foto yang harus dibuat')
+        ->not->toContain('Referensi Desain');
+});
+
+it('melewati berkas yang bukan gambar dan tidak menulis daftar untuk proyek kosong', function () {
+    Storage::fake('public');
+    $project = codexProject();
+
+    codexAset($project, 'dokumen', 'profil.pdf', 'bukan gambar');
+    codexAset($project, 'foto', 'brosur.zip', 'bukan gambar');
+    codexAset($project, 'logo', 'besar.png', str_repeat("\0", 10 * 1024 * 1024));
+
+    $kerja = $this->codexBase . '/kosong-' . uniqid();
+    File::ensureDirectoryExists($kerja);
+
+    // Ukuran tidak lagi menyaring: bahan klien sebesar apa pun ikut dipakai.
+    $berkas = (new MockupCodexAssets)->letakan($project, $kerja);
+
+    expect($berkas)->toBe([
+        ['jalur' => 'aset/logo-1.png', 'kategori' => 'logo', 'asal' => 'besar.png'],
+    ])->and(File::exists($kerja . '/aset/logo-1.png'))->toBeTrue();
+
+    // Proyek tanpa satu pun aset: folder kerja tetap hanya berisi brief.txt.
+    $tanpaAset = codexProject();
+
+    expect((new MockupCodexAssets)->letakan($tanpaAset, $kerja))->toBe([]);
+});
+
+it('menyalin seluruh foto klien tanpa membatasi jumlah', function () {
+    Storage::fake('public');
+    $project = codexProject();
+
+    for ($i = 1; $i <= 10; $i++) {
+        codexAset($project, 'foto', 'foto-' . $i . '.png', codexPng(500));
+    }
+
+    $kerja = $this->codexBase . '/sepuluh-' . uniqid();
+    File::ensureDirectoryExists($kerja);
+
+    $berkas = (new MockupCodexAssets)->letakan($project, $kerja);
+
+    expect($berkas)->toHaveCount(10)
+        ->and($berkas[0]['jalur'])->toBe('aset/foto-1.png')
+        ->and($berkas[9]['jalur'])->toBe('aset/foto-10.png');
+});
+
+it('menyebut daftar aset di perintah Codex hanya kalau asetnya ada', function () {
+    if (app(MockupCodexState::class)->nodeBinary() === null) {
+        $this->markTestSkipped('Node.js tidak ditemukan di mesin ini.');
+    }
+
+    $kerja = $this->codexBase . '/perintah-' . uniqid();
+    File::ensureDirectoryExists($kerja);
+
+    $runner = app(MockupCodexRunner::class);
+    $baca = new ReflectionMethod($runner, 'perintah');
+    $baca->setAccessible(true);
+
+    $perintahTanpa = $baca->invoke($runner, $kerja);
+    $tanpaAset = (string) end($perintahTanpa);
+
+    File::put($kerja . '/aset.txt', '# ASET MILIK KLIEN');
+
+    $perintahDengan = $baca->invoke($runner, $kerja);
+    $denganAset = (string) end($perintahDengan);
+
+    expect($tanpaAset)->toContain('brief.txt')
+        ->not->toContain('aset.txt')
+        ->and($denganAset)->toContain('brief.txt dan aset.txt');
 });

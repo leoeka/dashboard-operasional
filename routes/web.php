@@ -49,6 +49,7 @@ Route::middleware(['auth'])->group(function () {
     Route::delete('/projects/{project}', [ProjectController::class, 'destroy'])->name('pages.projects.destroy');
     Route::post('/projects/{project}/files', [ProjectController::class, 'storeFile'])->name('pages.projects.files.store');
     Route::delete('/projects/{project}/files/{file}', [ProjectController::class, 'destroyFile'])->name('pages.projects.files.destroy');
+    Route::post('/projects/{project}/design-reference', [ProjectController::class, 'storeReference'])->name('pages.projects.reference.store');
 
     // 5. AI Workspace
     Route::get('/project-workspace', [AiWorkspaceController::class, 'aiWorkspace'])->name('pages.project-workspace');
