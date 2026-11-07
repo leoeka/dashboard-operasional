@@ -63,7 +63,9 @@ class AnalyzeCtrGapJob implements ShouldQueue
         // Prefer the report already fetched through the Search Console step.
         // That report is the project's linked data and avoids a second OAuth/API
         // request when the connection has already succeeded.
-        $storedRows = $this->project->seo_requirements['search_console']['top_queries'] ?? [];
+        $storedRows = $this->project->seo_requirements['search_console']['ctr_gap_queries']
+            ?? $this->project->seo_requirements['search_console']['top_queries']
+            ?? [];
         $rows = collect($storedRows)
             ->filter(fn ($row) => is_array($row))
             ->map(fn ($row) => [

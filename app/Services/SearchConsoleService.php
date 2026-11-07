@@ -78,10 +78,24 @@ class SearchConsoleService
         // latest three incomplete dates from the end of the range.
         $startDate = now()->subDays($days + 2)->format('Y-m-d');
         $endDate = now()->subDays(3)->format('Y-m-d');
+        $ctrStartDate = now()->subDays(92)->format('Y-m-d');
 
         try {
             $totals = $this->query($accessToken, $property, $startDate, $endDate, []);
             $topQueries = $this->query($accessToken, $property, $startDate, $endDate, ['query'], 10);
+            // CTR-gap needs a larger sample and its own 90-day window. Keep
+            // the 10-row traffic-report list unchanged for the UI.
+            $ctrGapQueries = collect($this->query($accessToken, $property, $ctrStartDate, $endDate, ['query'], 100))
+                ->map(fn ($row) => [
+                    'keyword' => $row['keys'][0] ?? null,
+                    'clicks' => (int) ($row['clicks'] ?? 0),
+                    'impressions' => (int) ($row['impressions'] ?? 0),
+                    'ctr' => (float) ($row['ctr'] ?? 0),
+                    'position' => (float) ($row['position'] ?? 0),
+                ])
+                ->filter(fn ($row) => filled($row['keyword']))
+                ->values()
+                ->all();
             $byDevice = $this->query($accessToken, $property, $startDate, $endDate, ['device'], 10);
             $topPages = $this->query($accessToken, $property, $startDate, $endDate, ['page'], 10);
             $dailyTrend = $this->query($accessToken, $property, $startDate, $endDate, ['date'], 400);
@@ -90,6 +104,7 @@ class SearchConsoleService
                 'property' => $property,
                 'totals' => $totals[0] ?? null,
                 'top_queries' => $topQueries,
+                'ctr_gap_queries' => $ctrGapQueries,
                 'top_pages' => $topPages,
                 'by_device' => $byDevice,
                 'daily_trend' => $dailyTrend,

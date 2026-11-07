@@ -273,7 +273,11 @@ class SeoBacklinkController extends Controller
         );
     }
 
-    public function analyzeSearchConsole(Project $project, SearchConsoleService $service)
+    public function analyzeSearchConsole(
+        Project $project,
+        SearchConsoleService $service,
+        \App\Services\CtrGapAnalyzer $ctrGapAnalyzer,
+    )
     {
         $url = $project->seo_requirements['target_url']
             ?? $project->backlink_requirements['target_url']
@@ -288,15 +292,20 @@ class SeoBacklinkController extends Controller
         if (!$result) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch data — check whether this website is verified in the office Search Console account, or whether the GOOGLE_SEARCH_CONSOLE_REFRESH_TOKEN credential has not been set.',
+                'message' => 'Search Console belum dapat membaca property situs. Pastikan GOOGLE_SEARCH_CONSOLE_REFRESH_TOKEN masih valid (OAuth client aktif dan memiliki scope webmasters.readonly), lalu pastikan akun Google pemilik token diberi akses ke property situs ini di Search Console.',
             ], 422);
         }
 
         $seo = $project->seo_requirements ?? [];
         $seo['search_console'] = array_merge($result, ['analyzed_at' => now()->toDateTimeString()]);
+        $seo['ctr_gaps'] = $ctrGapAnalyzer->analyze(
+            $result['ctr_gap_queries'] ?? $result['top_queries'] ?? [],
+            (int) ($result['ctr_gap_queries_period_days'] ?? 90),
+        );
         $project->update(['seo_requirements' => $seo]);
 
         $project->logActivity('Search Console report updated');
+        $project->logActivity('CTR gap dianalisis dari data Search Console');
 
         return response()->json(['success' => true]);
     }
